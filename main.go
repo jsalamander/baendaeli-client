@@ -37,7 +37,12 @@ func main() {
 		log.Fatalf("Error loading config: %v", err)
 	}
 
-	log.Printf("Loaded config - API URL: %s", config.BaendaeliURL)
+	// Validate configuration
+	if config.BaendaeliAPIKey == "" || config.BaendaeliURL == "" {
+		log.Fatal("Configuration missing required fields")
+	}
+
+	log.Println("Configuration loaded successfully")
 
 	// Create router
 	r := chi.NewRouter()

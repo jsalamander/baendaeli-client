@@ -28,7 +28,7 @@ The web server will start on `http://localhost:8000`.
 
 ### Prerequisites
 
-- Go 1.21 or higher
+- Go 1.24 or higher
 
 ### Building
 
