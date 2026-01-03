@@ -1,2 +1,4 @@
 BAENDAELI_API_KEY: "your-api-key-here"
 BAENDAELI_URL: "https://api.baendaeli.example.com"
+DEFAULT_AMOUNT_CENTS: 2000
+SUCCESS_OVERLAY_MILLIS: 10000
