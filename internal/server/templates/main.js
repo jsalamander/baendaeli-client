@@ -4,7 +4,6 @@ const qrEl = document.getElementById('qr');
 const errorEl = document.getElementById('error');
 const errorContainer = document.getElementById('errorContainer');
 const retryBtn = document.getElementById('retry');
-const paymentIdEl = document.getElementById('paymentId');
 const successBanner = document.getElementById('successBanner');
 const internetDot = document.getElementById('internetDot');
 const internetStatusText = document.getElementById('internetStatusText');
@@ -29,7 +28,6 @@ retryBtn.addEventListener('click', () => {
 	errorEl.textContent = '';
 	errorContainer.classList.add('hidden');
 	qrEl.innerHTML = getLoadingSpinner();
-	paymentIdEl.classList.add('hidden');
 	clearPoll();
 	clearExpiry();
 	start();
@@ -64,7 +62,6 @@ function clearExpiry() {
 
 async function start() {
 	updateStatus('Zahlungsformular wird erstellt...', 'badge-primary');
-	paymentIdEl.classList.add('hidden');
 	errorEl.textContent = '';
 	errorContainer.classList.add('hidden');
 	successBanner.classList.add('hidden');
