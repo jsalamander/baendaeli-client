@@ -37,6 +37,42 @@ This guarantees the motor runs for exactly the same duration in both directions.
 
 ## Calibration Procedure
 
+### Step 0: CLI Testing Commands (Recommended First Step)
+
+Before starting full calibration, use the CLI commands to test actuator movement:
+
+```bash
+# Bring actuator to home position
+./baendaeli-client home
+
+# Test small extension (500ms = 0.5 seconds)
+./baendaeli-client extend 500
+
+# Return to home
+./baendaeli-client home
+
+# Test with your configured movement time (e.g., 2000ms = 2 seconds)
+./baendaeli-client extend 2000
+
+# Manually retract back
+./baendaeli-client retract 2000
+
+# Or use home to fully retract
+./baendaeli-client home
+```
+
+**CLI Commands:**
+- `baendaeli-client extend <ms>` - Extend for specified milliseconds
+- `baendaeli-client retract <ms>` - Retract for specified milliseconds  
+- `baendaeli-client home` - Fully retract to home position
+- `baendaeli-client help` - Show usage information
+
+These commands are useful for:
+- Testing actuator hardware without starting the web server
+- Finding the optimal movement time through experimentation
+- Verifying equal forward/backward movement
+- Emergency manual control during setup
+
 ### Step 1: Measure Full Travel Distance
 
 1. Start with actuator fully retracted (home position)
@@ -45,14 +81,33 @@ This guarantees the motor runs for exactly the same duration in both directions.
 
 ### Step 2: Determine Movement Time
 
-Run the actuator with different timing values to find optimal duration:
+Use the CLI commands to find the optimal duration through experimentation:
 
 ```bash
-# Edit config.yaml and test different values
-ACTUATOR_MOVEMENT_SECONDS: 1  # Start conservative
-# Test and observe actual travel distance
-# Increase if you want more extension
-ACTUATOR_MOVEMENT_SECONDS: 2  # Typical value
+# Start conservative with 1 second
+./baendaeli-client extend 1000
+# Measure how far it extends, then return to home
+./baendaeli-client home
+
+# Try 1.5 seconds
+./baendaeli-client extend 1500
+./baendaeli-client home
+
+# Try 2 seconds (typical value)
+./baendaeli-client extend 2000
+./baendaeli-client home
+
+# Verify retract matches extend
+./baendaeli-client extend 2000
+./baendaeli-client retract 2000
+# Should be back at home position
+```
+
+Once you find the optimal time, update your config:
+
+```yaml
+# config.yaml
+ACTUATOR_MOVEMENT_SECONDS: 2  # Your tested value
 ```
 
 **Important:** 

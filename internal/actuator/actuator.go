@@ -222,6 +222,59 @@ func (a *Actuator) Trigger() (int, error) {
 	return totalMs, nil
 }
 
+// Extend moves the actuator forward for the specified duration (for testing)
+func Extend(duration time.Duration) error {
+	if actuator == nil || !actuator.enabled {
+		return fmt.Errorf("actuator not initialized or disabled")
+	}
+
+	log.Printf("Actuator: extending for %v...", duration)
+	// Extend: IN1 HIGH, IN2 LOW
+	if err := actuator.in1Pin.Out(gpio.High); err != nil {
+		return fmt.Errorf("failed to set IN1 high: %w", err)
+	}
+	if err := actuator.in2Pin.Out(gpio.Low); err != nil {
+		return fmt.Errorf("failed to set IN2 low: %w", err)
+	}
+
+	preciseDelay(duration)
+
+	// Stop motor
+	if err := actuator.stopMotor(); err != nil {
+		return fmt.Errorf("failed to stop after extend: %w", err)
+	}
+
+	actuator.isHome = false
+	log.Println("Actuator: extend complete")
+	return nil
+}
+
+// Retract moves the actuator backward for the specified duration (for testing)
+func Retract(duration time.Duration) error {
+	if actuator == nil || !actuator.enabled {
+		return fmt.Errorf("actuator not initialized or disabled")
+	}
+
+	log.Printf("Actuator: retracting for %v...", duration)
+	// Retract: IN1 LOW, IN2 HIGH
+	if err := actuator.in1Pin.Out(gpio.Low); err != nil {
+		return fmt.Errorf("failed to set IN1 low: %w", err)
+	}
+	if err := actuator.in2Pin.Out(gpio.High); err != nil {
+		return fmt.Errorf("failed to set IN2 high: %w", err)
+	}
+
+	preciseDelay(duration)
+
+	// Stop motor
+	if err := actuator.stopMotor(); err != nil {
+		return fmt.Errorf("failed to stop after retract: %w", err)
+	}
+
+	log.Println("Actuator: retract complete")
+	return nil
+}
+
 // Trigger calls the actuator if initialized and returns timing info
 func Trigger() (int, error) {
 	if actuator == nil {

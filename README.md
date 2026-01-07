@@ -57,11 +57,14 @@ Optional GPIO actuator settings:
 - `ACTUATOR_ENA_PIN`: ENA pin for the motor driver
 - `ACTUATOR_IN1_PIN`: IN1 pin for direction control
 - `ACTUATOR_IN2_PIN`: IN2 pin for direction control
-- `ACTUATOR_EXTEND_SECONDS`: Duration for extending the actuator
-- `ACTUATOR_RETRACT_SECONDS`: Duration for retracting the actuator
+- `ACTUATOR_MOVEMENT_SECONDS`: Duration for both extending and retracting (ensures equal movement)
 - `ACTUATOR_PAUSE_SECONDS`: Pause duration between extend and retract
 
+See [Actuator Calibration Guide](docs/actuator-calibration.md) for detailed setup instructions.
+
 ## Running
+
+### Web Server (Default)
 
 ```bash
 baendaeli-client
@@ -69,10 +72,34 @@ baendaeli-client
 
 The web server will start on `http://localhost:8000`.
 
+### Actuator Testing Commands
+
+For testing and calibrating the actuator without starting the server:
+
+```bash
+# Extend actuator for 2000ms (2 seconds)
+baendaeli-client extend 2000
+
+# Retract actuator for 2000ms (2 seconds)
+baendaeli-client retract 2000
+
+# Bring actuator to home position (full retraction)
+baendaeli-client home
+
+# Show help
+baendaeli-client help
+```
+
+These commands are useful for:
+- Finding the optimal movement duration during calibration
+- Testing hardware connections
+- Manual control during setup
+- Emergency positioning
+
 If building from source:
 
 ```bash
-go run .
+go run . extend 2000
 ```
 
 ## Development

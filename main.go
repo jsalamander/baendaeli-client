@@ -6,7 +6,9 @@ import (
 "net/http"
 "os"
 "os/signal"
+"strconv"
 "syscall"
+"time"
 
 "github.com/jsalamander/baendaeli-client/internal/actuator"
 "github.com/jsalamander/baendaeli-client/internal/config"
@@ -14,6 +16,24 @@ import (
 )
 
 func main() {
+// Check for subcommands
+if len(os.Args) > 1 {
+switch os.Args[1] {
+case "extend":
+runExtendCommand()
+return
+case "retract":
+runRetractCommand()
+return
+case "home":
+runHomeCommand()
+return
+case "help", "-h", "--help":
+printUsage()
+return
+}
+}
+
 // Load configuration
 cfg, err := config.Load("config.yaml")
 if err != nil {
@@ -66,4 +86,130 @@ log.Fatalf("Server error: %v", err)
 	// Wait for interrupt signal
 	sig := <-sigChan
 	fmt.Printf("\nReceived signal: %v. Shutting down...\n", sig)
+}
+
+// printUsage displays help information
+func printUsage() {
+	fmt.Println("Baendaeli Client - Payment QR Display System")
+	fmt.Println()
+	fmt.Println("Usage:")
+	fmt.Println("  baendaeli-client                    Start the web server (default)")
+	fmt.Println("  baendaeli-client extend <ms>        Extend actuator for specified milliseconds")
+	fmt.Println("  baendaeli-client retract <ms>       Retract actuator for specified milliseconds")
+	fmt.Println("  baendaeli-client home               Bring actuator to home position")
+	fmt.Println("  baendaeli-client help               Show this help message")
+	fmt.Println()
+	fmt.Println("Examples:")
+	fmt.Println("  baendaeli-client extend 2000        Extend for 2 seconds")
+	fmt.Println("  baendaeli-client retract 1500       Retract for 1.5 seconds")
+	fmt.Println("  baendaeli-client home               Retract fully to home position")
+	fmt.Println()
+	fmt.Println("Note: Actuator commands require ACTUATOR_ENABLED: true in config.yaml")
+}
+
+// runExtendCommand extends the actuator for specified milliseconds
+func runExtendCommand() {
+	if len(os.Args) < 3 {
+		fmt.Println("Error: extend command requires duration in milliseconds")
+		fmt.Println("Usage: baendaeli-client extend <ms>")
+		fmt.Println("Example: baendaeli-client extend 2000")
+		os.Exit(1)
+	}
+
+	ms, err := strconv.Atoi(os.Args[2])
+	if err != nil || ms <= 0 {
+		fmt.Printf("Error: invalid duration '%s'. Must be a positive integer (milliseconds)\n", os.Args[2])
+		os.Exit(1)
+	}
+
+	duration := time.Duration(ms) * time.Millisecond
+	fmt.Printf("Extending actuator for %v (%dms)...\n", duration, ms)
+
+	if err := initActuatorForCommand(); err != nil {
+		fmt.Printf("Error: %v\n", err)
+		os.Exit(1)
+	}
+	defer actuator.Cleanup()
+
+	if err := actuator.Extend(duration); err != nil {
+		fmt.Printf("Error extending actuator: %v\n", err)
+		os.Exit(1)
+	}
+
+	fmt.Println("✓ Extend complete")
+}
+
+// runRetractCommand retracts the actuator for specified milliseconds
+func runRetractCommand() {
+	if len(os.Args) < 3 {
+		fmt.Println("Error: retract command requires duration in milliseconds")
+		fmt.Println("Usage: baendaeli-client retract <ms>")
+		fmt.Println("Example: baendaeli-client retract 2000")
+		os.Exit(1)
+	}
+
+	ms, err := strconv.Atoi(os.Args[2])
+	if err != nil || ms <= 0 {
+		fmt.Printf("Error: invalid duration '%s'. Must be a positive integer (milliseconds)\n", os.Args[2])
+		os.Exit(1)
+	}
+
+	duration := time.Duration(ms) * time.Millisecond
+	fmt.Printf("Retracting actuator for %v (%dms)...\n", duration, ms)
+
+	if err := initActuatorForCommand(); err != nil {
+		fmt.Printf("Error: %v\n", err)
+		os.Exit(1)
+	}
+	defer actuator.Cleanup()
+
+	if err := actuator.Retract(duration); err != nil {
+		fmt.Printf("Error retracting actuator: %v\n", err)
+		os.Exit(1)
+	}
+
+	fmt.Println("✓ Retract complete")
+}
+
+// runHomeCommand brings the actuator to home position
+func runHomeCommand() {
+	fmt.Println("Bringing actuator to home position (full retraction)...")
+
+	if err := initActuatorForCommand(); err != nil {
+		fmt.Printf("Error: %v\n", err)
+		os.Exit(1)
+	}
+	defer actuator.Cleanup()
+
+	actuator.Home()
+	fmt.Println("✓ Homing complete")
+}
+
+// initActuatorForCommand initializes the actuator for testing commands
+func initActuatorForCommand() error {
+	cfg, err := config.Load("config.yaml")
+	if err != nil {
+		return fmt.Errorf("failed to load config: %w", err)
+	}
+
+	if !cfg.ActuatorEnabled {
+		return fmt.Errorf("actuator is disabled in config.yaml. Set ACTUATOR_ENABLED: true to use actuator commands")
+	}
+
+	cfg.SetDefaults()
+
+	actuatorCfg := actuator.Config{
+		Enabled:      cfg.ActuatorEnabled,
+		ENAPin:       cfg.ActuatorENAPin,
+		IN1Pin:       cfg.ActuatorIN1Pin,
+		IN2Pin:       cfg.ActuatorIN2Pin,
+		MovementTime: cfg.ActuatorMovement,
+		PauseTime:    cfg.ActuatorPause,
+	}
+
+	if err := actuator.Init(actuatorCfg); err != nil {
+		return fmt.Errorf("actuator initialization failed: %w", err)
+	}
+
+	return nil
 }
