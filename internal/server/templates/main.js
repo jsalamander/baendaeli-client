@@ -60,7 +60,7 @@ function clearExpiry() {
 }
 
 async function start() {
-	updateStatus('Wait: creating payment...', 'badge-info');
+	updateStatus('Zahlungsformular wird erstellt...', 'badge-primary');
 	paymentIdEl.classList.add('hidden');
 	errorEl.textContent = '';
 	errorContainer.classList.add('hidden');
@@ -73,7 +73,7 @@ async function start() {
 	try {
 		const data = await createPayment(defaultAmount);
 		
-		updateStatus('Payment created', 'badge-info');
+		updateStatus('Zahlung wird erstellt...', 'badge-primary');
 		if (data.id) {
 			paymentIdEl.textContent = 'ID ' + data.id;
 			paymentIdEl.classList.remove('hidden');
@@ -96,9 +96,9 @@ async function pollStatus(id) {
 	const attemptStarted = performance.now();
 	let diagUpdated = false;
 	try {
-		const latencyMs = Math.round(performance.now() - attemptStarted);
 		const timestamp = Date.now();
-		const data = await getPaymentStatus(id, latencyMs, timestamp);
+		const data = await getPaymentStatus(id, null, timestamp);
+		const latencyMs = Math.round(performance.now() - attemptStarted);
 
 		if (!data) {
 			return;
@@ -112,7 +112,7 @@ async function pollStatus(id) {
 		const status = (data.status || '').toLowerCase();
 		switch (status) {
 			case 'waiting':
-				updateStatus('Warten auf Zahlung...', 'badge-info');
+			updateStatus('Warten auf Zahlung...', 'badge-warning');
 				pollTimer = setTimeout(() => pollStatus(id), 2000);
 				break;
 			case 'success':
