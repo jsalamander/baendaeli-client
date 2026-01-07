@@ -10,7 +10,7 @@
 - Raspberry Pi with network access
 - sudo/root access
 - A published GitHub release asset named with arch suffix (linux-armhf or linux-arm64)
-- Chromium browser (optional, for kiosk mode): `sudo apt-get install -y chromium-browser`
+- Chromium browser (optional, for kiosk mode): `sudo apt-get install -y chromium-browser` or `chromium`
 
 ## One-shot install
 ```bash
@@ -83,6 +83,8 @@ sudo systemctl start baendaeli-client-kiosk.service
 **If Chromium is missing:**
 ```bash
 sudo apt-get update && sudo apt-get install -y chromium-browser
+# Or on newer systems:
+sudo apt-get install -y chromium
 ```
 
 ## Config & secrets

@@ -62,8 +62,22 @@ EOF
 }
 
 write_kiosk_service() {
+  # Detect chromium path
+  local chromium_path=""
+  if command -v chromium-browser >/dev/null 2>&1; then
+    chromium_path=$(command -v chromium-browser)
+    echo "[INFO] Detected Chromium at: ${chromium_path}" >&2
+  elif command -v chromium >/dev/null 2>&1; then
+    chromium_path=$(command -v chromium)
+    echo "[INFO] Detected Chromium at: ${chromium_path}" >&2
+  else
+    echo "[WARNING] Chromium not found. Install with: sudo apt-get install -y chromium-browser" >&2
+    chromium_path="/usr/bin/chromium-browser"
+    echo "[WARNING] Using default path: ${chromium_path}" >&2
+  fi
+
   echo "[INFO] Writing kiosk systemd service: ${KIOSK_SERVICE}" >&2
-  if ! cat >/etc/systemd/system/${KIOSK_SERVICE} <<'EOF'
+  if ! cat >/etc/systemd/system/${KIOSK_SERVICE} <<EOF
 [Unit]
 Description=Baendaeli Client Kiosk (Chromium)
 After=baendaeli-client.service
@@ -75,7 +89,7 @@ Type=simple
 Environment="DISPLAY=:0"
 Environment="XAUTHORITY=/root/.Xauthority"
 ExecStartPre=/bin/sleep 2
-ExecStart=/usr/bin/chromium-browser --kiosk --noerrdialogs --disable-session-crashed-bubble --disable-component-update --disable-infobars --disable-default-apps --disable-preconnect http://localhost:8000
+ExecStart=${chromium_path} --kiosk --noerrdialogs --disable-session-crashed-bubble --disable-component-update --disable-infobars --disable-default-apps --disable-preconnect http://localhost:8000
 Restart=on-failure
 RestartSec=5
 
