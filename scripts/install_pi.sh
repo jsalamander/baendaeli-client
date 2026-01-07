@@ -21,15 +21,19 @@ require_root() {
     echo "This script must be run as root (sudo)." >&2
     exit 1
   fi
+  echo "[INFO] Running as root" >&2
 }
 
 install_binary() {
-  echo "Installing via binstaller (${INSTALLER_URL})" >&2
+  echo "[INFO] Installing via binstaller (${INSTALLER_URL})" >&2
+  echo "[INFO] BINSTALLER_INSTALL_DIR=/usr/local/bin" >&2
   BINSTALLER_INSTALL_DIR="/usr/local/bin" \
     curl -fsSL "$INSTALLER_URL" | bash
+  echo "[INFO] Binary installation complete" >&2
 }
 
 write_service() {
+  echo "[INFO] Writing systemd service: ${SERVICE_NAME}" >&2
   cat >/etc/systemd/system/${SERVICE_NAME} <<'EOF'
 [Unit]
 Description=Baendaeli Client
@@ -47,9 +51,11 @@ RestartSec=3
 [Install]
 WantedBy=multi-user.target
 EOF
+  echo "[INFO] Service file written to /etc/systemd/system/${SERVICE_NAME}" >&2
 }
 
 write_update_script() {
+  echo "[INFO] Writing update script to /usr/local/sbin/baendaeli-update.sh" >&2
   cat >/usr/local/sbin/baendaeli-update.sh <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
@@ -68,17 +74,37 @@ main() {
 main "$@"
 EOF
   chmod +x /usr/local/sbin/baendaeli-update.sh
+  echo "[INFO] Update script written and made executable" >&2
 }
 
 main() {
+  echo "[INFO] Starting baendaeli-client installation" >&2
+  echo "[INFO] Owner: ${OWNER}, Repo: ${REPO}" >&2
+  echo "[INFO] Install directory: ${INSTALL_BIN}" >&2
+  echo "[INFO] Work directory: ${WORKDIR}" >&2
+  echo "[INFO] Config directory: ${WORKDIR}" >&2
+  
   require_root
+  
+  echo "[INFO] Creating work directory: ${WORKDIR}" >&2
   mkdir -p "$WORKDIR"
+  echo "[INFO] Creating/touching env file: ${ENV_FILE}" >&2
   touch "$ENV_FILE"
+  
+  echo "[INFO] Installing binary from: ${INSTALLER_URL}" >&2
   install_binary
+  
   write_service
+  
   write_update_script
+  
+  echo "[INFO] Reloading systemd daemon" >&2
   systemctl daemon-reload
+  
+  echo "[INFO] Enabling service: ${SERVICE_NAME}" >&2
   systemctl enable --now ${SERVICE_NAME}
+  
+  echo "[SUCCESS] Installation complete!" >&2
   echo "Installed. Edit $ENV_FILE for secrets and place config.yaml in $WORKDIR." >&2
   echo "Manual update: sudo /usr/local/sbin/baendaeli-update.sh" >&2
 }
