@@ -3,6 +3,7 @@ package server
 import (
 	"bytes"
 	"encoding/json"
+	"html/template"
 	"io"
 	"log"
 	"net/http"
@@ -73,9 +74,25 @@ func (s *Server) handleServeFile(filename string) http.HandlerFunc {
 			DefaultAmount:    s.config.DefaultAmount,
 			SuccessOverlayMs: s.config.SuccessOverlayMs,
 		}
-		if err := indexTemplate.ExecuteTemplate(w, filename, data); err != nil {
-			log.Printf("failed to serve %s: %v", filename, err)
+
+		var tmpl *template.Template
+		switch filename {
+		case "main.js":
+			tmpl = mainJS
+		case "api.js":
+			tmpl = apiJS
+		case "ui.js":
+			tmpl = uiJS
+		case "qr.js":
+			tmpl = qrJS
+		default:
 			http.Error(w, "file not found", http.StatusNotFound)
+			return
+		}
+
+		if err := tmpl.Execute(w, data); err != nil {
+			log.Printf("failed to serve %s: %v", filename, err)
+			http.Error(w, "internal server error", http.StatusInternalServerError)
 			return
 		}
 	}
