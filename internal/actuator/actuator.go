@@ -1,4 +1,4 @@
-package main
+package actuator
 
 import (
 	"fmt"
@@ -10,14 +10,14 @@ import (
 	"periph.io/x/host/v3"
 )
 
-type ActuatorConfig struct {
-	Enabled        bool
-	ENAPin         string // e.g., "GPIO25"
-	IN1Pin         string // e.g., "GPIO8"
-	IN2Pin         string // e.g., "GPIO7"
-	ExtendTime     int    // seconds
-	RetractTime    int    // seconds
-	PauseTime      int    // seconds, pause between extend and retract
+type Config struct {
+	Enabled     bool
+	ENAPin      string // e.g., "GPIO25"
+	IN1Pin      string // e.g., "GPIO8"
+	IN2Pin      string // e.g., "GPIO7"
+	ExtendTime  int    // seconds
+	RetractTime int    // seconds
+	PauseTime   int    // seconds, pause between extend and retract
 }
 
 type ActuateResult struct {
@@ -38,8 +38,8 @@ type Actuator struct {
 
 var actuator *Actuator
 
-// InitActuator initializes GPIO and the actuator control pins
-func InitActuator(config ActuatorConfig) error {
+// Init initializes GPIO and the actuator control pins
+func Init(config Config) error {
 	if !config.Enabled {
 		log.Println("Actuator control disabled")
 		return nil
@@ -143,8 +143,8 @@ func (a *Actuator) Trigger() (int, error) {
 	return totalMs, nil
 }
 
-// TriggerActuator calls the actuator if initialized and returns timing info
-func TriggerActuator() (int, error) {
+// Trigger calls the actuator if initialized and returns timing info
+func Trigger() (int, error) {
 	if actuator == nil {
 		// No actuator configured; return mock timing (2+2+2 = 6 seconds)
 		time.Sleep(6 * time.Second)
@@ -154,7 +154,7 @@ func TriggerActuator() (int, error) {
 }
 
 // Cleanup closes GPIO resources
-func CleanupActuator() {
+func Cleanup() {
 	if actuator != nil {
 		actuator.enaPin.Out(gpio.Low)
 		actuator.enaPin.Halt()
