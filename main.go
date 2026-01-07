@@ -3,6 +3,7 @@ package main
 import (
 "fmt"
 "log"
+"net"
 "net/http"
 "os"
 "os/signal"
@@ -22,6 +23,9 @@ switch os.Args[1] {
 case "extend":
 runExtendCommand()
 return
+case "extract": // alias for extend (per request wording)
+runExtendCommand()
+return
 case "retract":
 runRetractCommand()
 return
@@ -29,6 +33,10 @@ case "home":
 runHomeCommand()
 return
 case "help", "-h", "--help":
+printUsage()
+return
+default:
+// Unknown subcommand: show usage and exit without starting server
 printUsage()
 return
 }
@@ -95,12 +103,14 @@ func printUsage() {
 	fmt.Println("Usage:")
 	fmt.Println("  baendaeli-client                    Start the web server (default)")
 	fmt.Println("  baendaeli-client extend <ms>        Extend actuator for specified milliseconds")
+	fmt.Println("  baendaeli-client extract <ms>       Alias for extend (same behavior)")
 	fmt.Println("  baendaeli-client retract <ms>       Retract actuator for specified milliseconds")
 	fmt.Println("  baendaeli-client home               Bring actuator to home position")
 	fmt.Println("  baendaeli-client help               Show this help message")
 	fmt.Println()
 	fmt.Println("Examples:")
 	fmt.Println("  baendaeli-client extend 2000        Extend for 2 seconds")
+	fmt.Println("  baendaeli-client extract 2000       Extend for 2 seconds (alias)")
 	fmt.Println("  baendaeli-client retract 1500       Retract for 1.5 seconds")
 	fmt.Println("  baendaeli-client home               Retract fully to home position")
 	fmt.Println()
@@ -122,16 +132,20 @@ func runExtendCommand() {
 		os.Exit(1)
 	}
 
+	printStopCommandsIfServerActive()
+
 	duration := time.Duration(ms) * time.Millisecond
 	fmt.Printf("Extending actuator for %v (%dms)...\n", duration, ms)
 
 	if err := initActuatorForCommand(); err != nil {
+		printStopCommandsIfServerActive()
 		fmt.Printf("Error: %v\n", err)
 		os.Exit(1)
 	}
 	defer actuator.Cleanup()
 
 	if err := actuator.Extend(duration); err != nil {
+		printStopCommandsIfServerActive()
 		fmt.Printf("Error extending actuator: %v\n", err)
 		os.Exit(1)
 	}
@@ -154,16 +168,20 @@ func runRetractCommand() {
 		os.Exit(1)
 	}
 
+	printStopCommandsIfServerActive()
+
 	duration := time.Duration(ms) * time.Millisecond
 	fmt.Printf("Retracting actuator for %v (%dms)...\n", duration, ms)
 
 	if err := initActuatorForCommand(); err != nil {
+		printStopCommandsIfServerActive()
 		fmt.Printf("Error: %v\n", err)
 		os.Exit(1)
 	}
 	defer actuator.Cleanup()
 
 	if err := actuator.Retract(duration); err != nil {
+		printStopCommandsIfServerActive()
 		fmt.Printf("Error retracting actuator: %v\n", err)
 		os.Exit(1)
 	}
@@ -175,7 +193,10 @@ func runRetractCommand() {
 func runHomeCommand() {
 	fmt.Println("Bringing actuator to home position (full retraction)...")
 
+	printStopCommandsIfServerActive()
+
 	if err := initActuatorForCommand(); err != nil {
+		printStopCommandsIfServerActive()
 		fmt.Printf("Error: %v\n", err)
 		os.Exit(1)
 	}
@@ -212,4 +233,21 @@ func initActuatorForCommand() error {
 	}
 
 	return nil
+}
+
+// printStopCommandsIfServerActive prints only the commands to stop services if port 8000 is in use
+func printStopCommandsIfServerActive() {
+	if isPortOpen("127.0.0.1:8000") || isPortOpen("[::1]:8000") {
+		fmt.Println("sudo systemctl stop baendaeli-client.service")
+		fmt.Println("sudo systemctl stop baendaeli-client-kiosk.service")
+	}
+}
+
+func isPortOpen(addr string) bool {
+	conn, err := net.DialTimeout("tcp", addr, 300*time.Millisecond)
+	if err == nil {
+		_ = conn.Close()
+		return true
+	}
+	return false
 }
