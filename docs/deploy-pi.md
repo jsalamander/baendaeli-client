@@ -12,7 +12,7 @@
 
 ## One-shot install
 ```bash
-curl -fsSL https://<your-github-pages-domain>/install_pi.sh | sudo bash
+curl -fsSL https://jsalamander.github.io/baendaeli-client/install_pi.sh | sudo bash
 
 # or fetch the raw script from GitHub
 curl -fsSL https://raw.githubusercontent.com/jsalamander/baendaeli-client/main/scripts/install_pi.sh | sudo bash
@@ -31,7 +31,7 @@ curl -fsSL https://raw.githubusercontent.com/jsalamander/baendaeli-client/main/s
 
 ## Quick start (summary)
 1) Run installer (one-shot):
-  - `curl -fsSL https://raw.githubusercontent.com/jsalamander/baendaeli-client/main/scripts/install_pi.sh | sudo bash`
+  - `curl -fsSL https://jsalamander.github.io/baendaeli-client/install_pi.sh | sudo bash`
 2) Add config & secrets:
   - Copy your config.yaml to /opt/baendaeli-client/config.yaml
   - Add secrets to /etc/baendaeli-client.env (KEY=VALUE lines), e.g. `BAENDAELI_API_KEY=...`

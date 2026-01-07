@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # Installs baendaeli-client as a systemd service on Raspberry Pi
-# - Downloads latest release binary from GitHub
+# - Uses binstaller-generated installer.sh from GitHub Pages
 # - Installs to /usr/local/bin/baendaeli-client
 # - Sets up /opt/baendaeli-client for config
 # - Registers systemd service and auto-update timer
@@ -16,6 +16,7 @@ ENV_FILE="/etc/${REPO}.env"
 SERVICE_NAME="${REPO}.service"
 UPDATE_SERVICE="${REPO}-update.service"
 UPDATE_TIMER="${REPO}-update.timer"
+INSTALLER_URL="https://jsalamander.github.io/baendaeli-client/installer.sh"
 
 require_root() {
   if [[ $EUID -ne 0 ]]; then
@@ -24,38 +25,10 @@ require_root() {
   fi
 }
 
-detect_arch() {
-  local arch
-  arch=$(uname -m)
-  case "$arch" in
-    armv7l|armv6l) echo "linux-armhf";;
-    aarch64) echo "linux-arm64";;
-    *) echo "linux-arm64";;
-  esac
-}
-
-fetch_latest_url() {
-  local arch="$1"
-  curl -s "https://api.github.com/repos/${OWNER}/${REPO}/releases/latest" \
-    | grep "browser_download_url" \
-    | grep "${arch}" \
-    | head -n1 \
-    | cut -d '"' -f4
-}
-
 install_binary() {
-  local arch url tmp
-  arch=$(detect_arch)
-  url=$(fetch_latest_url "$arch")
-  if [[ -z "$url" ]]; then
-    echo "Could not find release asset for arch ${arch}." >&2
-    exit 1
-  fi
-  echo "Downloading ${url}" >&2
-  tmp=$(mktemp)
-  curl -L "$url" -o "$tmp"
-  install -m 0755 "$tmp" "$INSTALL_BIN"
-  rm -f "$tmp"
+  echo "Installing via binstaller (${INSTALLER_URL})" >&2
+  BINSTALLER_INSTALL_DIR="/usr/local/bin" \
+    curl -fsSL "$INSTALLER_URL" | bash
 }
 
 write_service() {
@@ -111,33 +84,11 @@ OWNER="jsalamander"
 REPO="baendaeli-client"
 BINARY="baendaeli-client"
 INSTALL_BIN="/usr/local/bin/${BINARY}"
-
-arch() {
-  case "$(uname -m)" in
-    armv7l|armv6l) echo "linux-armhf";;
-    aarch64) echo "linux-arm64";;
-    *) echo "linux-arm64";;
-  esac
-}
-
-latest_url() {
-  curl -s "https://api.github.com/repos/${OWNER}/${REPO}/releases/latest" \
-    | grep "browser_download_url" \
-    | grep "$(arch)" \
-    | head -n1 \
-    | cut -d '"' -f4
-}
+INSTALLER_URL="https://jsalamander.github.io/baendaeli-client/installer.sh"
 
 main() {
-  url=$(latest_url)
-  if [[ -z "$url" ]]; then
-    echo "No release asset found for $(arch)" >&2
-    exit 1
-  fi
-  tmp=$(mktemp)
-  curl -L "$url" -o "$tmp"
-  install -m 0755 "$tmp" "$INSTALL_BIN"
-  rm -f "$tmp"
+  BINSTALLER_INSTALL_DIR="/usr/local/bin" \
+    curl -fsSL "$INSTALLER_URL" | bash
   systemctl restart baendaeli-client.service || true
 }
 
