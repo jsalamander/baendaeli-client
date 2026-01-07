@@ -65,17 +65,21 @@ check_config_permissions() {
   if [[ -f "$config_file" ]]; then
     local perms
     perms=$(stat -c "%a" "$config_file" 2>/dev/null || stat -f "%A" "$config_file" 2>/dev/null || echo "unknown")
-    if [[ "$perms" != "600" ]]; then
-      echo "[WARNING] Config file has insecure permissions: $perms (should be 600)" >&2
-      echo "[INFO] Fixing permissions..." >&2
-      if ! chmod 600 "$config_file"; then
-        echo "[ERROR] Failed to fix config file permissions" >&2
-        return 1
-      fi
-      echo "[INFO] Config file permissions fixed to 600" >&2
-    else
-      echo "[INFO] Config file permissions OK (600)" >&2
+    echo "[INFO] Checking config file: $config_file" >&2
+    echo "[INFO] Current permissions: $perms, owner: $(stat -c "%U:%G" "$config_file" 2>/dev/null || stat -f "%Su:%Sg" "$config_file" 2>/dev/null)" >&2
+    
+    # Ensure root ownership
+    if ! chown root:root "$config_file"; then
+      echo "[ERROR] Failed to change config file ownership to root:root" >&2
+      return 1
     fi
+    
+    # Ensure 600 permissions
+    if ! chmod 600 "$config_file"; then
+      echo "[ERROR] Failed to set config file permissions to 600" >&2
+      return 1
+    fi
+    echo "[INFO] Config file secured: root:root 600" >&2
   fi
 }
 

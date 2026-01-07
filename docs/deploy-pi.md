@@ -67,13 +67,20 @@ SUCCESS_OVERLAY_MILLIS: 10000
 ACTUATOR_ENABLED: false
 EOF
 
-# Restrict permissions to prevent accidental exposure
+# Secure the file: root ownership, read/write for root only (600)
+sudo chown root:root /opt/baendaeli-client/config.yaml
 sudo chmod 600 /opt/baendaeli-client/config.yaml
+
+# Verify file is secure
+ls -l /opt/baendaeli-client/config.yaml
+# Should show: -rw------- 1 root root ...
 
 # Verify service can read config
 sudo systemctl start baendaeli-client.service
 sudo journalctl -u baendaeli-client.service -n 20
 ```
+
+**Security note:** The config file contains secrets (API keys). Always ensure it has `root:root 600` permissions so only root can read it. The install and update scripts will automatically check and fix permissions if needed.
 
 ## Uninstall
 ```bash
