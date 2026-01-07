@@ -68,7 +68,14 @@ sudo systemctl start baendaeli-client-kiosk.service    # start kiosk manually
 
 The kiosk service automatically starts Chromium in fullscreen kiosk mode when the system boots, displaying the interface at `http://localhost:8000`.
 
+**Requirements:**
+- Raspberry Pi OS Desktop (with GUI)
+- Auto-login enabled (Settings → Raspberry Pi Configuration → System → Auto login)
+- Chromium browser installed
+
 **Service dependency:** The kiosk service waits for the client service to start, then delays 2 seconds before launching the browser.
+
+**How it works:** The installer detects the user running the X session and configures the kiosk service to run as that user (not root), allowing it to access the desktop display.
 
 **Disable kiosk on startup** (but keep the service installed):
 ```bash

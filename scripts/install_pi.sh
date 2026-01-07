@@ -76,6 +76,24 @@ write_kiosk_service() {
     echo "[WARNING] Using default path: ${chromium_path}" >&2
   fi
 
+  # Detect the user running X session (for desktop environment)
+  local x_user=""
+  x_user=$(who | grep '(:0)' | awk '{print $1}' | head -1)
+  if [[ -z "$x_user" ]]; then
+    # Fallback to common user if auto-login user not detected
+    if id "pi" >/dev/null 2>&1; then
+      x_user="pi"
+    elif [[ -n "$SUDO_USER" ]]; then
+      x_user="$SUDO_USER"
+    else
+      x_user="baendaeli"
+    fi
+  fi
+  echo "[INFO] Detected X user: ${x_user}" >&2
+  
+  local x_auth="/home/${x_user}/.Xauthority"
+  echo "[INFO] Using XAUTHORITY: ${x_auth}" >&2
+
   echo "[INFO] Writing kiosk systemd service: ${KIOSK_SERVICE}" >&2
   if ! cat >/etc/systemd/system/${KIOSK_SERVICE} <<EOF
 [Unit]
@@ -86,8 +104,9 @@ ConditionVirtualization=!container
 
 [Service]
 Type=simple
+User=${x_user}
 Environment="DISPLAY=:0"
-Environment="XAUTHORITY=/root/.Xauthority"
+Environment="XAUTHORITY=${x_auth}"
 ExecStartPre=/bin/sleep 2
 ExecStart=${chromium_path} --kiosk --no-sandbox --noerrdialogs --disable-session-crashed-bubble --disable-component-update --disable-infobars --disable-default-apps --disable-preconnect http://localhost:8000
 Restart=on-failure
