@@ -22,9 +22,8 @@ type Server struct {
 }
 
 type createPaymentPayload struct {
-	AmountCents        int    `json:"amount_cents"`
-	Currency           string `json:"currency"`
-	PaymentRedirectURL string `json:"payment_redirect_url"`
+	AmountCents int    `json:"amount_cents"`
+	Currency    string `json:"currency"`
 }
 
 func New(cfg *config.Config) *Server {
@@ -109,9 +108,6 @@ func (s *Server) handleCreatePayment(w http.ResponseWriter, r *http.Request) {
 	}
 	if payload.Currency == "" {
 		payload.Currency = "CHF"
-	}
-	if payload.PaymentRedirectURL == "" {
-		payload.PaymentRedirectURL = "https://example.com/payments/123/complete"
 	}
 
 	reqBody, err := json.Marshal(payload)
