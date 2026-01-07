@@ -16,6 +16,10 @@ The installer will:
 - Download the appropriate binary
 - Install it to `/usr/local/bin/baendaeli-client`
 
+### Raspberry Pi Deployment
+
+For running as a systemd service on Raspberry Pi with automatic updates and security hardening, see [Deploying to Raspberry Pi](docs/deploy-pi.md).
+
 ### Manual Installation
 
 Download binaries from the [releases page](https://github.com/jsalamander/baendaeli-client/releases) and make them executable:
