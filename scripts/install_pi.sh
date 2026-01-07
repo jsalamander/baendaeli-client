@@ -89,7 +89,7 @@ Type=simple
 Environment="DISPLAY=:0"
 Environment="XAUTHORITY=/root/.Xauthority"
 ExecStartPre=/bin/sleep 2
-ExecStart=${chromium_path} --kiosk --noerrdialogs --disable-session-crashed-bubble --disable-component-update --disable-infobars --disable-default-apps --disable-preconnect http://localhost:8000
+ExecStart=${chromium_path} --kiosk --no-sandbox --noerrdialogs --disable-session-crashed-bubble --disable-component-update --disable-infobars --disable-default-apps --disable-preconnect http://localhost:8000
 Restart=on-failure
 RestartSec=5
 
