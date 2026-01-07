@@ -49,9 +49,40 @@ sudo systemctl restart baendaeli-client.service
 - Manual update: `sudo /usr/local/sbin/baendaeli-update.sh`
 
 ## Config & secrets
-- Place config.yaml at /opt/baendaeli-client/config.yaml
-- Put secrets (BAENDAELI_API_KEY, etc.) in /etc/baendaeli-client.env (KEY=VALUE lines)
-- Service runs as root by default (needed for GPIO). If you switch user, ensure GPIO access.
+
+The systemd service locates files as follows:
+
+- **Config file**: `/opt/baendaeli-client/config.yaml`
+  - Service sets `WorkingDirectory=/opt/baendaeli-client`
+  - App calls `config.Load("config.yaml")` (relative path)
+  - **You must place your config.yaml here**
+
+- **Environment file**: `/etc/baendaeli-client.env` (optional)
+  - Loaded by service's `EnvironmentFile=-/etc/baendaeli-client.env` directive
+  - Use for secrets or overrides: `KEY=VALUE` format, one per line
+  - Example: `BAENDAELI_API_KEY=your-api-key-here`
+  - The `-` prefix means "ignore if missing"
+  - Currently, the app reads config from YAML; env vars can be used for future enhancements or shell integration
+
+### Setup example
+
+```bash
+# 1. Create config file
+sudo cat > /opt/baendaeli-client/config.yaml <<EOF
+BAENDAELI_API_KEY: "your-api-key-here"
+BAENDAELI_URL: "https://api.baendaeli.example.com"
+DEFAULT_AMOUNT_CENTS: 2000
+SUCCESS_OVERLAY_MILLIS: 10000
+ACTUATOR_ENABLED: false
+EOF
+
+# 2. (Optional) Create env file for additional secrets
+sudo bash -c 'echo "# Environment overrides" > /etc/baendaeli-client.env'
+
+# 3. Verify service can read config
+sudo systemctl start baendaeli-client.service
+sudo journalctl -u baendaeli-client.service -n 20
+```
 
 ## Uninstall
 ```bash
