@@ -42,6 +42,10 @@ func (s *Server) Router() *chi.Mux {
 	r.Use(middleware.Recoverer)
 
 	r.Get("/", s.handleIndex)
+	r.Get("/ui.js", s.handleServeFile("ui.js"))
+	r.Get("/api.js", s.handleServeFile("api.js"))
+	r.Get("/qr.js", s.handleServeFile("qr.js"))
+	r.Get("/main.js", s.handleServeFile("main.js"))
 	r.Post("/api/payment", s.handleCreatePayment)
 	r.Get("/api/payment/{id}", s.handleGetPaymentStatus)
 	r.Post("/api/actuate", s.handleActuate)
@@ -59,6 +63,21 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 		log.Printf("failed to render index template: %v", err)
 		http.Error(w, "internal server error", http.StatusInternalServerError)
 		return
+	}
+}
+
+func (s *Server) handleServeFile(filename string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/javascript; charset=utf-8")
+		data := indexPageData{
+			DefaultAmount:    s.config.DefaultAmount,
+			SuccessOverlayMs: s.config.SuccessOverlayMs,
+		}
+		if err := indexTemplate.ExecuteTemplate(w, filename, data); err != nil {
+			log.Printf("failed to serve %s: %v", filename, err)
+			http.Error(w, "file not found", http.StatusNotFound)
+			return
+		}
 	}
 }
 
