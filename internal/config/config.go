@@ -8,17 +8,16 @@ import (
 )
 
 type Config struct {
-	BaendaeliAPIKey  string `yaml:"BAENDAELI_API_KEY"`
-	BaendaeliURL     string `yaml:"BAENDAELI_URL"`
-	DefaultAmount    int    `yaml:"DEFAULT_AMOUNT_CENTS"`
-	SuccessOverlayMs int    `yaml:"SUCCESS_OVERLAY_MILLIS"`
-	ActuatorEnabled  bool   `yaml:"ACTUATOR_ENABLED"`
-	ActuatorENAPin   string `yaml:"ACTUATOR_ENA_PIN"`
-	ActuatorIN1Pin   string `yaml:"ACTUATOR_IN1_PIN"`
-	ActuatorIN2Pin   string `yaml:"ACTUATOR_IN2_PIN"`
-	ActuatorExtend   int    `yaml:"ACTUATOR_EXTEND_SECONDS"`
-	ActuatorRetract  int    `yaml:"ACTUATOR_RETRACT_SECONDS"`
-	ActuatorPause    int    `yaml:"ACTUATOR_PAUSE_SECONDS"`
+	BaendaeliAPIKey     string `yaml:"BAENDAELI_API_KEY"`
+	BaendaeliURL        string `yaml:"BAENDAELI_URL"`
+	DefaultAmount       int    `yaml:"DEFAULT_AMOUNT_CENTS"`
+	SuccessOverlayMs    int    `yaml:"SUCCESS_OVERLAY_MILLIS"`
+	ActuatorEnabled     bool   `yaml:"ACTUATOR_ENABLED"`
+	ActuatorENAPin      string `yaml:"ACTUATOR_ENA_PIN"`
+	ActuatorIN1Pin      string `yaml:"ACTUATOR_IN1_PIN"`
+	ActuatorIN2Pin      string `yaml:"ACTUATOR_IN2_PIN"`
+	ActuatorMovement    int    `yaml:"ACTUATOR_MOVEMENT_SECONDS"` // Used for both extend and retract
+	ActuatorPause       int    `yaml:"ACTUATOR_PAUSE_SECONDS"`
 }
 
 func Load(filename string) (*Config, error) {
@@ -42,11 +41,8 @@ func (c *Config) SetDefaults() {
 	if c.SuccessOverlayMs == 0 {
 		c.SuccessOverlayMs = 10000 // 10 seconds by default
 	}
-	if c.ActuatorExtend == 0 {
-		c.ActuatorExtend = 2 // 2 seconds by default
-	}
-	if c.ActuatorRetract == 0 {
-		c.ActuatorRetract = 2 // 2 seconds by default
+	if c.ActuatorMovement == 0 {
+		c.ActuatorMovement = 2 // 2 seconds by default (for both extend and retract)
 	}
 	if c.ActuatorPause == 0 {
 		c.ActuatorPause = 2 // 2 seconds by default

@@ -13,14 +13,17 @@ import (
 // Homing duration - fixed time to ensure full retraction from any position
 const homingDuration = 10 * time.Second
 
+// Settling delay to ensure motor fully stops before direction change
+// This prevents momentum from affecting next movement
+const settlingDelay = 100 * time.Millisecond
+
 type Config struct {
-	Enabled     bool
-	ENAPin      string // e.g., "GPIO25"
-	IN1Pin      string // e.g., "GPIO8"
-	IN2Pin      string // e.g., "GPIO7"
-	ExtendTime  int    // seconds
-	RetractTime int    // seconds
-	PauseTime   int    // seconds, pause between extend and retract
+	Enabled      bool
+	ENAPin       string // e.g., "GPIO25"
+	IN1Pin       string // e.g., "GPIO8"
+	IN2Pin       string // e.g., "GPIO7"
+	MovementTime int    // seconds - MUST be identical for extend and retract
+	PauseTime    int    // seconds, pause between extend and retract
 }
 
 type ActuateResult struct {
@@ -30,13 +33,13 @@ type ActuateResult struct {
 }
 
 type Actuator struct {
-	enabled bool
-	enaPin  gpio.PinOut
-	in1Pin  gpio.PinOut
-	in2Pin  gpio.PinOut
-	extend  time.Duration
-	retract time.Duration
-	pause   time.Duration
+	enabled      bool
+	enaPin       gpio.PinOut
+	in1Pin       gpio.PinOut
+	in2Pin       gpio.PinOut
+	movementTime time.Duration // Identical for extend and retract
+	pause        time.Duration
+	isHome       bool // Track if actuator is at home position
 }
 
 var actuator *Actuator
@@ -48,15 +51,16 @@ func Init(config Config) error {
 		return nil
 	}
 
-	if config.ExtendTime == 0 {
-		config.ExtendTime = 2
-	}
-	if config.RetractTime == 0 {
-		config.RetractTime = 2
+	// Enforce identical movement time for extend and retract
+	if config.MovementTime == 0 {
+		config.MovementTime = 2
 	}
 	if config.PauseTime == 0 {
 		config.PauseTime = 2
 	}
+
+	log.Printf("Actuator config: movement_time=%ds (extend=retract), pause=%ds", 
+		config.MovementTime, config.PauseTime)
 
 	// Initialize periph/x host
 	if _, err := host.Init(); err != nil {
@@ -80,13 +84,13 @@ func Init(config Config) error {
 	}
 
 	actuator = &Actuator{
-		enabled: true,
-		enaPin:  enaPin,
-		in1Pin:  in1Pin,
-		in2Pin:  in2Pin,
-		extend:  time.Duration(config.ExtendTime) * time.Second,
-		retract: time.Duration(config.RetractTime) * time.Second,
-		pause:   time.Duration(config.PauseTime) * time.Second,
+		enabled:      true,
+		enaPin:       enaPin,
+		in1Pin:       in1Pin,
+		in2Pin:       in2Pin,
+		movementTime: time.Duration(config.MovementTime) * time.Second,
+		pause:        time.Duration(config.PauseTime) * time.Second,
+		isHome:       false, // Will be set to true after homing completes
 	}
 
 	// Set ENA pin HIGH to enable the actuator
@@ -96,6 +100,25 @@ func Init(config Config) error {
 
 	log.Println("Actuator initialized successfully (homing will run in background)")
 	return nil
+}
+
+// stopMotor ensures motor fully stops with settling delay to prevent momentum
+func (a *Actuator) stopMotor() error {
+	if err := a.in1Pin.Out(gpio.Low); err != nil {
+		return fmt.Errorf("failed to set IN1 low: %w", err)
+	}
+	if err := a.in2Pin.Out(gpio.Low); err != nil {
+		return fmt.Errorf("failed to set IN2 low: %w", err)
+	}
+	// Settling delay to ensure motor completely stops before next operation
+	time.Sleep(settlingDelay)
+	return nil
+}
+
+// preciseDelay uses a timer for more accurate timing than time.Sleep
+func preciseDelay(d time.Duration) {
+	timer := time.NewTimer(d)
+	<-timer.C
 }
 
 // Home retracts the actuator to the shortest position (home position)
@@ -132,20 +155,29 @@ func Home() {
 		return
 	}
 
-	log.Println("Actuator: homing complete")
+	// Wait for motor to fully stop (settling time)
+	time.Sleep(settlingDelay)
+	
+	actuator.isHome = true
+	log.Println("Actuator: homing complete - now at home position")
 }
 
-// Trigger executes one extend-pause-retract cycle and returns timing info
+// Trigger executes one extend-pause-retract cycle with precise equal timing
+// CRITICAL: Uses identical duration for extend and retract to ensure equal movement
 func (a *Actuator) Trigger() (int, error) {
 	start := time.Now()
 	if !a.enabled {
-		// Mock: wait for the configured time
-		mockDuration := a.extend + a.pause + a.retract
+		// Mock: wait for the configured time (2x movement + pause + settling)
+		mockDuration := 2*a.movementTime + a.pause + 2*settlingDelay
 		time.Sleep(mockDuration)
 		return int(mockDuration.Milliseconds()), nil
 	}
 
-	log.Println("Actuator: extending...")
+	if !a.isHome {
+		log.Println("Warning: actuator not at home position before trigger")
+	}
+
+	log.Printf("Actuator: extending for exactly %v...", a.movementTime)
 	// Extend: IN1 HIGH, IN2 LOW
 	if err := a.in1Pin.Out(gpio.High); err != nil {
 		return 0, fmt.Errorf("failed to set IN1 high: %w", err)
@@ -154,12 +186,19 @@ func (a *Actuator) Trigger() (int, error) {
 		return 0, fmt.Errorf("failed to set IN2 low: %w", err)
 	}
 
-	time.Sleep(a.extend)
+	// Use precise timing for extend
+	preciseDelay(a.movementTime)
 
-	log.Println("Actuator: pausing...")
-	time.Sleep(a.pause)
+	// Stop and settle before direction change
+	if err := a.stopMotor(); err != nil {
+		return 0, fmt.Errorf("failed to stop after extend: %w", err)
+	}
+	a.isHome = false
 
-	log.Println("Actuator: retracting...")
+	log.Printf("Actuator: pausing for %v...", a.pause)
+	preciseDelay(a.pause)
+
+	log.Printf("Actuator: retracting for exactly %v (same as extend)...", a.movementTime)
 	// Retract: IN1 LOW, IN2 HIGH
 	if err := a.in1Pin.Out(gpio.Low); err != nil {
 		return 0, fmt.Errorf("failed to set IN1 low: %w", err)
@@ -168,18 +207,18 @@ func (a *Actuator) Trigger() (int, error) {
 		return 0, fmt.Errorf("failed to set IN2 high: %w", err)
 	}
 
-	time.Sleep(a.retract)
+	// Use identical precise timing for retract (CRITICAL for equal movement)
+	preciseDelay(a.movementTime)
 
-	// Stop: both LOW
-	if err := a.in1Pin.Out(gpio.Low); err != nil {
-		return 0, fmt.Errorf("failed to set IN1 low: %w", err)
+	// Stop and settle - back at home position
+	if err := a.stopMotor(); err != nil {
+		return 0, fmt.Errorf("failed to stop after retract: %w", err)
 	}
-	if err := a.in2Pin.Out(gpio.Low); err != nil {
-		return 0, fmt.Errorf("failed to set IN2 low: %w", err)
-	}
+	a.isHome = true
 
 	totalMs := int(time.Since(start).Milliseconds())
-	log.Printf("Actuator cycle complete (took %d ms)", totalMs)
+	log.Printf("Actuator cycle complete: extend=%v, retract=%v (identical), total=%dms", 
+		a.movementTime, a.movementTime, totalMs)
 	return totalMs, nil
 }
 

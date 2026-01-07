@@ -26,13 +26,12 @@ cfg.SetDefaults()
 // Initialize actuator if enabled
 if cfg.ActuatorEnabled {
 actuatorCfg := actuator.Config{
-Enabled:     cfg.ActuatorEnabled,
-ENAPin:      cfg.ActuatorENAPin,
-IN1Pin:      cfg.ActuatorIN1Pin,
-IN2Pin:      cfg.ActuatorIN2Pin,
-ExtendTime:  cfg.ActuatorExtend,
-RetractTime: cfg.ActuatorRetract,
-PauseTime:   cfg.ActuatorPause,
+Enabled:      cfg.ActuatorEnabled,
+ENAPin:       cfg.ActuatorENAPin,
+IN1Pin:       cfg.ActuatorIN1Pin,
+IN2Pin:       cfg.ActuatorIN2Pin,
+MovementTime: cfg.ActuatorMovement,
+PauseTime:    cfg.ActuatorPause,
 }
 if err := actuator.Init(actuatorCfg); err != nil {
 log.Printf("Warning: Actuator initialization failed: %v. Continuing without actuator.", err)
