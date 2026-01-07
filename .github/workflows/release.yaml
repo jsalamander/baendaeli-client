@@ -33,25 +33,17 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Download release artifacts
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          mkdir -p dist
-          gh release download ${{ github.ref_name }} -D dist
-
       - name: Generate installer script
         uses: CompassSecurity/binstaller-action@main
         with:
-          config: binstaller.yaml
+          config: .goreleaser.yaml
           version: ${{ github.ref_name }}
-          output: dist/installer.sh
-          assets_path: dist/
+          output: installer.sh
 
       - name: Upload pages artifact
         uses: actions/upload-pages-artifact@v2
         with:
-          path: dist
+          path: .
 
   deploy-pages:
     needs: release
