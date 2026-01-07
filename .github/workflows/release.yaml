@@ -42,11 +42,14 @@ jobs:
       - name: Generate Installer Script
         run: binst gen --config .config/binstaller.yml -o installer.sh
 
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
       - name: Upload installer artifact
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v4
         with:
           path: installer.sh
 
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v2
+        uses: actions/deploy-pages@v4
