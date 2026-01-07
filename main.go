@@ -21,6 +21,12 @@ type Config struct {
 	BaendaeliURL     string `yaml:"BAENDAELI_URL"`
 	DefaultAmount    int    `yaml:"DEFAULT_AMOUNT_CENTS"`
 	SuccessOverlayMs int    `yaml:"SUCCESS_OVERLAY_MILLIS"`
+	ActuatorEnabled  bool   `yaml:"ACTUATOR_ENABLED"`
+	ActuatorENAPin   string `yaml:"ACTUATOR_ENA_PIN"`
+	ActuatorIN1Pin   string `yaml:"ACTUATOR_IN1_PIN"`
+	ActuatorIN2Pin   string `yaml:"ACTUATOR_IN2_PIN"`
+	ActuatorExtend   int    `yaml:"ACTUATOR_EXTEND_SECONDS"`
+	ActuatorRetract  int    `yaml:"ACTUATOR_RETRACT_SECONDS"`
 }
 
 type Server struct {
@@ -66,8 +72,30 @@ func main() {
 	if config.SuccessOverlayMs == 0 {
 		config.SuccessOverlayMs = 10000 // 10 seconds by default
 	}
+	if config.ActuatorExtend == 0 {
+		config.ActuatorExtend = 20 // 20 seconds by default
+	}
+	if config.ActuatorRetract == 0 {
+		config.ActuatorRetract = 20 // 20 seconds by default
+	}
 
 	log.Println("Configuration loaded successfully")
+
+	// Initialize actuator if enabled
+	if config.ActuatorEnabled {
+		actConfig := ActuatorConfig{
+			Enabled:     true,
+			ENAPin:      config.ActuatorENAPin,
+			IN1Pin:      config.ActuatorIN1Pin,
+			IN2Pin:      config.ActuatorIN2Pin,
+			ExtendTime:  config.ActuatorExtend,
+			RetractTime: config.ActuatorRetract,
+		}
+		if err := InitActuator(actConfig); err != nil {
+			log.Fatalf("Failed to init actuator: %v", err)
+		}
+		defer CleanupActuator()
+	}
 
 	srv := &Server{
 		config: config,
@@ -87,6 +115,7 @@ func main() {
 	r.Get("/", srv.handleIndex)
 	r.Post("/api/payment", srv.handleCreatePayment)
 	r.Get("/api/payment/{id}", srv.handleGetPaymentStatus)
+	r.Post("/api/actuate", srv.handleActuate)
 
 	// Start server
 	addr := ":8000"
@@ -176,6 +205,17 @@ func (s *Server) handleGetPaymentStatus(w http.ResponseWriter, r *http.Request) 
 	if _, err := io.Copy(w, resp.Body); err != nil {
 		log.Printf("failed to forward status response: %v", err)
 	}
+}
+
+func (s *Server) handleActuate(w http.ResponseWriter, r *http.Request) {
+	if err := TriggerActuator(); err != nil {
+		log.Printf("actuator error: %v", err)
+		http.Error(w, "actuator error", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte(`{"status":"ok"}`))
 }
 
 // Simple inline page to kick off payment creation and render the QR code result.
@@ -625,6 +665,10 @@ const indexPageTemplate = `<!doctype html>
 			successBanner.classList.remove('hidden');
 			successBanner.classList.add('animate');
 			qrEl.classList.add('hidden');
+			clearPoll();
+			clearExpiry();
+			// Trigger actuator
+			fetch('/api/actuate', { method: 'POST' }).catch(err => console.error('Actuator error:', err));
 			setTimeout(() => {
 				successBanner.classList.remove('animate');
 				successBanner.classList.add('hidden');
