@@ -1,230 +1,111 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
 	<meta charset="UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
 	<title>Baendae.li Payment</title>
+	<script src="https://cdn.tailwindcss.com"></script>
+	<link href="https://cdn.jsdelivr.net/npm/daisyui@4.4.20/dist/full.min.css" rel="stylesheet" type="text/css" />
 	<style>
-		:root {
-			--bg: #0b1021;
-			--panel: #121832;
-			--accent: #7ce7c1;
-			--muted: #9fb4d1;
-			--text: #f7fbff;
-		}
-		* { box-sizing: border-box; }
-		body {
-			margin: 0;
-			min-height: 100vh;
-			display: grid;
-			place-items: center;
-			background: radial-gradient(circle at 20% 20%, #18224a 0, #0b1021 45%),
-							radial-gradient(circle at 80% 10%, #0f2746 0, #0b1021 40%),
-							#0b1021;
-			font-family: "Space Grotesk", "Segoe UI", system-ui, sans-serif;
-			color: var(--text);
-		}
-		.card {
-			width: min(480px, 92vw);
-			background: var(--panel);
-			border: 1px solid rgba(255,255,255,0.06);
-			border-radius: 16px;
-			box-shadow: 0 30px 80px rgba(4, 8, 30, 0.55);
-			padding: 28px;
-			backdrop-filter: blur(6px);
-			position: relative;
-		}
-		h1 {
-			margin: 0 0 10px;
-			font-size: 26px;
-			letter-spacing: 0.3px;
-		}
-		p {
-			margin: 4px 0 14px;
-			color: var(--muted);
-			line-height: 1.5;
-		}
-		.status {
-			display: inline-flex;
-			align-items: center;
-			gap: 10px;
-			padding: 10px 14px;
-			background: rgba(255,255,255,0.04);
-			border-radius: 12px;
-			border: 1px solid rgba(255,255,255,0.05);
-			font-weight: 600;
-			letter-spacing: 0.2px;
-			color: var(--text);
-		}
 		.dot {
 			width: 12px;
 			height: 12px;
 			border-radius: 999px;
-			background: var(--accent);
+			background: #7ce7c1;
 			box-shadow: 0 0 0 rgba(124, 231, 193, 0.4);
 			animation: pulse 1.2s ease-in-out infinite;
+			display: inline-block;
 		}
 		@keyframes pulse {
 			0% { box-shadow: 0 0 0 0 rgba(124, 231, 193, 0.35); }
 			70% { box-shadow: 0 0 0 16px rgba(124, 231, 193, 0); }
 			100% { box-shadow: 0 0 0 0 rgba(124, 231, 193, 0); }
 		}
-		.qr-shell {
-			margin-top: 20px;
-			padding: 16px;
-			background: rgba(255,255,255,0.02);
-			border-radius: 14px;
-			border: 1px dashed rgba(255,255,255,0.08);
-			display: grid;
-			place-items: center;
-			min-height: 220px;
-		}
-		.qr-shell img {
-			max-width: 100%;
-			height: auto;
-		}
-		.error {
-			margin-top: 12px;
-			color: #ff9b9b;
-			font-weight: 600;
-		}
-		button.hidden { display: none; }
-		button.retry {
-			margin-top: 10px;
-			padding: 10px 14px;
-			border-radius: 10px;
-			border: 1px solid rgba(255,255,255,0.1);
-			background: rgba(255,255,255,0.04);
-			color: var(--text);
-			cursor: pointer;
-			transition: transform 120ms ease, background 150ms ease;
-		}
-		button.retry:hover { transform: translateY(-1px); background: rgba(255,255,255,0.08); }
-		.payment-id {
-			position: fixed;
-			bottom: 16px;
-			right: 16px;
-			padding: 6px 10px;
-			border-radius: 999px;
-			border: 1px solid rgba(255,255,255,0.12);
-			background: rgba(255,255,255,0.06);
-			color: var(--muted);
-			font-size: 11px;
-			letter-spacing: 0.2px;
-			backdrop-filter: blur(6px);
-			z-index: 5;
-		}
-		.success-banner {
-			position: absolute;
-			top: 0;
-			left: 0;
-			right: 0;
-			bottom: 0;
-			display: grid;
-			place-items: center;
-			pointer-events: none;
-			background: linear-gradient(180deg, rgba(17, 26, 57, 0.85), rgba(11, 16, 33, 0.9));
-			opacity: 0;
-			transform: scale(0.96);
-			transition: opacity 320ms ease, transform 320ms ease;
-		}
-		.success-banner.animate {
-			opacity: 1;
-			transform: scale(1);
-		}
-		.success-pill {
-			padding: 22px 26px;
-			border-radius: 18px;
-			background: linear-gradient(135deg, rgba(124, 231, 193, 0.9), rgba(83, 195, 255, 0.9));
-			border: 1px solid rgba(255, 255, 255, 0.35);
-			color: #0a1429;
-			font-weight: 800;
-			font-size: 18px;
-			letter-spacing: 0.3px;
-			box-shadow: 0 24px 70px rgba(0, 0, 0, 0.55);
-			text-align: center;
-			max-width: 360px;
-		}
-		.diagnostics {
-			margin-top: 16px;
-			padding: 10px 12px;
-			border-top: 1px solid rgba(255,255,255,0.08);
-			border-radius: 10px;
-			background: rgba(255,255,255,0.03);
-			display: flex;
-			align-items: center;
-			justify-content: space-between;
-			gap: 12px;
-			font-size: 13px;
-			color: var(--muted);
-		}
-		.diagnostics .left {
-			display: inline-flex;
-			align-items: center;
-			gap: 8px;
-			font-weight: 700;
-			color: var(--text);
-		}
-		.health-dot-small {
-			width: 10px;
-			height: 10px;
-			border-radius: 999px;
-			background: #ffc78d;
-			box-shadow: 0 0 0 6px rgba(255, 199, 141, 0.12);
-			transition: background 160ms ease, box-shadow 200ms ease;
-		}
-		.health-dot-small.ok {
-			background: #7ce7c1;
-			box-shadow: 0 0 0 6px rgba(124, 231, 193, 0.18);
-		}
-		.health-dot-small.bad {
-			background: #ff9b9b;
-			box-shadow: 0 0 0 6px rgba(255, 155, 155, 0.18);
-		}
-		.health-dot-small.pending {
-			background: #ffc78d;
-			box-shadow: 0 0 0 6px rgba(255, 199, 141, 0.12);
-		}
-		.diagnostics .meta {
-			font-size: 12px;
-			color: var(--muted);
-			text-align: right;
-			display: flex;
-			flex-direction: column;
-			align-items: flex-end;
-			gap: 4px;
-		}
-		#expiryMeta {
-			color: var(--text);
-			font-weight: 700;
-		}
+		.hidden { display: none; }
 	</style>
 </head>
-<body>
-	<div class="card">
-			<div class="success-banner hidden" id="successBanner">
-				<div class="success-pill">Danke, dein Solibändeli wird ausgegeben!</div>
-			</div>
-		<h1>Bändäli Outomat</h1>
-		<p>Scanne den QR-Code mit deinem Smartphone, um das Solibändeli zu bezahlen.</p>
-		<div class="status" id="status"><span class="dot"></span><span>Wait: creating payment...</span></div>
-		<div class="qr-shell" id="qr">Warten auf QR Code...</div>
-		<div class="error" id="error"></div>
-		<button class="retry hidden" id="retry">Try again</button>
-		<div class="diagnostics" id="diagnostics">
-			<div class="left"><span class="health-dot-small pending" id="gatewayDot"></span><span id="gatewayStatusText">Gateway wird geprüft...</span></div>
-			<div class="meta">
-				<div id="gatewayMeta">Warte auf erste Antwort</div>
-				<div id="expiryMeta">Gültig für --:--</div>
+<body class="flex flex-col min-h-screen bg-base-900">
+	<!-- Navbar -->
+	<nav class="navbar bg-base-800 border-b border-base-700">
+		<div class="flex-1">
+			<a class="btn btn-ghost text-xl" href="/">Bändäli Outomat</a>
+		</div>
+	</nav>
+
+	<!-- Main Content -->
+	<main class="flex-1 flex items-center justify-center p-4">
+		<div class="card bg-base-800 border border-base-700 shadow-xl w-full max-w-md">
+			<div class="card-body">
+				<!-- Success Banner (hidden by default) -->
+				<div class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur" id="successBanner">
+					<div class="alert alert-success alert-lg shadow-lg max-w-sm">
+						<svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+						<span class="font-bold">Danke, dein Solibändeli wird ausgegeben!</span>
+					</div>
+				</div>
+
+				<h2 class="card-title text-2xl">Bändäli Outomat</h2>
+				<p class="text-base-content/70">Scanne den QR-Code mit deinem Smartphone, um das Solibändeli zu bezahlen.</p>
+
+				<!-- Status Badge -->
+				<div class="badge badge-lg gap-2 badge-info" id="status">
+					<span class="dot"></span>
+					<span>Wait: creating payment...</span>
+				</div>
+
+				<!-- QR Code Display -->
+				<div class="bg-base-700 rounded-lg border border-dashed border-base-600 p-4 flex items-center justify-center min-h-[220px]" id="qr">
+					<div class="text-center">
+						<svg class="inline-block w-8 h-8 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+							<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+							<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+						</svg>
+						<p class="mt-2 text-sm">Warten auf QR Code...</p>
+					</div>
+				</div>
+
+				<!-- Error Message -->
+				<div class="alert alert-error hidden" id="errorContainer">
+					<svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l-2-2m0 0l-2-2m2 2l2-2m-2 2l-2 2" /></svg>
+					<span id="error"></span>
+				</div>
+
+				<!-- Retry Button -->
+				<button class="btn btn-primary w-full hidden" id="retry">Try again</button>
+
+				<!-- Diagnostics -->
+				<div class="divider my-2"></div>
+				<div class="space-y-2 text-sm">
+					<div class="flex items-center justify-between">
+						<div class="flex items-center gap-2">
+							<div class="w-2 h-2 rounded-full bg-warning" id="gatewayDot"></div>
+							<span id="gatewayStatusText">Gateway wird geprüft...</span>
+						</div>
+					</div>
+					<div class="flex items-center justify-between text-xs text-base-content/60">
+						<span id="gatewayMeta">Warte auf erste Antwort</span>
+						<span id="expiryMeta">Gültig für --:--</span>
+					</div>
+				</div>
 			</div>
 		</div>
-	</div>
-	<div class="payment-id hidden" id="paymentId"></div>
+	</main>
+
+	<!-- Payment ID Badge (fixed position) -->
+	<div class="fixed bottom-4 right-4 badge badge-outline hidden" id="paymentId"></div>
+
+	<!-- Footer -->
+	<footer class="footer footer-center bg-base-800 border-t border-base-700 p-4 text-base-content/70">
+		<div>
+			<p class="text-sm">© 2026 Baendae.li. All rights reserved.</p>
+		</div>
+	</footer>
 
 	<script>
 		const statusEl = document.getElementById('status');
 		const qrEl = document.getElementById('qr');
 		const errorEl = document.getElementById('error');
+		const errorContainer = document.getElementById('errorContainer');
 		const retryBtn = document.getElementById('retry');
 		const paymentIdEl = document.getElementById('paymentId');
 		const successBanner = document.getElementById('successBanner');
@@ -234,21 +115,22 @@
 		const expiryMeta = document.getElementById('expiryMeta');
 		const defaultAmount = {{ .DefaultAmount }};
 		const successOverlayMs = {{ .SuccessOverlayMs }};
-			let pollTimer = null;
-			let currentPaymentId = null;
-			let lastDiagnosticsState = 'pending';
-			let lastDiagnosticsTime = null;
-			let lastDiagnosticsLatency = null;
-			let expiryAt = null;
-			let expiryTimer = null;
+		let pollTimer = null;
+		let currentPaymentId = null;
+		let lastDiagnosticsState = 'pending';
+		let lastDiagnosticsTime = null;
+		let lastDiagnosticsLatency = null;
+		let expiryAt = null;
+		let expiryTimer = null;
 
 		retryBtn.addEventListener('click', () => {
 			retryBtn.classList.add('hidden');
 			errorEl.textContent = '';
-			qrEl.textContent = 'Warten auf QR Code...';
+			errorContainer.classList.add('hidden');
+			qrEl.innerHTML = '<div class="text-center"><svg class="inline-block w-8 h-8 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg><p class="mt-2 text-sm">Warten auf QR Code...</p></div>';
 			paymentIdEl.classList.add('hidden');
-				clearPoll();
-				clearExpiry();
+			clearPoll();
+			clearExpiry();
 			start();
 		});
 
@@ -296,7 +178,7 @@
 			lastDiagnosticsState = 'pending';
 			lastDiagnosticsTime = null;
 			lastDiagnosticsLatency = null;
-			gatewayDot.className = 'health-dot-small pending';
+			gatewayDot.className = 'w-2 h-2 rounded-full bg-warning';
 			gatewayStatusText.textContent = 'Gateway wird geprüft...';
 			gatewayMeta.textContent = 'Warte auf erste Antwort';
 			expiryMeta.textContent = 'Gültig für --:--';
@@ -308,12 +190,12 @@
 			lastDiagnosticsLatency = latencyMs != null ? Math.max(0, Math.round(latencyMs)) : null;
 
 			if (ok) {
-				gatewayDot.className = 'health-dot-small ok';
+				gatewayDot.className = 'w-2 h-2 rounded-full bg-success';
 				gatewayStatusText.textContent = 'Gateway: OK';
 				const latencyText = lastDiagnosticsLatency != null ? lastDiagnosticsLatency + ' ms' : '—';
 				gatewayMeta.textContent = 'Zuletzt: ' + formatTime(lastDiagnosticsTime) + ' · Latenz: ' + latencyText;
 			} else {
-				gatewayDot.className = 'health-dot-small bad';
+				gatewayDot.className = 'w-2 h-2 rounded-full bg-error';
 				gatewayStatusText.textContent = 'Gateway: gestört';
 				gatewayMeta.textContent = 'Letzter Versuch: ' + formatTime(lastDiagnosticsTime);
 			}
@@ -330,12 +212,12 @@
 
 		setDiagnosticsPending();
 
-			function clearPoll() {
-				if (pollTimer) {
-					clearTimeout(pollTimer);
-					pollTimer = null;
-				}
+		function clearPoll() {
+			if (pollTimer) {
+				clearTimeout(pollTimer);
+				pollTimer = null;
 			}
+		}
 
 		async function safeParseJson(res) {
 			const text = await res.text();
@@ -348,10 +230,11 @@
 
 		async function start() {
 			statusEl.innerHTML = '<span class="dot"></span><span>Wait: creating payment...</span>';
+			statusEl.className = 'badge badge-lg gap-2 badge-info';
 			paymentIdEl.classList.add('hidden');
 			errorEl.textContent = '';
+			errorContainer.classList.add('hidden');
 			successBanner.classList.add('hidden');
-			successBanner.classList.remove('animate');
 			qrEl.classList.remove('hidden');
 			clearPoll();
 			clearExpiry();
@@ -384,8 +267,10 @@
 				renderQr(data);
 			} catch (err) {
 				console.error('Payment creation failed', err);
-				statusEl.innerHTML = '<span class="dot"></span><span>Etwas ist schiefgelaufen. Bitte versuche es erneut.</span>';
+				statusEl.innerHTML = '<span class="dot"></span><span>Etwas ist schiefgelaufen.</span>';
+				statusEl.className = 'badge badge-lg gap-2 badge-error';
 				errorEl.textContent = 'Die Zahlung konnte nicht gestartet werden. Bitte versuche es erneut.';
+				errorContainer.classList.remove('hidden');
 				retryBtn.classList.remove('hidden');
 			}
 		}
@@ -410,23 +295,28 @@
 				updateDiagnostics({ ok: true, latencyMs, at: timestamp });
 				diagUpdated = true;
 				errorEl.textContent = '';
+				errorContainer.classList.add('hidden');
 
 				const status = (data.status || '').toLowerCase();
 				switch (status) {
 					case 'waiting':
 						statusEl.innerHTML = '<span class="dot"></span><span>Warten auf Zahlung...</span>';
+						statusEl.className = 'badge badge-lg gap-2 badge-info';
 						pollTimer = setTimeout(() => pollStatus(id), 2000);
 						break;
 					case 'success':
 						statusEl.innerHTML = '<span class="dot"></span><span>Zahlung erfolgreich</span>';
+						statusEl.className = 'badge badge-lg gap-2 badge-success';
 						showSuccessThenRestart();
 						break;
 					case 'failure':
-						statusEl.innerHTML = '<span class="dot"></span><span>Zahlung fehlgeschlagen - versuche es erneut</span>';
+						statusEl.innerHTML = '<span class="dot"></span><span>Zahlung fehlgeschlagen</span>';
+						statusEl.className = 'badge badge-lg gap-2 badge-error';
 						setTimeout(() => start(), 1200);
 						break;
 					default:
 						statusEl.innerHTML = '<span class="dot"></span><span>Unbekannter Status</span>';
+						statusEl.className = 'badge badge-lg gap-2 badge-warning';
 						pollTimer = setTimeout(() => pollStatus(id), 3000);
 				}
 			} catch (err) {
@@ -435,14 +325,15 @@
 					updateDiagnostics({ ok: false, latencyMs: null, at: Date.now() });
 				}
 				errorEl.textContent = 'Der Zahlungsstatus konnte nicht geprüft werden. Wir versuchen es gleich erneut.';
-				statusEl.innerHTML = '<span class="dot"></span><span>Status wird erneut überprüft...</span>';
+				errorContainer.classList.remove('hidden');
+				statusEl.innerHTML = '<span class="dot"></span><span>Status wird überprüft...</span>';
+				statusEl.className = 'badge badge-lg gap-2 badge-warning';
 				pollTimer = setTimeout(() => pollStatus(id), 3000);
 			}
 		}
 
 		async function showSuccessThenRestart() {
 			successBanner.classList.remove('hidden');
-			successBanner.classList.add('animate');
 			qrEl.classList.add('hidden');
 			clearPoll();
 			clearExpiry();
@@ -459,18 +350,20 @@
 				} else if (!res.ok) {
 					console.error('Actuator error:', data.error);
 					errorEl.textContent = data.error || 'Solibändeli konnte nicht ausgegeben werden. Bitte kontaktiere den Betreiber.';
-					actuatorTimeMs = 4000; // Show error for 4 seconds before restarting
+					errorContainer.classList.remove('hidden');
+					actuatorTimeMs = 4000;
 				}
 			} catch (err) {
 				console.error('Actuator request failed:', err);
 				errorEl.textContent = 'Fehler beim Ausgeben des Solibändeli. Bitte versuche es erneut.';
-				actuatorTimeMs = 4000; // Show error for 4 seconds before restarting
+				errorContainer.classList.remove('hidden');
+				actuatorTimeMs = 4000;
 			}
 			
 			setTimeout(() => {
-				successBanner.classList.remove('animate');
 				successBanner.classList.add('hidden');
 				errorEl.textContent = '';
+				errorContainer.classList.add('hidden');
 				start();
 			}, actuatorTimeMs);
 		}
@@ -498,7 +391,6 @@
 
 			if (qrData && typeof qrData === 'string') {
 				const trimmed = qrData.trim();
-				// If the API returns a data URL (e.g., data:text/plain;base64,...), use it directly.
 				if (trimmed.startsWith('data:')) {
 					const img = new Image();
 					img.src = trimmed;
@@ -507,13 +399,11 @@
 					return;
 				}
 
-				// If the API returns inline SVG markup, render it as HTML.
 				if (trimmed.startsWith('<svg')) {
 					qrEl.innerHTML = trimmed;
 					return;
 				}
 
-				// If we have a bare base64 payload, treat it as PNG data.
 				const base64Like = /^[A-Za-z0-9+/]+={0,2}$/;
 				if (base64Like.test(trimmed)) {
 					const img = new Image();
