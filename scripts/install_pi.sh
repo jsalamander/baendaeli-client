@@ -26,6 +26,26 @@ require_root() {
   echo "[INFO] Running as root" >&2
 }
 
+create_service_user() {
+  local service_user="baendaeli-client"
+  
+  # Create system user if it doesn't exist
+  if ! id "$service_user" >/dev/null 2>&1; then
+    echo "[INFO] Creating system user: ${service_user}" >&2
+    useradd --system --no-create-home --shell /usr/sbin/nologin "$service_user"
+  else
+    echo "[INFO] System user already exists: ${service_user}" >&2
+  fi
+  
+  # Add to gpio group for actuator access (if gpio group exists)
+  if getent group gpio >/dev/null 2>&1; then
+    echo "[INFO] Adding ${service_user} to gpio group" >&2
+    usermod -a -G gpio "$service_user"
+  fi
+  
+  echo "[INFO] Service user: ${service_user}" >&2
+}
+
 install_binary() {
   echo "[INFO] Installing via binstaller (${INSTALLER_URL})" >&2
   echo "[INFO] Installing to: /usr/local/bin" >&2
@@ -46,6 +66,7 @@ Wants=network-online.target
 
 [Service]
 Type=simple
+User=baendaeli-client
 WorkingDirectory=/opt/baendaeli-client
 ExecStart=/usr/local/bin/baendaeli-client
 Restart=on-failure
@@ -124,15 +145,17 @@ EOF
 
 check_config_permissions() {
   local config_file="$WORKDIR/config.yaml"
+  local service_user="baendaeli-client"
+  
   if [[ -f "$config_file" ]]; then
     local perms
     perms=$(stat -c "%a" "$config_file" 2>/dev/null || stat -f "%A" "$config_file" 2>/dev/null || echo "unknown")
     echo "[INFO] Checking config file: $config_file" >&2
     echo "[INFO] Current permissions: $perms, owner: $(stat -c "%U:%G" "$config_file" 2>/dev/null || stat -f "%Su:%Sg" "$config_file" 2>/dev/null)" >&2
     
-    # Ensure root ownership
-    if ! chown root:root "$config_file"; then
-      echo "[ERROR] Failed to change config file ownership to root:root" >&2
+    # Ensure service user ownership
+    if ! chown "${service_user}:${service_user}" "$config_file"; then
+      echo "[ERROR] Failed to change config file ownership to ${service_user}:${service_user}" >&2
       return 1
     fi
     
@@ -141,7 +164,7 @@ check_config_permissions() {
       echo "[ERROR] Failed to set config file permissions to 600" >&2
       return 1
     fi
-    echo "[INFO] Config file secured: root:root 600" >&2
+    echo "[INFO] Config file secured: ${service_user}:${service_user} 600" >&2
   fi
 }
 
@@ -191,11 +214,21 @@ main() {
   
   require_root
   
+  echo "[INFO] Creating service user" >&2
+  if ! create_service_user; then
+    echo "[ERROR] Failed to create service user" >&2
+    return 1
+  fi
+  
   echo "[INFO] Creating work directory: ${WORKDIR}" >&2
   if ! mkdir -p "$WORKDIR"; then
     echo "[ERROR] Failed to create work directory: ${WORKDIR}" >&2
     return 1
   fi
+  
+  # Set ownership of work directory to service user
+  echo "[INFO] Setting work directory ownership" >&2
+  chown baendaeli-client:baendaeli-client "$WORKDIR"
   
   echo "[INFO] Installing binary from: ${INSTALLER_URL}" >&2
   if ! install_binary; then

@@ -24,10 +24,11 @@ curl -fsSL https://raw.githubusercontent.com/jsalamander/baendaeli-client/main/s
 ## What install does
 - Detects arch (armhf/arm64) and downloads the latest GitHub release asset via the binstaller installer
 - Installs binary to /usr/local/bin/baendaeli-client
-- Creates /opt/baendaeli-client directory
+- Creates a dedicated system user `baendaeli-client` (added to `gpio` group for actuator access)
+- Creates /opt/baendaeli-client directory (owned by service user)
 - Writes two systemd units:
-  - `baendaeli-client.service` (runs the backend server, auto-boots)
-  - `baendaeli-client-kiosk.service` (runs Chromium in kiosk mode, depends on client service)
+  - `baendaeli-client.service` (runs the backend server as dedicated user, auto-boots)
+  - `baendaeli-client-kiosk.service` (runs Chromium in kiosk mode as desktop user)
 - Creates /usr/local/sbin/baendaeli-update.sh for manual updates
 - Enables and starts both services
 
@@ -41,7 +42,7 @@ curl -fsSL https://raw.githubusercontent.com/jsalamander/baendaeli-client/main/s
    - Add your BAENDAELI_API_KEY, URL, and other settings
    - `EOF`
 4) Restrict file permissions:
-   - `sudo chown root:root /opt/baendaeli-client/config.yaml`
+   - `sudo chown baendaeli-client:baendaeli-client /opt/baendaeli-client/config.yaml`
    - `sudo chmod 600 /opt/baendaeli-client/config.yaml`
 5) Check status:
    - `sudo systemctl status baendaeli-client.service`
@@ -112,20 +113,20 @@ SUCCESS_OVERLAY_MILLIS: 10000
 ACTUATOR_ENABLED: false
 EOF
 
-# Secure the file: root ownership, read/write for root only (600)
-sudo chown root:root /opt/baendaeli-client/config.yaml
+# Secure the file: service user ownership, read/write for service user only (600)
+sudo chown baendaeli-client:baendaeli-client /opt/baendaeli-client/config.yaml
 sudo chmod 600 /opt/baendaeli-client/config.yaml
 
 # Verify file is secure
 ls -l /opt/baendaeli-client/config.yaml
-# Should show: -rw------- 1 root root ...
+# Should show: -rw------- 1 baendaeli-client baendaeli-client ...
 
 # Verify service can read config
 sudo systemctl start baendaeli-client.service
 sudo journalctl -u baendaeli-client.service -n 20
 ```
 
-**Security note:** The config file contains secrets (API keys). Always ensure it has `root:root 600` permissions so only root can read it. The install and update scripts will automatically check and fix permissions if needed.
+**Security note:** The config file contains secrets (API keys). Always ensure it has `baendaeli-client:baendaeli-client 600` permissions so only the service user can read it. The install and update scripts will automatically check and fix permissions if needed.
 
 ## Manual updates
 ```bash
