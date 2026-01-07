@@ -13,6 +13,9 @@
 ## One-shot install
 ```bash
 curl -fsSL https://<your-github-pages-domain>/install_pi.sh | sudo bash
+
+# or fetch the raw script from GitHub
+curl -fsSL https://raw.githubusercontent.com/jsalamander/baendaeli-client/main/scripts/install_pi.sh | sudo bash
 ```
 (Or scp scripts/install_pi.sh to the Pi and run sudo ./install_pi.sh)
 
@@ -25,6 +28,18 @@ curl -fsSL https://<your-github-pages-domain>/install_pi.sh | sudo bash
   - baendaeli-client-update.service (runs updater)
   - baendaeli-client-update.timer (daily at 03:00)
 - Enables and starts both the service and the timer
+
+## Quick start (summary)
+1) Run installer (one-shot):
+  - `curl -fsSL https://raw.githubusercontent.com/jsalamander/baendaeli-client/main/scripts/install_pi.sh | sudo bash`
+2) Add config & secrets:
+  - Copy your config.yaml to /opt/baendaeli-client/config.yaml
+  - Add secrets to /etc/baendaeli-client.env (KEY=VALUE lines), e.g. `BAENDAELI_API_KEY=...`
+3) Check status:
+  - `sudo systemctl status baendaeli-client.service`
+  - Logs: `journalctl -u baendaeli-client.service -f`
+4) Manual update:
+  - `sudo /usr/local/sbin/baendaeli-update.sh`
 
 ## Managing the service
 ```bash
