@@ -58,6 +58,7 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 	data := indexPageData{
 		DefaultAmount:    s.config.DefaultAmount,
 		SuccessOverlayMs: s.config.SuccessOverlayMs,
+		Version:          AppVersion,
 	}
 	if err := indexTemplate.Execute(w, data); err != nil {
 		log.Printf("failed to render index template: %v", err)
@@ -75,6 +76,7 @@ func (s *Server) handleServeFile(filename string) http.HandlerFunc {
 			data := indexPageData{
 				DefaultAmount:    s.config.DefaultAmount,
 				SuccessOverlayMs: s.config.SuccessOverlayMs,
+				Version:          AppVersion,
 			}
 			if err := mainJS.Execute(w, data); err != nil {
 				log.Printf("failed to serve %s: %v", filename, err)
