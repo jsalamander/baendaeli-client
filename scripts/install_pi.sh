@@ -14,7 +14,6 @@ REPO="baendaeli-client"
 BINARY="baendaeli-client"
 INSTALL_BIN="/usr/local/bin/${BINARY}"
 WORKDIR="/opt/${REPO}"
-ENV_FILE="/etc/${REPO}.env"
 SERVICE_NAME="${REPO}.service"
 INSTALLER_URL="https://jsalamander.github.io/baendaeli-client/installer.sh"
 
@@ -48,7 +47,6 @@ Wants=network-online.target
 Type=simple
 WorkingDirectory=/opt/baendaeli-client
 ExecStart=/usr/local/bin/baendaeli-client
-EnvironmentFile=-/etc/baendaeli-client.env
 Restart=on-failure
 RestartSec=3
 
@@ -113,11 +111,6 @@ main() {
     echo "[ERROR] Failed to create work directory: ${WORKDIR}" >&2
     return 1
   fi
-  echo "[INFO] Creating/touching env file: ${ENV_FILE}" >&2
-  if ! touch "$ENV_FILE"; then
-    echo "[ERROR] Failed to create env file: ${ENV_FILE}" >&2
-    return 1
-  fi
   
   echo "[INFO] Installing binary from: ${INSTALLER_URL}" >&2
   if ! install_binary; then
@@ -148,7 +141,7 @@ main() {
   fi
   
   echo "[SUCCESS] Installation complete!" >&2
-  echo "Installed. Edit $ENV_FILE for secrets and place config.yaml in $WORKDIR." >&2
+  echo "Installed. Place config.yaml in $WORKDIR." >&2
   echo "Manual update: sudo /usr/local/sbin/baendaeli-update.sh" >&2
 }
 

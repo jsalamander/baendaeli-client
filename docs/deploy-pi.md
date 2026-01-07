@@ -50,24 +50,14 @@ sudo systemctl restart baendaeli-client.service
 
 ## Config & secrets
 
-The systemd service locates files as follows:
+Store all configuration in a single YAML file at `/opt/baendaeli-client/config.yaml`.
 
-- **Config file**: `/opt/baendaeli-client/config.yaml`
-  - Service sets `WorkingDirectory=/opt/baendaeli-client`
-  - App calls `config.Load("config.yaml")` (relative path)
-  - **You must place your config.yaml here**
-
-- **Environment file**: `/etc/baendaeli-client.env` (optional)
-  - Loaded by service's `EnvironmentFile=-/etc/baendaeli-client.env` directive
-  - Use for secrets or overrides: `KEY=VALUE` format, one per line
-  - Example: `BAENDAELI_API_KEY=your-api-key-here`
-  - The `-` prefix means "ignore if missing"
-  - Currently, the app reads config from YAML; env vars can be used for future enhancements or shell integration
+The systemd service sets `WorkingDirectory=/opt/baendaeli-client`, so the app can load config.yaml via relative path.
 
 ### Setup example
 
 ```bash
-# 1. Create config file
+# Create config file with all settings and secrets
 sudo cat > /opt/baendaeli-client/config.yaml <<EOF
 BAENDAELI_API_KEY: "your-api-key-here"
 BAENDAELI_URL: "https://api.baendaeli.example.com"
@@ -76,20 +66,18 @@ SUCCESS_OVERLAY_MILLIS: 10000
 ACTUATOR_ENABLED: false
 EOF
 
-# 2. (Optional) Create env file for additional secrets
-sudo bash -c 'echo "# Environment overrides" > /etc/baendaeli-client.env'
+# Restrict permissions to prevent accidental exposure
+sudo chmod 600 /opt/baendaeli-client/config.yaml
 
-# 3. Verify service can read config
+# Verify service can read config
 sudo systemctl start baendaeli-client.service
 sudo journalctl -u baendaeli-client.service -n 20
 ```
 
 ## Uninstall
 ```bash
-sudo systemctl disable --now baendaeli-client.service baendaeli-client-update.timer
+sudo systemctl disable --now baendaeli-client.service
 sudo rm -f /etc/systemd/system/baendaeli-client.service \
-           /etc/systemd/system/baendaeli-client-update.service \
-           /etc/systemd/system/baendaeli-client-update.timer \
            /usr/local/sbin/baendaeli-update.sh \
            /usr/local/bin/baendaeli-client
 sudo systemctl daemon-reload
