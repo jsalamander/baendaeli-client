@@ -1,14 +1,16 @@
-# Deploying to Raspberry Pi (systemd + auto-update)
+# Deploying to Raspberry Pi (systemd + kiosk)
 
 ## What this gives you
-- Runs baendaeli-client as a systemd service
+- Runs baendaeli-client as a systemd service (auto-boots)
 - Stores config and secrets in `/opt/baendaeli-client/config.yaml`
+- Optional Chromium kiosk browser auto-starts displaying the interface on `localhost:8000`
 - Manual update via `/usr/local/sbin/baendaeli-update.sh`
 
 ## Prereqs
 - Raspberry Pi with network access
 - sudo/root access
 - A published GitHub release asset named with arch suffix (linux-armhf or linux-arm64)
+- Chromium browser (optional, for kiosk mode): `sudo apt-get install -y chromium-browser`
 
 ## One-shot install
 ```bash
@@ -23,31 +25,65 @@ curl -fsSL https://raw.githubusercontent.com/jsalamander/baendaeli-client/main/s
 - Detects arch (armhf/arm64) and downloads the latest GitHub release asset via the binstaller installer
 - Installs binary to /usr/local/bin/baendaeli-client
 - Creates /opt/baendaeli-client directory
-- Writes systemd unit baendaeli-client.service (runs the app)
+- Writes two systemd units:
+  - `baendaeli-client.service` (runs the backend server, auto-boots)
+  - `baendaeli-client-kiosk.service` (runs Chromium in kiosk mode, depends on client service)
 - Creates /usr/local/sbin/baendaeli-update.sh for manual updates
-- Enables and starts the service
+- Enables and starts both services
 
 ## Quick start (summary)
 1) Run installer (one-shot):
-  - `curl -fsSL https://jsalamander.github.io/baendaeli-client/install_pi.sh | sudo bash`
-2) Add config with secrets:
+   - `curl -fsSL https://jsalamander.github.io/baendaeli-client/install_pi.sh | sudo bash`
+2) Install Chromium (if not already installed):
+   - `sudo apt-get update && sudo apt-get install -y chromium-browser`
+3) Add config with secrets:
    - `sudo cat > /opt/baendaeli-client/config.yaml <<EOF`
    - Add your BAENDAELI_API_KEY, URL, and other settings
    - `EOF`
-3) Restrict file permissions:
+4) Restrict file permissions:
+   - `sudo chown root:root /opt/baendaeli-client/config.yaml`
    - `sudo chmod 600 /opt/baendaeli-client/config.yaml`
-4) Check status:
+5) Check status:
    - `sudo systemctl status baendaeli-client.service`
+   - `sudo systemctl status baendaeli-client-kiosk.service`
    - Logs: `journalctl -u baendaeli-client.service -f`
-5) Manual update (no timer):
+
+## Managing the services
 ```bash
+# Client service (backend)
 sudo systemctl status baendaeli-client.service
 sudo journalctl -u baendaeli-client.service -f
+
+# Kiosk service (browser)
+sudo systemctl status baendaeli-client-kiosk.service
+sudo journalctl -u baendaeli-client-kiosk.service -f
+
+# Control services
 sudo systemctl restart baendaeli-client.service
+sudo systemctl disable baendaeli-client-kiosk.service  # disable kiosk on boot
+sudo systemctl start baendaeli-client-kiosk.service    # start kiosk manually
 ```
 
-## Managing updates
-- Manual update: `sudo /usr/local/sbin/baendaeli-update.sh`
+## Kiosk browser
+
+The kiosk service automatically starts Chromium in fullscreen kiosk mode when the system boots, displaying the interface at `http://localhost:8000`.
+
+**Service dependency:** The kiosk service waits for the client service to start, then delays 2 seconds before launching the browser.
+
+**Disable kiosk on startup** (but keep the service installed):
+```bash
+sudo systemctl disable baendaeli-client-kiosk.service
+```
+
+**Start kiosk manually later:**
+```bash
+sudo systemctl start baendaeli-client-kiosk.service
+```
+
+**If Chromium is missing:**
+```bash
+sudo apt-get update && sudo apt-get install -y chromium-browser
+```
 
 ## Config & secrets
 
@@ -82,10 +118,16 @@ sudo journalctl -u baendaeli-client.service -n 20
 
 **Security note:** The config file contains secrets (API keys). Always ensure it has `root:root 600` permissions so only root can read it. The install and update scripts will automatically check and fix permissions if needed.
 
+## Manual updates
+```bash
+sudo /usr/local/sbin/baendaeli-update.sh
+```
+
 ## Uninstall
 ```bash
-sudo systemctl disable --now baendaeli-client.service
+sudo systemctl disable --now baendaeli-client.service baendaeli-client-kiosk.service
 sudo rm -f /etc/systemd/system/baendaeli-client.service \
+           /etc/systemd/system/baendaeli-client-kiosk.service \
            /usr/local/sbin/baendaeli-update.sh \
            /usr/local/bin/baendaeli-client
 sudo systemctl daemon-reload

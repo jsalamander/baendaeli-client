@@ -15,6 +15,7 @@ BINARY="baendaeli-client"
 INSTALL_BIN="/usr/local/bin/${BINARY}"
 WORKDIR="/opt/${REPO}"
 SERVICE_NAME="${REPO}.service"
+KIOSK_SERVICE="${REPO}-kiosk.service"
 INSTALLER_URL="https://jsalamander.github.io/baendaeli-client/installer.sh"
 
 require_root() {
@@ -58,6 +59,34 @@ EOF
     return 1
   fi
   echo "[INFO] Service file written to /etc/systemd/system/${SERVICE_NAME}" >&2
+}
+
+write_kiosk_service() {
+  echo "[INFO] Writing kiosk systemd service: ${KIOSK_SERVICE}" >&2
+  if ! cat >/etc/systemd/system/${KIOSK_SERVICE} <<'EOF'
+[Unit]
+Description=Baendaeli Client Kiosk (Chromium)
+After=baendaeli-client.service
+Requires=baendaeli-client.service
+ConditionVirtualization=!container
+
+[Service]
+Type=simple
+Environment="DISPLAY=:0"
+Environment="XAUTHORITY=/root/.Xauthority"
+ExecStartPre=/bin/sleep 2
+ExecStart=/usr/bin/chromium-browser --kiosk --noerrdialogs --disable-session-crashed-bubble --disable-component-update --disable-infobars --disable-default-apps --disable-preconnect http://localhost:8000
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+EOF
+  then
+    echo "[ERROR] Failed to write kiosk service file to /etc/systemd/system/${KIOSK_SERVICE}" >&2
+    return 1
+  fi
+  echo "[INFO] Kiosk service file written to /etc/systemd/system/${KIOSK_SERVICE}" >&2
 }
 
 check_config_permissions() {
@@ -146,6 +175,10 @@ main() {
     return 1
   fi
   
+  if ! write_kiosk_service; then
+    echo "[WARNING] Kiosk service setup failed, continuing without kiosk" >&2
+  fi
+  
   echo "[INFO] Checking config file permissions" >&2
   if ! check_config_permissions; then
     echo "[ERROR] Config file permission check failed" >&2
@@ -169,8 +202,16 @@ main() {
     return 1
   fi
   
+  echo "[INFO] Enabling kiosk service: ${KIOSK_SERVICE}" >&2
+  if ! systemctl enable ${KIOSK_SERVICE}; then
+    echo "[WARNING] Failed to enable kiosk service (kiosk display may not start)" >&2
+  else
+    echo "[INFO] Kiosk service enabled (will start on next boot)" >&2
+  fi
+  
   echo "[SUCCESS] Installation complete!" >&2
   echo "Installed. Place config.yaml in $WORKDIR." >&2
+  echo "Services: ${SERVICE_NAME}, ${KIOSK_SERVICE}" >&2
   echo "Manual update: sudo /usr/local/sbin/baendaeli-update.sh" >&2
 }
 
