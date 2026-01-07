@@ -6,6 +6,8 @@ const errorContainer = document.getElementById('errorContainer');
 const retryBtn = document.getElementById('retry');
 const paymentIdEl = document.getElementById('paymentId');
 const successBanner = document.getElementById('successBanner');
+const internetDot = document.getElementById('internetDot');
+const internetStatusText = document.getElementById('internetStatusText');
 const gatewayDot = document.getElementById('gatewayDot');
 const gatewayStatusText = document.getElementById('gatewayStatusText');
 const gatewayMeta = document.getElementById('gatewayMeta');
@@ -36,6 +38,7 @@ retryBtn.addEventListener('click', () => {
 // Initialization
 document.addEventListener('DOMContentLoaded', () => {
 	setDiagnosticsPending();
+	startInternetCheck();
 	start();
 });
 
