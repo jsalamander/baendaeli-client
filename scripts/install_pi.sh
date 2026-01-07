@@ -60,6 +60,25 @@ EOF
   echo "[INFO] Service file written to /etc/systemd/system/${SERVICE_NAME}" >&2
 }
 
+check_config_permissions() {
+  local config_file="$WORKDIR/config.yaml"
+  if [[ -f "$config_file" ]]; then
+    local perms
+    perms=$(stat -c "%a" "$config_file" 2>/dev/null || stat -f "%A" "$config_file" 2>/dev/null || echo "unknown")
+    if [[ "$perms" != "600" ]]; then
+      echo "[WARNING] Config file has insecure permissions: $perms (should be 600)" >&2
+      echo "[INFO] Fixing permissions..." >&2
+      if ! chmod 600 "$config_file"; then
+        echo "[ERROR] Failed to fix config file permissions" >&2
+        return 1
+      fi
+      echo "[INFO] Config file permissions fixed to 600" >&2
+    else
+      echo "[INFO] Config file permissions OK (600)" >&2
+    fi
+  fi
+}
+
 write_update_script() {
   echo "[INFO] Writing update script to /usr/local/sbin/baendaeli-update.sh" >&2
   if ! cat >/usr/local/sbin/baendaeli-update.sh <<'EOF'
@@ -120,6 +139,12 @@ main() {
   
   if ! write_service; then
     echo "[ERROR] Service setup failed, aborting" >&2
+    return 1
+  fi
+  
+  echo "[INFO] Checking config file permissions" >&2
+  if ! check_config_permissions; then
+    echo "[ERROR] Config file permission check failed" >&2
     return 1
   fi
   
