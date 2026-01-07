@@ -3,6 +3,7 @@ package server
 import (
 	"embed"
 	"html/template"
+	"io/fs"
 )
 
 var (
@@ -11,12 +12,13 @@ var (
 
 	indexTemplate = template.Must(template.ParseFS(templateFS, "templates/index.html"))
 	mainJS        = template.Must(template.ParseFS(templateFS, "templates/main.js"))
-	apiJS         = template.Must(template.ParseFS(templateFS, "templates/api.js"))
-	uiJS          = template.Must(template.ParseFS(templateFS, "templates/ui.js"))
-	qrJS          = template.Must(template.ParseFS(templateFS, "templates/qr.js"))
 )
 
 type indexPageData struct {
 	DefaultAmount    int
 	SuccessOverlayMs int
+}
+
+func GetStaticFile(filename string) ([]byte, error) {
+	return fs.ReadFile(templateFS, "templates/"+filename)
 }
