@@ -19,6 +19,13 @@ type ActuatorConfig struct {
 	IN2Pin         string // e.g., "GPIO7"
 	ExtendTime     int    // seconds
 	RetractTime    int    // seconds
+	PauseTime      int    // seconds, pause between extend and retract
+}
+
+type ActuateResult struct {
+	Status      string `json:"status"`
+	TotalTimeMs int    `json:"total_time_ms"`
+	Error       string `json:"error,omitempty"`
 }
 
 type Actuator struct {
@@ -28,6 +35,7 @@ type Actuator struct {
 	in2Pin  gpio.PinOut
 	extend  time.Duration
 	retract time.Duration
+	pause   time.Duration
 }
 
 var actuator *Actuator
@@ -40,10 +48,13 @@ func InitActuator(config ActuatorConfig) error {
 	}
 
 	if config.ExtendTime == 0 {
-		config.ExtendTime = 20
+		config.ExtendTime = 2
 	}
 	if config.RetractTime == 0 {
-		config.RetractTime = 20
+		config.RetractTime = 2
+	}
+	if config.PauseTime == 0 {
+		config.PauseTime = 2
 	}
 
 	// Initialize periph/x host
@@ -74,6 +85,7 @@ func InitActuator(config ActuatorConfig) error {
 		in2Pin:  in2Pin,
 		extend:  time.Duration(config.ExtendTime) * time.Second,
 		retract: time.Duration(config.RetractTime) * time.Second,
+		pause:   time.Duration(config.PauseTime) * time.Second,
 	}
 
 	// Set ENA pin HIGH to enable the actuator
@@ -85,50 +97,60 @@ func InitActuator(config ActuatorConfig) error {
 	return nil
 }
 
-// Trigger executes one extend-retract cycle
-func (a *Actuator) Trigger() error {
+// Trigger executes one extend-pause-retract cycle and returns timing info
+func (a *Actuator) Trigger() (int, error) {
+	start := time.Now()
 	if !a.enabled {
-		return nil
+		// Mock: wait for the configured time
+		mockDuration := a.extend + a.pause + a.retract
+		time.Sleep(mockDuration)
+		return int(mockDuration.Milliseconds()), nil
 	}
 
 	log.Println("Actuator: extending...")
 	// Extend: IN1 HIGH, IN2 LOW
 	if err := a.in1Pin.Out(gpio.High); err != nil {
-		return fmt.Errorf("failed to set IN1 high: %w", err)
+		return 0, fmt.Errorf("failed to set IN1 high: %w", err)
 	}
 	if err := a.in2Pin.Out(gpio.Low); err != nil {
-		return fmt.Errorf("failed to set IN2 low: %w", err)
+		return 0, fmt.Errorf("failed to set IN2 low: %w", err)
 	}
 
 	time.Sleep(a.extend)
 
+	log.Println("Actuator: pausing...")
+	time.Sleep(a.pause)
+
 	log.Println("Actuator: retracting...")
 	// Retract: IN1 LOW, IN2 HIGH
 	if err := a.in1Pin.Out(gpio.Low); err != nil {
-		return fmt.Errorf("failed to set IN1 low: %w", err)
+		return 0, fmt.Errorf("failed to set IN1 low: %w", err)
 	}
 	if err := a.in2Pin.Out(gpio.High); err != nil {
-		return fmt.Errorf("failed to set IN2 high: %w", err)
+		return 0, fmt.Errorf("failed to set IN2 high: %w", err)
 	}
 
 	time.Sleep(a.retract)
 
 	// Stop: both LOW
 	if err := a.in1Pin.Out(gpio.Low); err != nil {
-		return fmt.Errorf("failed to set IN1 low: %w", err)
+		return 0, fmt.Errorf("failed to set IN1 low: %w", err)
 	}
 	if err := a.in2Pin.Out(gpio.Low); err != nil {
-		return fmt.Errorf("failed to set IN2 low: %w", err)
+		return 0, fmt.Errorf("failed to set IN2 low: %w", err)
 	}
 
-	log.Println("Actuator: cycle complete")
-	return nil
+	totalMs := int(time.Since(start).Milliseconds())
+	log.Printf("Actuator cycle complete (took %d ms)", totalMs)
+	return totalMs, nil
 }
 
-// TriggerActuator is the public entry point to trigger the actuator
-func TriggerActuator() error {
-	if actuator == nil || !actuator.enabled {
-		return nil
+// TriggerActuator calls the actuator if initialized and returns timing info
+func TriggerActuator() (int, error) {
+	if actuator == nil {
+		// No actuator configured; return mock timing (2+2+2 = 6 seconds)
+		time.Sleep(6 * time.Second)
+		return 6000, nil
 	}
 	return actuator.Trigger()
 }

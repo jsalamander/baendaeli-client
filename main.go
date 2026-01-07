@@ -27,6 +27,7 @@ type Config struct {
 	ActuatorIN2Pin   string `yaml:"ACTUATOR_IN2_PIN"`
 	ActuatorExtend   int    `yaml:"ACTUATOR_EXTEND_SECONDS"`
 	ActuatorRetract  int    `yaml:"ACTUATOR_RETRACT_SECONDS"`
+	ActuatorPause    int    `yaml:"ACTUATOR_PAUSE_SECONDS"`
 }
 
 type Server struct {
@@ -73,10 +74,13 @@ func main() {
 		config.SuccessOverlayMs = 10000 // 10 seconds by default
 	}
 	if config.ActuatorExtend == 0 {
-		config.ActuatorExtend = 20 // 20 seconds by default
+		config.ActuatorExtend = 2 // 2 seconds by default
 	}
 	if config.ActuatorRetract == 0 {
-		config.ActuatorRetract = 20 // 20 seconds by default
+		config.ActuatorRetract = 2 // 2 seconds by default
+	}
+	if config.ActuatorPause == 0 {
+		config.ActuatorPause = 2 // 2 seconds by default
 	}
 
 	log.Println("Configuration loaded successfully")
@@ -90,6 +94,7 @@ func main() {
 			IN2Pin:      config.ActuatorIN2Pin,
 			ExtendTime:  config.ActuatorExtend,
 			RetractTime: config.ActuatorRetract,
+			PauseTime:   config.ActuatorPause,
 		}
 		if err := InitActuator(actConfig); err != nil {
 			log.Fatalf("Failed to init actuator: %v", err)
@@ -208,14 +213,25 @@ func (s *Server) handleGetPaymentStatus(w http.ResponseWriter, r *http.Request) 
 }
 
 func (s *Server) handleActuate(w http.ResponseWriter, r *http.Request) {
-	if err := TriggerActuator(); err != nil {
+	totalMs, err := TriggerActuator()
+	w.Header().Set("Content-Type", "application/json")
+	
+	if err != nil {
 		log.Printf("actuator error: %v", err)
-		http.Error(w, "actuator error", http.StatusInternalServerError)
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"status":         "error",
+			"error":          "Solibändeli konnte nicht ausgegeben werden",
+			"total_time_ms":  0,
+		})
 		return
 	}
-	w.Header().Set("Content-Type", "application/json")
+	
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte(`{"status":"ok"}`))
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"status":        "ok",
+		"total_time_ms": totalMs,
+	})
 }
 
 // Simple inline page to kick off payment creation and render the QR code result.
@@ -661,19 +677,39 @@ const indexPageTemplate = `<!doctype html>
 			}
 		}
 
-		function showSuccessThenRestart() {
+		async function showSuccessThenRestart() {
 			successBanner.classList.remove('hidden');
 			successBanner.classList.add('animate');
 			qrEl.classList.add('hidden');
 			clearPoll();
 			clearExpiry();
-			// Trigger actuator
-			fetch('/api/actuate', { method: 'POST' }).catch(err => console.error('Actuator error:', err));
+			
+			let actuatorTimeMs = successOverlayMs;
+			
+			try {
+				const res = await fetch('/api/actuate', { method: 'POST' });
+				const { data } = await safeParseJson(res);
+				
+				if (res.ok && data.total_time_ms) {
+					actuatorTimeMs = Math.max(successOverlayMs, data.total_time_ms);
+					console.log('Actuator completed in', data.total_time_ms, 'ms');
+				} else if (!res.ok) {
+					console.error('Actuator error:', data.error);
+					errorEl.textContent = data.error || 'Solibändeli konnte nicht ausgegeben werden. Bitte kontaktiere den Betreiber.';
+					actuatorTimeMs = 4000; // Show error for 4 seconds before restarting
+				}
+			} catch (err) {
+				console.error('Actuator request failed:', err);
+				errorEl.textContent = 'Fehler beim Ausgeben des Solibändeli. Bitte versuche es erneut.';
+				actuatorTimeMs = 4000; // Show error for 4 seconds before restarting
+			}
+			
 			setTimeout(() => {
 				successBanner.classList.remove('animate');
 				successBanner.classList.add('hidden');
+				errorEl.textContent = '';
 				start();
-			}, successOverlayMs);
+			}, actuatorTimeMs);
 		}
 
 		function renderQr(data) {
