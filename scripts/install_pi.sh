@@ -14,8 +14,6 @@ INSTALL_BIN="/usr/local/bin/${BINARY}"
 WORKDIR="/opt/${REPO}"
 ENV_FILE="/etc/${REPO}.env"
 SERVICE_NAME="${REPO}.service"
-UPDATE_SERVICE="${REPO}-update.service"
-UPDATE_TIMER="${REPO}-update.timer"
 INSTALLER_URL="https://jsalamander.github.io/baendaeli-client/installer.sh"
 
 require_root() {
@@ -51,31 +49,6 @@ WantedBy=multi-user.target
 EOF
 }
 
-write_update_service() {
-  cat >/etc/systemd/system/${UPDATE_SERVICE} <<'EOF'
-[Unit]
-Description=Baendaeli Client updater
-
-[Service]
-Type=oneshot
-ExecStart=/usr/local/sbin/baendaeli-update.sh
-EOF
-}
-
-write_update_timer() {
-  cat >/etc/systemd/system/${UPDATE_TIMER} <<'EOF'
-[Unit]
-Description=Daily update for Baendaeli Client
-
-[Timer]
-OnCalendar=03:00
-Persistent=true
-
-[Install]
-WantedBy=timers.target
-EOF
-}
-
 write_update_script() {
   cat >/usr/local/sbin/baendaeli-update.sh <<'EOF'
 #!/usr/bin/env bash
@@ -103,13 +76,11 @@ main() {
   touch "$ENV_FILE"
   install_binary
   write_service
-  write_update_service
-  write_update_timer
   write_update_script
   systemctl daemon-reload
   systemctl enable --now ${SERVICE_NAME}
-  systemctl enable --now ${UPDATE_TIMER}
   echo "Installed. Edit $ENV_FILE for secrets and place config.yaml in $WORKDIR." >&2
+  echo "Manual update: sudo /usr/local/sbin/baendaeli-update.sh" >&2
 }
 
 main "$@"

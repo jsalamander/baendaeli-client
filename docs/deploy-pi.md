@@ -20,14 +20,11 @@ curl -fsSL https://raw.githubusercontent.com/jsalamander/baendaeli-client/main/s
 (Or scp scripts/install_pi.sh to the Pi and run sudo ./install_pi.sh)
 
 ## What install does
-- Detects arch (armhf/arm64) and downloads the latest GitHub release asset
+- Detects arch (armhf/arm64) and downloads the latest GitHub release asset via the binstaller installer
 - Installs binary to /usr/local/bin/baendaeli-client
 - Creates /opt/baendaeli-client and touches /etc/baendaeli-client.env
-- Writes systemd units:
-  - baendaeli-client.service (runs the app)
-  - baendaeli-client-update.service (runs updater)
-  - baendaeli-client-update.timer (daily at 03:00)
-- Enables and starts both the service and the timer
+- Writes systemd unit baendaeli-client.service (runs the app)
+- Enables and starts the service
 
 ## Quick start (summary)
 1) Run installer (one-shot):
@@ -38,7 +35,7 @@ curl -fsSL https://raw.githubusercontent.com/jsalamander/baendaeli-client/main/s
 3) Check status:
   - `sudo systemctl status baendaeli-client.service`
   - Logs: `journalctl -u baendaeli-client.service -f`
-4) Manual update:
+4) Manual update (no timer):
   - `sudo /usr/local/sbin/baendaeli-update.sh`
 
 ## Managing the service
@@ -50,7 +47,6 @@ sudo systemctl restart baendaeli-client.service
 
 ## Managing updates
 - Manual update: `sudo /usr/local/sbin/baendaeli-update.sh`
-- Timer: `sudo systemctl list-timers baendaeli-client-update.timer`
 
 ## Config & secrets
 - Place config.yaml at /opt/baendaeli-client/config.yaml
