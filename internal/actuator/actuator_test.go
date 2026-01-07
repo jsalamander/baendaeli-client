@@ -24,10 +24,9 @@ func TestInitDisabledLeavesActuatorNil(t *testing.T) {
 func TestTriggerWithDisabledActuatorUsesConfiguredDurations(t *testing.T) {
     prev := actuator
     actuator = &Actuator{
-        enabled: false,
-        extend:  10 * time.Millisecond,
-        pause:   5 * time.Millisecond,
-        retract: 10 * time.Millisecond,
+        enabled:      false,
+        movementTime: 10 * time.Millisecond,
+        pause:        5 * time.Millisecond,
     }
     defer func() { actuator = prev }()
 
@@ -39,11 +38,11 @@ func TestTriggerWithDisabledActuatorUsesConfiguredDurations(t *testing.T) {
         t.Fatalf("Trigger returned error: %v", err)
     }
 
-    // expected ~25ms; allow a small buffer for scheduling jitter
-    if totalMs < 15 || totalMs > 200 {
+    // expected ~225ms (2x 10ms movement + 5ms pause + 2x 100ms settling); allow buffer for scheduling
+    if totalMs < 200 || totalMs > 300 {
         t.Fatalf("unexpected reported duration: %dms", totalMs)
     }
-    if elapsed < 15*time.Millisecond || elapsed > 300*time.Millisecond {
+    if elapsed < 200*time.Millisecond || elapsed > 400*time.Millisecond {
         t.Fatalf("unexpected elapsed wall time: %v", elapsed)
     }
 }
