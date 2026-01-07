@@ -75,13 +75,15 @@
 		</div>
 	</main>
 
-	<!-- Payment ID Badge (fixed position) -->
+	<!-- Version Badge (fixed position on left) -->
+	<div class="fixed bottom-4 left-4 badge badge-outline text-xs">v{{.Version}}</div>
+
+	<!-- Payment ID Badge (fixed position on right) -->
 	<div class="fixed bottom-4 right-4 badge badge-outline hidden" id="paymentId"></div>
 
 	<!-- Footer -->
 	<footer class="footer footer-center bg-base-800 border-t border-base-700 p-4 text-base-content/70">
-		<div class="flex gap-8">
-			<p class="text-sm">v{{.Version}}</p>
+		<div>
 			<p class="text-sm">2026 Baendae.li</p>
 		</div>
 	</footer>
