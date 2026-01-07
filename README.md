@@ -1,6 +1,17 @@
 # baendaeli-client
 The client for Baendae.li
 
+## Features
+
+- **Web Interface**: DaisyUI-based responsive UI for payment processing
+- **QR Code Payments**: Generate and display payment QR codes
+- **Real-time Status**: Live payment status tracking with visual feedback
+- **Internet Monitoring**: Real-time connectivity status display
+- **GPIO Actuator Support**: Optional linear actuator control via Raspberry Pi GPIO
+- **Kiosk Mode**: Chromium fullscreen display for unattended operation
+- **Secure Deployment**: Runs as dedicated system user with minimal privileges
+- **Auto-updates**: Manual update script for easy maintenance
+
 ## Installation
 
 ### Quick Install (Linux)

@@ -133,12 +133,92 @@ sudo journalctl -u baendaeli-client.service -n 20
 sudo /usr/local/sbin/baendaeli-update.sh
 ```
 
+## Troubleshooting
+
+### Kiosk service not starting
+**Check logs:**
+```bash
+sudo journalctl -u baendaeli-client-kiosk.service -n 50
+```
+
+**Common issues:**
+
+1. **Missing X server / Display error**
+   - Ensure you have Raspberry Pi OS Desktop (not Lite)
+   - Enable auto-login: `sudo raspi-config` → System Options → Boot / Auto Login → Desktop Autologin
+   - Reboot after enabling auto-login
+
+2. **Chromium not found (exit code 203)**
+   - Install: `sudo apt-get install -y chromium-browser` or `sudo apt-get install -y chromium`
+   - Verify: `which chromium` or `which chromium-browser`
+
+3. **Service crashes immediately**
+   - Check if client service is running: `sudo systemctl status baendaeli-client.service`
+   - Verify port 8000 is listening: `sudo netstat -tlnp | grep 8000`
+   - Check client logs: `sudo journalctl -u baendaeli-client.service -n 50`
+
+### Client service not starting
+**Check logs:**
+```bash
+sudo journalctl -u baendaeli-client.service -n 50
+```
+
+**Common issues:**
+
+1. **Config file not found**
+   - Create config: See "Config & secrets" section above
+   - Verify location: `ls -la /opt/baendaeli-client/config.yaml`
+
+2. **Permission denied**
+   - Fix ownership: `sudo chown baendaeli-client:baendaeli-client /opt/baendaeli-client/config.yaml`
+   - Fix permissions: `sudo chmod 600 /opt/baendaeli-client/config.yaml`
+
+3. **Port 8000 already in use**
+   - Check what's using it: `sudo netstat -tlnp | grep 8000`
+   - Kill the process or change port in config
+
+4. **GPIO/Actuator errors**
+   - Verify user in gpio group: `groups baendaeli-client`
+   - If missing: `sudo usermod -a -G gpio baendaeli-client && sudo systemctl restart baendaeli-client.service`
+
+### No internet connectivity shown
+- The web interface checks internet connectivity every 10 seconds
+- Uses Cloudflare CDN endpoint for reliable checking
+- Red indicator = offline, Green = online
+- If stuck on yellow: Check browser console for errors
+
+### Service user issues
+The service runs as the dedicated `baendaeli-client` system user (not root) for security.
+
+**View service user info:**
+```bash
+id baendaeli-client
+groups baendaeli-client
+```
+
+**Recreate service user if needed:**
+```bash
+sudo userdel baendaeli-client
+# Re-run installer to recreate
+```
+
 ## Uninstall
 ```bash
+# Stop and disable services
 sudo systemctl disable --now baendaeli-client.service baendaeli-client-kiosk.service
+
+# Remove service files
 sudo rm -f /etc/systemd/system/baendaeli-client.service \
            /etc/systemd/system/baendaeli-client-kiosk.service \
            /usr/local/sbin/baendaeli-update.sh \
            /usr/local/bin/baendaeli-client
+
+# Remove service user (optional)
+sudo userdel baendaeli-client
+
+# Remove config and data (optional - contains your secrets!)
+sudo rm -rf /opt/baendaeli-client
+
+# Reload systemd
 sudo systemctl daemon-reload
 ```
