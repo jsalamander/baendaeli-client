@@ -56,7 +56,15 @@ log.Fatalf("Server error: %v", err)
 }
 }()
 
-// Wait for interrupt signal
-sig := <-sigChan
-fmt.Printf("\nReceived signal: %v. Shutting down...\n", sig)
+	// Start actuator homing in background after server is up
+	if cfg.ActuatorEnabled {
+		go func() {
+			log.Println("Starting actuator homing sequence...")
+			actuator.Home()
+		}()
+	}
+
+	// Wait for interrupt signal
+	sig := <-sigChan
+	fmt.Printf("\nReceived signal: %v. Shutting down...\n", sig)
 }

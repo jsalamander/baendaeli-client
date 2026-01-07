@@ -94,14 +94,28 @@ func Init(config Config) error {
 		return fmt.Errorf("failed to set ENA pin high: %w", err)
 	}
 
+	log.Println("Actuator initialized successfully (homing will run in background)")
+	return nil
+}
+
+// Home retracts the actuator to the shortest position (home position)
+// Should be called after server startup to avoid blocking
+func Home() {
+	if actuator == nil || !actuator.enabled {
+		log.Println("Actuator: skipping homing (not initialized or disabled)")
+		return
+	}
+
 	// Retract to shortest position on startup (home position)
 	// Run for fixed 10 seconds to ensure full retraction regardless of starting position
 	log.Println("Actuator: retracting to home position...")
 	if err := actuator.in1Pin.Out(gpio.Low); err != nil {
-		return fmt.Errorf("failed to set IN1 low during homing: %w", err)
+		log.Printf("Actuator homing error: failed to set IN1 low: %v", err)
+		return
 	}
 	if err := actuator.in2Pin.Out(gpio.High); err != nil {
-		return fmt.Errorf("failed to set IN2 high during homing: %w", err)
+		log.Printf("Actuator homing error: failed to set IN2 high: %v", err)
+		return
 	}
 	
 	// Run retract for fixed duration to guarantee full retraction
@@ -110,14 +124,15 @@ func Init(config Config) error {
 	
 	// Stop: both LOW
 	if err := actuator.in1Pin.Out(gpio.Low); err != nil {
-		return fmt.Errorf("failed to set IN1 low after homing: %w", err)
+		log.Printf("Actuator homing error: failed to set IN1 low after homing: %v", err)
+		return
 	}
 	if err := actuator.in2Pin.Out(gpio.Low); err != nil {
-		return fmt.Errorf("failed to set IN2 low after homing: %w", err)
+		log.Printf("Actuator homing error: failed to set IN2 low after homing: %v", err)
+		return
 	}
 
-	log.Println("Actuator initialized successfully")
-	return nil
+	log.Println("Actuator: homing complete")
 }
 
 // Trigger executes one extend-pause-retract cycle and returns timing info
