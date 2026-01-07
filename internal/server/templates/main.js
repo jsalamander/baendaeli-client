@@ -75,8 +75,6 @@ async function start() {
 		
 		updateStatus('Zahlung wird erstellt...', 'badge-primary');
 		if (data.id) {
-			paymentIdEl.textContent = 'ID ' + data.id;
-			paymentIdEl.classList.remove('hidden');
 			currentPaymentId = data.id;
 			pollStatus(data.id);
 		}
