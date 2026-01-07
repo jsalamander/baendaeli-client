@@ -2,7 +2,7 @@
 
 function updateStatus(text, badgeClass = 'badge-info') {
 	statusEl.innerHTML = '<span class="status status-sm status-success"></span><span>' + text + '</span>';
-	statusEl.className = 'badge badge-dash ' + badgeClass;
+	statusEl.className = 'badge badge-dash badge-outline text-base px-4 py-3 ' + badgeClass;
 }
 
 function showError(message) {
