@@ -60,8 +60,8 @@ function setDiagnosticsPending() {
 	lastDiagnosticsTime = null;
 	lastDiagnosticsLatency = null;
 	gatewayDot.className = 'w-2 h-2 rounded-full bg-warning';
-	gatewayStatusText.textContent = 'Gateway wird geprüft...';
-	gatewayMeta.textContent = 'Warte auf erste Antwort';
+	gatewayStatusText.textContent = 'Gateway...';
+	gatewayMeta.textContent = 'Warte...';
 	expiryMeta.textContent = 'Gültig für --:--';
 }
 
@@ -72,13 +72,13 @@ function updateDiagnostics({ ok, latencyMs, at }) {
 
 	if (ok) {
 		gatewayDot.className = 'w-2 h-2 rounded-full bg-success';
-		gatewayStatusText.textContent = 'Gateway: OK';
-		const latencyText = lastDiagnosticsLatency != null ? lastDiagnosticsLatency + ' ms' : '—';
-		gatewayMeta.textContent = 'Zuletzt: ' + formatTime(lastDiagnosticsTime) + ' · Latenz: ' + latencyText;
+		gatewayStatusText.textContent = 'Gateway OK';
+		const latencyText = lastDiagnosticsLatency != null ? lastDiagnosticsLatency + 'ms' : '—';
+		gatewayMeta.textContent = formatTime(lastDiagnosticsTime) + ' · ' + latencyText;
 	} else {
 		gatewayDot.className = 'w-2 h-2 rounded-full bg-error';
-		gatewayStatusText.textContent = 'Gateway: gestört';
-		gatewayMeta.textContent = 'Letzter Versuch: ' + formatTime(lastDiagnosticsTime);
+		gatewayStatusText.textContent = 'Gateway!';
+		gatewayMeta.textContent = formatTime(lastDiagnosticsTime);
 	}
 }
 
@@ -112,10 +112,10 @@ function updateInternetStatus(isConnected) {
 	
 	if (isConnected) {
 		internetDot.className = 'w-2 h-2 rounded-full bg-success';
-		internetStatusText.textContent = 'Internet: OK';
+		internetStatusText.textContent = 'Internet OK';
 	} else {
 		internetDot.className = 'w-2 h-2 rounded-full bg-error';
-		internetStatusText.textContent = 'Internet: Offline';
+		internetStatusText.textContent = 'Offline';
 	}
 }
 

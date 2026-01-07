@@ -69,27 +69,20 @@
 	<!-- Version Badge (fixed position on left) -->
 	<div class="fixed bottom-4 left-4 badge badge-outline text-xs">v{{.Version}}</div>
 
-	<!-- Internet & Gateway Status (fixed position on right) -->
-	<div class="fixed bottom-4 right-4 space-y-2">
-		<div class="flex items-center gap-2 text-sm badge badge-outline">
+	<!-- Internet & Gateway Status (fixed position on right, horizontal) -->
+	<div class="fixed bottom-4 right-4 flex flex-row gap-2 flex-wrap max-w-[calc(100vw-8rem)]">
+		<div class="flex items-center gap-2 text-xs badge badge-outline">
 			<div class="w-2 h-2 rounded-full bg-warning" id="internetDot"></div>
-			<span id="internetStatusText">Internet wird geprüft...</span>
+			<span id="internetStatusText">Internet...</span>
 		</div>
-		<div class="flex items-center gap-2 text-sm badge badge-outline">
+		<div class="flex items-center gap-2 text-xs badge badge-outline">
 			<div class="w-2 h-2 rounded-full bg-warning" id="gatewayDot"></div>
-			<span id="gatewayStatusText">Gateway wird geprüft...</span>
+			<span id="gatewayStatusText">Gateway...</span>
 		</div>
-		<div class="text-xs text-base-content/60 text-right">
-			<span id="gatewayMeta">Warte auf erste Antwort</span>
+		<div class="text-xs text-base-content/60 badge badge-ghost">
+			<span id="gatewayMeta">...</span>
 		</div>
 	</div>
-
-	<!-- Footer -->
-	<footer class="footer footer-center bg-base-800 border-t border-base-700 p-4 text-base-content/70">
-		<div>
-			<p class="text-sm">2026 Baendae.li</p>
-		</div>
-	</footer>
 
 	<!-- Scripts -->
 	<script src="/ui.js"></script>
