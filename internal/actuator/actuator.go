@@ -92,6 +92,7 @@ func Init(config Config) error {
 	}
 
 	// Retract to shortest position on startup (home position)
+	// Run for 2x the retract time to ensure full retraction regardless of starting position
 	log.Println("Actuator: retracting to home position...")
 	if err := actuator.in1Pin.Out(gpio.Low); err != nil {
 		return fmt.Errorf("failed to set IN1 low during homing: %w", err)
@@ -100,8 +101,10 @@ func Init(config Config) error {
 		return fmt.Errorf("failed to set IN2 high during homing: %w", err)
 	}
 	
-	// Run retract for the configured time
-	time.Sleep(actuator.retract)
+	// Run retract for 2x the configured time to ensure full retraction
+	homingDuration := actuator.retract * 2
+	log.Printf("Actuator: homing for %v (2x retract time)", homingDuration)
+	time.Sleep(homingDuration)
 	
 	// Stop: both LOW
 	if err := actuator.in1Pin.Out(gpio.Low); err != nil {
