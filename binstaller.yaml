@@ -1,0 +1,15 @@
+name: baendaeli-client
+description: Payment terminal with QR code and GPIO actuator control
+homepage: https://github.com/jsalamander/baendaeli-client
+license: MIT
+
+binaries:
+  - name: baendaeli-client
+    description: Baendaeli payment terminal server
+    platforms:
+      - linux/amd64
+      - linux/arm64
+    install_path: /usr/local/bin
+    post_install: |
+      echo "baendaeli-client installed successfully!"
+      echo "Create a config.yaml file and run: baendaeli-client"
