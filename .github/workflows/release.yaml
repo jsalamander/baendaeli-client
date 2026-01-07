@@ -42,10 +42,10 @@ jobs:
       - name: Generate Installer Script
         run: binst gen --config .config/binstaller.yml -o installer.sh
 
-      - name: Upload pages artifact
+      - name: Upload installer artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: .
+          path: installer.sh
 
       - name: Deploy to GitHub Pages
         id: deployment
