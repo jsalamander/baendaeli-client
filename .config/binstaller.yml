@@ -1,0 +1,14 @@
+name: baendaeli-client
+description: Payment terminal with QR code and GPIO actuator control
+repository: jsalamander/baendaeli-client
+homepage: https://github.com/jsalamander/baendaeli-client
+license: MIT
+
+binaries:
+  - name: baendaeli-client
+    description: Baendaeli payment terminal server
+    install_path: /usr/local/bin
+    github_releases:
+      owner: jsalamander
+      repo: baendaeli-client
+      filter: "linux"

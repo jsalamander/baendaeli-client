@@ -33,17 +33,11 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Generate installer script
-        run: |
-          mkdir -p tools
-          cd tools
-          curl -L https://github.com/CompassSecurity/binstaller/releases/download/v0.2.0/binstaller-linux-amd64 -o binstaller
-          chmod +x binstaller
-          cd ..
-          ./tools/binstaller \
-            --config .goreleaser.yaml \
-            --version ${{ github.ref_name }} \
-            --output installer.sh
+      - name: Install binstaller
+        run: go install github.com/binary-install/binstaller/cmd/binst@latest
+
+      - name: Generate Installer Script
+        run: binst gen --config .config/binstaller.yml -o installer.sh
 
       - name: Upload pages artifact
         uses: actions/upload-pages-artifact@v2
