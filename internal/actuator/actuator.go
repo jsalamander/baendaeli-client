@@ -91,6 +91,26 @@ func Init(config Config) error {
 		return fmt.Errorf("failed to set ENA pin high: %w", err)
 	}
 
+	// Retract to shortest position on startup (home position)
+	log.Println("Actuator: retracting to home position...")
+	if err := actuator.in1Pin.Out(gpio.Low); err != nil {
+		return fmt.Errorf("failed to set IN1 low during homing: %w", err)
+	}
+	if err := actuator.in2Pin.Out(gpio.High); err != nil {
+		return fmt.Errorf("failed to set IN2 high during homing: %w", err)
+	}
+	
+	// Run retract for the configured time
+	time.Sleep(actuator.retract)
+	
+	// Stop: both LOW
+	if err := actuator.in1Pin.Out(gpio.Low); err != nil {
+		return fmt.Errorf("failed to set IN1 low after homing: %w", err)
+	}
+	if err := actuator.in2Pin.Out(gpio.Low); err != nil {
+		return fmt.Errorf("failed to set IN2 low after homing: %w", err)
+	}
+
 	log.Println("Actuator initialized successfully")
 	return nil
 }
