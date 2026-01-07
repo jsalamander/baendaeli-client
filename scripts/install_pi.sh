@@ -28,9 +28,8 @@ require_root() {
 
 install_binary() {
   echo "[INFO] Installing via binstaller (${INSTALLER_URL})" >&2
-  echo "[INFO] BINSTALLER_INSTALL_DIR=/usr/local/bin" >&2
-  if ! BINSTALLER_INSTALL_DIR="/usr/local/bin" \
-    curl -fsSL "$INSTALLER_URL" | bash; then
+  echo "[INFO] Installing to: /usr/local/bin" >&2
+  if ! curl -fsSL "$INSTALLER_URL" | bash -s -- -b "/usr/local/bin"; then
     echo "[ERROR] Binary installation failed" >&2
     return 1
   fi
@@ -78,8 +77,7 @@ INSTALLER_URL="https://jsalamander.github.io/baendaeli-client/installer.sh"
 main() {
   echo "[INFO] Starting update check" >&2
   echo "[INFO] Fetching from: ${INSTALLER_URL}" >&2
-  if ! BINSTALLER_INSTALL_DIR="/usr/local/bin" \
-    curl -fsSL "$INSTALLER_URL" | bash; then
+  if ! curl -fsSL "$INSTALLER_URL" | bash -s -- -b "/usr/local/bin"; then
     echo "[ERROR] Update failed: installer script execution error" >&2
     return 1
   fi

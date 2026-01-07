@@ -22,8 +22,7 @@ main() {
   echo "[INFO] Running as root" >&2
   
   echo "[INFO] Fetching latest installer from: ${INSTALLER_URL}" >&2
-  if ! BINSTALLER_INSTALL_DIR="/usr/local/bin" \
-    curl -fsSL "$INSTALLER_URL" | bash; then
+  if ! curl -fsSL "$INSTALLER_URL" | bash -s -- -b "/usr/local/bin"; then
     echo "[ERROR] Failed to download/install binary" >&2
     return 1
   fi
