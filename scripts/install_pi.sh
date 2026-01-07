@@ -7,6 +7,8 @@ set -euo pipefail
 # - Sets up /opt/baendaeli-client for config
 # - Registers systemd service and auto-update timer
 
+trap 'echo "[ERROR] Installation failed at line $LINENO" >&2; exit 1' ERR
+
 OWNER="jsalamander"
 REPO="baendaeli-client"
 BINARY="baendaeli-client"
@@ -18,7 +20,7 @@ INSTALLER_URL="https://jsalamander.github.io/baendaeli-client/installer.sh"
 
 require_root() {
   if [[ $EUID -ne 0 ]]; then
-    echo "This script must be run as root (sudo)." >&2
+    echo "[ERROR] This script must be run as root (sudo)." >&2
     exit 1
   fi
   echo "[INFO] Running as root" >&2
@@ -27,14 +29,17 @@ require_root() {
 install_binary() {
   echo "[INFO] Installing via binstaller (${INSTALLER_URL})" >&2
   echo "[INFO] BINSTALLER_INSTALL_DIR=/usr/local/bin" >&2
-  BINSTALLER_INSTALL_DIR="/usr/local/bin" \
-    curl -fsSL "$INSTALLER_URL" | bash
+  if ! BINSTALLER_INSTALL_DIR="/usr/local/bin" \
+    curl -fsSL "$INSTALLER_URL" | bash; then
+    echo "[ERROR] Binary installation failed" >&2
+    return 1
+  fi
   echo "[INFO] Binary installation complete" >&2
 }
 
 write_service() {
   echo "[INFO] Writing systemd service: ${SERVICE_NAME}" >&2
-  cat >/etc/systemd/system/${SERVICE_NAME} <<'EOF'
+  if ! cat >/etc/systemd/system/${SERVICE_NAME} <<'EOF'
 [Unit]
 Description=Baendaeli Client
 After=network-online.target
@@ -51,14 +56,19 @@ RestartSec=3
 [Install]
 WantedBy=multi-user.target
 EOF
+  then
+    echo "[ERROR] Failed to write service file to /etc/systemd/system/${SERVICE_NAME}" >&2
+    return 1
+  fi
   echo "[INFO] Service file written to /etc/systemd/system/${SERVICE_NAME}" >&2
 }
 
 write_update_script() {
   echo "[INFO] Writing update script to /usr/local/sbin/baendaeli-update.sh" >&2
-  cat >/usr/local/sbin/baendaeli-update.sh <<'EOF'
+  if ! cat >/usr/local/sbin/baendaeli-update.sh <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
+trap 'echo "[ERROR] Update failed at line $LINENO" >&2; exit 1' ERR
 OWNER="jsalamander"
 REPO="baendaeli-client"
 BINARY="baendaeli-client"
@@ -66,13 +76,27 @@ INSTALL_BIN="/usr/local/bin/${BINARY}"
 INSTALLER_URL="https://jsalamander.github.io/baendaeli-client/installer.sh"
 
 main() {
-  BINSTALLER_INSTALL_DIR="/usr/local/bin" \
-    curl -fsSL "$INSTALLER_URL" | bash
-  systemctl restart baendaeli-client.service || true
+  echo "[INFO] Starting update check" >&2
+  echo "[INFO] Fetching from: ${INSTALLER_URL}" >&2
+  if ! BINSTALLER_INSTALL_DIR="/usr/local/bin" \
+    curl -fsSL "$INSTALLER_URL" | bash; then
+    echo "[ERROR] Update failed: installer script execution error" >&2
+    return 1
+  fi
+  echo "[INFO] Update complete, restarting service" >&2
+  if ! systemctl restart baendaeli-client.service; then
+    echo "[ERROR] Failed to restart service" >&2
+    return 1
+  fi
+  echo "[SUCCESS] Update and restart complete" >&2
 }
 
 main "$@"
 EOF
+  then
+    echo "[ERROR] Failed to write update script to /usr/local/sbin/baendaeli-update.sh" >&2
+    return 1
+  fi
   chmod +x /usr/local/sbin/baendaeli-update.sh
   echo "[INFO] Update script written and made executable" >&2
 }
@@ -87,22 +111,43 @@ main() {
   require_root
   
   echo "[INFO] Creating work directory: ${WORKDIR}" >&2
-  mkdir -p "$WORKDIR"
+  if ! mkdir -p "$WORKDIR"; then
+    echo "[ERROR] Failed to create work directory: ${WORKDIR}" >&2
+    return 1
+  fi
   echo "[INFO] Creating/touching env file: ${ENV_FILE}" >&2
-  touch "$ENV_FILE"
+  if ! touch "$ENV_FILE"; then
+    echo "[ERROR] Failed to create env file: ${ENV_FILE}" >&2
+    return 1
+  fi
   
   echo "[INFO] Installing binary from: ${INSTALLER_URL}" >&2
-  install_binary
+  if ! install_binary; then
+    echo "[ERROR] Binary installation failed, aborting" >&2
+    return 1
+  fi
   
-  write_service
+  if ! write_service; then
+    echo "[ERROR] Service setup failed, aborting" >&2
+    return 1
+  fi
   
-  write_update_script
+  if ! write_update_script; then
+    echo "[ERROR] Update script setup failed, aborting" >&2
+    return 1
+  fi
   
   echo "[INFO] Reloading systemd daemon" >&2
-  systemctl daemon-reload
+  if ! systemctl daemon-reload; then
+    echo "[ERROR] Failed to reload systemd daemon" >&2
+    return 1
+  fi
   
   echo "[INFO] Enabling service: ${SERVICE_NAME}" >&2
-  systemctl enable --now ${SERVICE_NAME}
+  if ! systemctl enable --now ${SERVICE_NAME}; then
+    echo "[ERROR] Failed to enable/start service" >&2
+    return 1
+  fi
   
   echo "[SUCCESS] Installation complete!" >&2
   echo "Installed. Edit $ENV_FILE for secrets and place config.yaml in $WORKDIR." >&2
