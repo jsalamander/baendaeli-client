@@ -2,8 +2,9 @@ package server
 
 import (
 	"embed"
-	"html/template"
+	htmltemplate "html/template"
 	"io/fs"
+	"text/template"
 )
 
 // AppVersion is set at build time via ldflags
@@ -13,7 +14,7 @@ var (
 	//go:embed templates/index.html templates/main.js templates/api.js templates/ui.js templates/qr.js
 	templateFS embed.FS
 
-	indexTemplate = template.Must(template.ParseFS(templateFS, "templates/index.html"))
+	indexTemplate = htmltemplate.Must(htmltemplate.ParseFS(templateFS, "templates/index.html"))
 	mainJS        = template.Must(template.ParseFS(templateFS, "templates/main.js"))
 )
 

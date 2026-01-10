@@ -13,6 +13,7 @@ import (
 
 "github.com/jsalamander/baendaeli-client/internal/actuator"
 "github.com/jsalamander/baendaeli-client/internal/config"
+"github.com/jsalamander/baendaeli-client/internal/device"
 "github.com/jsalamander/baendaeli-client/internal/server"
 )
 
@@ -70,7 +71,9 @@ defer actuator.Cleanup()
 // Create server
 srv := server.New(cfg)
 
-// Setup graceful shutdown
+	// Create device client and set it on the server
+	deviceClient := device.New(cfg)
+	srv.SetDeviceClient(deviceClient)
 sigChan := make(chan os.Signal, 1)
 signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 
@@ -91,9 +94,15 @@ log.Fatalf("Server error: %v", err)
 		}()
 	}
 
+	// Start device client
+	deviceClient.Start()
+
 	// Wait for interrupt signal
 	sig := <-sigChan
 	fmt.Printf("\nReceived signal: %v. Shutting down...\n", sig)
+
+	// Stop device client gracefully
+	deviceClient.Stop()
 }
 
 // printUsage displays help information

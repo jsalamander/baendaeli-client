@@ -5,6 +5,8 @@ const errorEl = document.getElementById('error');
 const errorContainer = document.getElementById('errorContainer');
 const retryBtn = document.getElementById('retry');
 const successBanner = document.getElementById('successBanner');
+const deviceCommandOverlay = document.getElementById('deviceCommandOverlay');
+const deviceCommandMessage = document.getElementById('deviceCommandMessage');
 const internetDot = document.getElementById('internetDot');
 const internetStatusText = document.getElementById('internetStatusText');
 const gatewayDot = document.getElementById('gatewayDot');
@@ -21,6 +23,9 @@ let pollTimer = null;
 let currentPaymentId = null;
 let expiryAt = null;
 let expiryTimer = null;
+let deviceStatusTimer = null;
+let lastCommandDisplayed = null;
+let lastCommandDisplayedAt = null;
 
 // Event Listeners
 retryBtn.addEventListener('click', () => {
@@ -37,6 +42,7 @@ retryBtn.addEventListener('click', () => {
 document.addEventListener('DOMContentLoaded', () => {
 	setDiagnosticsPending();
 	startInternetCheck();
+	startDeviceStatusCheck();
 	start();
 });
 
@@ -168,4 +174,59 @@ async function showSuccessThenRestart() {
 		errorContainer.classList.add('hidden');
 		start();
 	}, actuatorTimeMs);
+}
+
+function startDeviceStatusCheck() {
+	checkDeviceStatus();
+}
+
+function checkDeviceStatus() {
+	fetch('/api/device/status')
+		.then(res => res.json())
+		.then(data => {
+			const cmd = data.executing_command;
+			const now = Date.now();
+			const elapsedSinceDisplay = lastCommandDisplayedAt ? now - lastCommandDisplayedAt : Infinity;
+			
+			// Show command if it's executing or if we haven't reached 1 second yet
+			if (cmd && cmd.command) {
+				const commandNames = {
+					'extend': 'Aktuator wird ausgefahren...',
+					'retract': 'Aktuator wird eingezogen...',
+					'home': 'Aktuator wird zurückgestellt...'
+				};
+				const displayName = commandNames[cmd.command] || `Befehl wird ausgeführt: ${cmd.command}`;
+				console.log('[Device Command]', 'Starting:', cmd.command);
+				deviceCommandMessage.textContent = displayName;
+				deviceCommandOverlay.classList.remove('hidden');
+				lastCommandDisplayed = cmd.command;
+				lastCommandDisplayedAt = now;
+			} else if (lastCommandDisplayed && elapsedSinceDisplay < 1000) {
+				// Keep showing the command until 1 second has passed
+				const commandNames = {
+					'extend': 'Aktuator wird ausgefahren...',
+					'retract': 'Aktuator wird eingezogen...',
+					'home': 'Aktuator wird zurückgestellt...'
+				};
+				const displayName = commandNames[lastCommandDisplayed] || `Befehl wird ausgeführt: ${lastCommandDisplayed}`;
+				console.log('[Device Command]', 'Keeping display for', lastCommandDisplayed, `(${1000 - elapsedSinceDisplay}ms remaining)`);
+				deviceCommandMessage.textContent = displayName;
+				deviceCommandOverlay.classList.remove('hidden');
+			} else {
+				// Command finished and 1 second has passed, clear it
+				if (lastCommandDisplayed) {
+					console.log('[Device Command]', 'Completed:', lastCommandDisplayed);
+				}
+				lastCommandDisplayed = null;
+				lastCommandDisplayedAt = null;
+				deviceCommandOverlay.classList.add('hidden');
+			}
+			// Schedule next check
+			deviceStatusTimer = setTimeout(checkDeviceStatus, 500);
+		})
+		.catch(err => {
+			console.error('Failed to check device status:', err);
+			// Continue checking even if this fails
+			deviceStatusTimer = setTimeout(checkDeviceStatus, 1000);
+		});
 }

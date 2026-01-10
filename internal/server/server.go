@@ -11,14 +11,16 @@ import (
 
 	"github.com/jsalamander/baendaeli-client/internal/actuator"
 	"github.com/jsalamander/baendaeli-client/internal/config"
+	"github.com/jsalamander/baendaeli-client/internal/device"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 )
 
 type Server struct {
-	config     *config.Config
-	httpClient *http.Client
+	config       *config.Config
+	httpClient   *http.Client
+	deviceClient *device.Client
 }
 
 type createPaymentPayload struct {
@@ -35,6 +37,11 @@ func New(cfg *config.Config) *Server {
 	}
 }
 
+// SetDeviceClient sets the device client for updating payment IDs
+func (s *Server) SetDeviceClient(dc *device.Client) {
+	s.deviceClient = dc
+}
+
 func (s *Server) Router() *chi.Mux {
 	r := chi.NewRouter()
 	r.Use(middleware.Logger)
@@ -48,6 +55,7 @@ func (s *Server) Router() *chi.Mux {
 	r.Post("/api/payment", s.handleCreatePayment)
 	r.Get("/api/payment/{id}", s.handleGetPaymentStatus)
 	r.Post("/api/actuate", s.handleActuate)
+	r.Get("/api/device/status", s.handleDeviceStatus)
 
 	return r
 }
@@ -132,9 +140,26 @@ func (s *Server) handleCreatePayment(w http.ResponseWriter, r *http.Request) {
 	}
 	defer resp.Body.Close()
 
+	// Read the response body to extract payment ID and forward it
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		http.Error(w, "failed to read response", http.StatusInternalServerError)
+		return
+	}
+
+	// If successful, try to extract payment ID for device client
+	if (resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusCreated) && s.deviceClient != nil {
+		var paymentResp map[string]interface{}
+		if err := json.Unmarshal(respBody, &paymentResp); err == nil {
+			if id, ok := paymentResp["id"].(string); ok && id != "" {
+				s.deviceClient.SetPaymentID(id)
+			}
+		}
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(resp.StatusCode)
-	if _, err := io.Copy(w, resp.Body); err != nil {
+	if _, err := w.Write(respBody); err != nil {
 		log.Printf("failed to forward response: %v", err)
 	}
 }
@@ -169,6 +194,13 @@ func (s *Server) handleGetPaymentStatus(w http.ResponseWriter, r *http.Request) 
 }
 
 func (s *Server) handleActuate(w http.ResponseWriter, r *http.Request) {
+	// Acquire device client's actuator lock to prevent concurrent execution
+	// with device API commands
+	if s.deviceClient != nil {
+		s.deviceClient.LockActuator()
+		defer s.deviceClient.UnlockActuator()
+	}
+
 	totalMs, err := actuator.Trigger()
 	w.Header().Set("Content-Type", "application/json")
 
@@ -187,5 +219,23 @@ func (s *Server) handleActuate(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"status":        "ok",
 		"total_time_ms": totalMs,
+	})
+}
+
+func (s *Server) handleDeviceStatus(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	if s.deviceClient == nil {
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"executing_command": nil,
+		})
+		return
+	}
+
+	cmd := s.deviceClient.GetExecutingCommand()
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"executing_command": cmd,
 	})
 }

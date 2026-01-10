@@ -19,7 +19,7 @@
 		<div class="flex-none">
 			<div class="badge badge-dash badge-outline badge-primary text-base px-4 py-3" id="status">
 				<span class="status status-sm status-success"></span>
-				<span>Zahlungsformular wird erstellt...</span>
+				<span>Zahlung wird erstellt...</span>
 			</div>
 		</div>
 	</nav>
@@ -32,12 +32,20 @@
 				<div class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur" id="successBanner">
 					<div class="alert alert-success alert-lg shadow-lg max-w-sm">
 						<svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-						<span class="font-bold">Danke, dein Solibändeli wird ausgegeben!</span>
+						<span class="font-bold">Danke, dein Solibändeli wird JETZT ausgegeben!</span>
 					</div>
 				</div>
 
-				<h2 class="card-title text-2xl">Spenden</h2>
-				<p class="text-base-content/70">Scanne den QR-Code mit deinem Smartphone, um das Solibändeli zu bezahlen.</p>
+				<!-- Device Command Overlay (hidden by default) -->
+				<div class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur" id="deviceCommandOverlay">
+					<div class="alert alert-info alert-lg shadow-lg max-w-sm">
+						<svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+						<span class="font-bold" id="deviceCommandMessage">Befehl wird ausgeführt...</span>
+					</div>
+				</div>
+
+				<h2 class="card-title text-2xl">Spende für ein Solibändeli</h2>
+				<p class="text-base-content/70">Scanne den QR-Code mit deinem Smartphone, um deine Spende für das Solibändeli zu tätigen. Nach Ankunft des Betrags wird das Solibändeli ausgegeben.</p>
 				<div class="bg-base-700 rounded-lg border border-dashed border-base-600 p-4 flex items-center justify-center min-h-[220px]" id="qr">
 					<div class="text-center">
 						<svg class="inline-block w-8 h-8 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
