@@ -43,9 +43,6 @@ document.addEventListener('DOMContentLoaded', () => {
 	setDiagnosticsPending();
 	startInternetCheck();
 	startDeviceStatusCheck();
-	// Prepare sound manager and attempt to unlock on first user gesture
-	document.addEventListener('click', () => Sound.enable(), { once: true });
-	document.addEventListener('touchstart', () => Sound.enable(), { once: true });
 	start();
 });
 
@@ -124,12 +121,10 @@ async function pollStatus(id) {
 				break;
 			case 'success':
 				updateStatus('Zahlung erfolgreich', 'badge-success');
-				Sound.paymentSuccess();
 				showSuccessThenRestart();
 				break;
 			case 'failure':
 				updateStatus('Zahlung fehlgeschlagen', 'badge-error');
-				Sound.paymentFailure();
 				setTimeout(() => start(), 1200);
 				break;
 			default:
@@ -204,10 +199,6 @@ function checkDeviceStatus() {
 				console.log('[Device Command]', 'Starting:', cmd.command);
 				deviceCommandMessage.textContent = displayName;
 				deviceCommandOverlay.classList.remove('hidden');
-				// Play start sound only when a new command begins
-				if (lastCommandDisplayed !== cmd.command) {
-					Sound.commandStart(cmd.command);
-				}
 				lastCommandDisplayed = cmd.command;
 				lastCommandDisplayedAt = now;
 			} else if (lastCommandDisplayed && elapsedSinceDisplay < 1000) {
@@ -225,7 +216,6 @@ function checkDeviceStatus() {
 				// Command finished and 1 second has passed, clear it
 				if (lastCommandDisplayed) {
 					console.log('[Device Command]', 'Completed:', lastCommandDisplayed);
-					Sound.commandSuccess(lastCommandDisplayed);
 				}
 				lastCommandDisplayed = null;
 				lastCommandDisplayedAt = null;
@@ -240,121 +230,3 @@ function checkDeviceStatus() {
 			deviceStatusTimer = setTimeout(checkDeviceStatus, 1000);
 		});
 }
-
-// --- Sound Manager ---
-const Sound = (() => {
-	let ctx = null;
-	let enabled = false;
-	let lastPlayed = {};
-	const rateLimitMs = 250; // avoid rapid repeats
-
-	function enable() {
-		if (!enabled) {
-			try {
-				ctx = new (window.AudioContext || window.webkitAudioContext)();
-				enabled = true;
-				console.log('[Sound] Audio enabled');
-			} catch (e) {
-				console.warn('[Sound] Failed to init AudioContext', e);
-			}
-		}
-	}
-
-	function canPlay(key) {
-		const now = performance.now();
-		if (lastPlayed[key] && now - lastPlayed[key] < rateLimitMs) return false;
-		lastPlayed[key] = now;
-		return true;
-	}
-
-	function playTone(freq, durationMs = 160, type = 'sine', volume = 0.25, opts = {}) {
-		if (!ctx) {
-			try { enable(); } catch {}
-		}
-		if (!ctx) return; // give up silently if audio unavailable
-		const osc = ctx.createOscillator();
-		const gain = ctx.createGain();
-		osc.type = type;
-		osc.frequency.value = freq;
-		const startTime = ctx.currentTime;
-		const endTime = startTime + durationMs / 1000;
-
-		// simple ADSR-like envelope
-		gain.gain.setValueAtTime(0.0001, startTime);
-		gain.gain.exponentialRampToValueAtTime(volume, startTime + 0.02);
-		if (opts.rampTo) {
-			osc.frequency.exponentialRampToValueAtTime(opts.rampTo, endTime);
-		}
-		gain.gain.exponentialRampToValueAtTime(0.0001, endTime);
-
-		osc.connect(gain);
-		gain.connect(ctx.destination);
-		osc.start(startTime);
-		osc.stop(endTime);
-	}
-
-	function playSequence(notes, gapMs = 40) {
-		if (!ctx) { enable(); }
-		if (!ctx) return;
-		let t = ctx.currentTime;
-		notes.forEach(n => {
-			const osc = ctx.createOscillator();
-			const gain = ctx.createGain();
-			osc.type = n.type || 'sine';
-			osc.frequency.value = n.freq;
-			const dur = (n.ms || 120) / 1000;
-			const vol = n.vol == null ? 0.25 : n.vol;
-			gain.gain.setValueAtTime(0.0001, t);
-			gain.gain.exponentialRampToValueAtTime(vol, t + 0.02);
-			if (n.rampTo) {
-				osc.frequency.exponentialRampToValueAtTime(n.rampTo, t + dur);
-			}
-			gain.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-			osc.connect(gain);
-			gain.connect(ctx.destination);
-			osc.start(t);
-			osc.stop(t + dur);
-			t += dur + gapMs / 1000;
-		});
-	}
-
-	function paymentSuccess() {
-		if (!canPlay('paymentSuccess')) return;
-		// Upward triad chime: C5, E5, G5
-		playSequence([
-			{ freq: 523.25, ms: 120, vol: 0.22 },
-			{ freq: 659.25, ms: 120, vol: 0.22 },
-			{ freq: 783.99, ms: 160, vol: 0.24 }
-		]);
-	}
-
-	function paymentFailure() {
-		if (!canPlay('paymentFailure')) return;
-		// Short descending error beep
-		playTone(330, 160, 'triangle', 0.22, { rampTo: 220 });
-		setTimeout(() => playTone(247, 140, 'sawtooth', 0.18, { rampTo: 196 }), 140);
-	}
-
-	function commandStart(name) {
-		if (!canPlay('commandStart:' + (name || '')) ) return;
-		// Quick whoosh-like rise
-		playTone(300, 180, 'sine', 0.2, { rampTo: 700 });
-	}
-
-	function commandSuccess(name) {
-		if (!canPlay('commandSuccess:' + (name || '')) ) return;
-		// Light confirmation chime
-		playSequence([
-			{ freq: 587.33, ms: 110, vol: 0.22 }, // D5
-			{ freq: 880.00, ms: 150, vol: 0.24 }  // A5
-		]);
-	}
-
-	return {
-		enable,
-		paymentSuccess,
-		paymentFailure,
-		commandStart,
-		commandSuccess,
-	};
-})();
