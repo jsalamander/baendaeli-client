@@ -23,7 +23,9 @@ async function createPayment(amountCents) {
 	const data = await safeParseJson(res);
 
 	if (!res.ok) {
-		throw new Error(data.error || 'Payment creation failed');
+		const error = new Error(data.message || data.error || 'Payment creation failed');
+		error.serverError = data; // Attach full server error response
+		throw error;
 	}
 
 	return data;

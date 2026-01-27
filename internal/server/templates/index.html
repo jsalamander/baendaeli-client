@@ -44,6 +44,31 @@
 					</div>
 				</div>
 
+				<!-- Error Popup (hidden by default) -->
+				<div class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur" id="errorPopup">
+					<div class="card bg-base-800 border border-error shadow-xl w-full max-w-md mx-4">
+						<div class="card-body">
+							<div class="flex items-start gap-3">
+								<svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6 text-error" fill="none" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+								<div class="flex-1">
+									<h3 class="font-bold text-lg text-error mb-2" id="errorPopupTitle">Fehler</h3>
+									<p class="text-base mb-2" id="errorPopupMessage"></p>
+									<div class="bg-base-900 rounded p-3 mb-3">
+										<p class="text-xs text-base-content/70 mb-1">Fehlercode:</p>
+										<p class="text-sm font-mono" id="errorPopupCode"></p>
+										<p class="text-xs text-base-content/70 mt-2 mb-1">Details:</p>
+										<p class="text-sm" id="errorPopupDetails"></p>
+									</div>
+									<p class="text-sm text-base-content/70">Versuche es erneut in 3 Sekunden...</p>
+								</div>
+							</div>
+							<div class="card-actions justify-end mt-2">
+								<button class="btn btn-sm btn-ghost" id="errorPopupClose">Schließen</button>
+							</div>
+						</div>
+					</div>
+				</div>
+
 				<h2 class="card-title text-2xl">Spende für ein Solibändeli</h2>
 				<p class="text-base-content/70">Scanne den QR-Code mit deinem Smartphone, um deine Spende für das Solibändeli zu tätigen. Nach Ankunft des Betrags wird das Solibändeli ausgegeben.</p>
 				<div class="bg-base-700 rounded-lg border border-dashed border-base-600 p-4 flex items-center justify-center min-h-[220px]" id="qr">

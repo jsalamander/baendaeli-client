@@ -10,6 +10,34 @@ function showError(message) {
 	errorContainer.classList.remove('hidden');
 }
 
+function showErrorPopup(serverError) {
+	const errorPopup = document.getElementById('errorPopup');
+	const errorPopupTitle = document.getElementById('errorPopupTitle');
+	const errorPopupMessage = document.getElementById('errorPopupMessage');
+	const errorPopupCode = document.getElementById('errorPopupCode');
+	const errorPopupDetails = document.getElementById('errorPopupDetails');
+	const errorPopupClose = document.getElementById('errorPopupClose');
+	
+	// Populate error details
+	errorPopupTitle.textContent = 'Zahlung fehlgeschlagen';
+	errorPopupMessage.textContent = serverError.message || 'Ein Fehler ist aufgetreten';
+	errorPopupCode.textContent = serverError.error || 'unknown_error';
+	errorPopupDetails.textContent = serverError.details || serverError.message || 'Keine weiteren Details verfügbar';
+	
+	// Show popup
+	errorPopup.classList.remove('hidden');
+	
+	// Close button handler
+	errorPopupClose.onclick = () => {
+		errorPopup.classList.add('hidden');
+	};
+	
+	// Auto-hide after 5 seconds
+	setTimeout(() => {
+		errorPopup.classList.add('hidden');
+	}, 5000);
+}
+
 // Expiry countdown
 function startExpiryCountdown(expiresAtString, validForMinutes) {
 	clearExpiry();

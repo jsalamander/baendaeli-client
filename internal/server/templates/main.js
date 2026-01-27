@@ -89,8 +89,18 @@ async function start() {
 	} catch (err) {
 		console.error('Payment creation failed', err);
 		updateStatus('Etwas ist schiefgelaufen.', 'badge-error');
-		showError('Die Zahlung konnte nicht gestartet werden. Bitte versuche es erneut.');
-		retryBtn.classList.remove('hidden');
+		
+		// Show error popup with server error details
+		if (err.serverError) {
+			showErrorPopup(err.serverError);
+		} else {
+			showError('Die Zahlung konnte nicht gestartet werden. Bitte versuche es erneut.');
+		}
+		
+		// Auto-retry after 3 seconds
+		setTimeout(() => {
+			start();
+		}, 3000);
 	}
 }
 
