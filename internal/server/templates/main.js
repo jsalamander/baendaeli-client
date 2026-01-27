@@ -200,28 +200,43 @@ function checkDeviceStatus() {
 			
 			// Show command if it's executing or if we haven't reached 1 second yet
 			if (cmd && cmd.command) {
-				const commandNames = {
-					'extend': 'Aktuator wird ausgefahren...',
-					'retract': 'Aktuator wird eingezogen...',
-					'home': 'Aktuator wird zurückgestellt...'
-				};
-				const displayName = commandNames[cmd.command] || `Befehl wird ausgeführt: ${cmd.command}`;
-				console.log('[Device Command]', 'Starting:', cmd.command);
-				deviceCommandMessage.textContent = displayName;
-				deviceCommandOverlay.classList.remove('hidden');
-				lastCommandDisplayed = cmd.command;
-				lastCommandDisplayedAt = now;
+				// Special handling for message command
+				if (cmd.command === 'message') {
+					console.log('[Device Command]', 'Message:', cmd.message);
+					deviceCommandMessage.textContent = cmd.message || 'Nachricht';
+					deviceCommandOverlay.classList.remove('hidden');
+					lastCommandDisplayed = cmd.command;
+					lastCommandDisplayedAt = now;
+				} else {
+					const commandNames = {
+						'extend': 'Aktuator wird ausgefahren...',
+						'retract': 'Aktuator wird eingezogen...',
+						'home': 'Aktuator wird zurückgestellt...'
+					};
+					const displayName = commandNames[cmd.command] || `Befehl wird ausgeführt: ${cmd.command}`;
+					console.log('[Device Command]', 'Starting:', cmd.command);
+					deviceCommandMessage.textContent = displayName;
+					deviceCommandOverlay.classList.remove('hidden');
+					lastCommandDisplayed = cmd.command;
+					lastCommandDisplayedAt = now;
+				}
 			} else if (lastCommandDisplayed && elapsedSinceDisplay < 1000) {
 				// Keep showing the command until 1 second has passed
-				const commandNames = {
-					'extend': 'Aktuator wird ausgefahren...',
-					'retract': 'Aktuator wird eingezogen...',
-					'home': 'Aktuator wird zurückgestellt...'
-				};
-				const displayName = commandNames[lastCommandDisplayed] || `Befehl wird ausgeführt: ${lastCommandDisplayed}`;
-				console.log('[Device Command]', 'Keeping display for', lastCommandDisplayed, `(${1000 - elapsedSinceDisplay}ms remaining)`);
-				deviceCommandMessage.textContent = displayName;
-				deviceCommandOverlay.classList.remove('hidden');
+				if (lastCommandDisplayed === 'message') {
+					// Message already displayed, just keep the overlay visible
+					console.log('[Device Command]', 'Keeping message display', `(${1000 - elapsedSinceDisplay}ms remaining)`);
+					deviceCommandOverlay.classList.remove('hidden');
+				} else {
+					const commandNames = {
+						'extend': 'Aktuator wird ausgefahren...',
+						'retract': 'Aktuator wird eingezogen...',
+						'home': 'Aktuator wird zurückgestellt...'
+					};
+					const displayName = commandNames[lastCommandDisplayed] || `Befehl wird ausgeführt: ${lastCommandDisplayed}`;
+					console.log('[Device Command]', 'Keeping display for', lastCommandDisplayed, `(${1000 - elapsedSinceDisplay}ms remaining)`);
+					deviceCommandMessage.textContent = displayName;
+					deviceCommandOverlay.classList.remove('hidden');
+				}
 			} else {
 				// Command finished and 1 second has passed, clear it
 				if (lastCommandDisplayed) {

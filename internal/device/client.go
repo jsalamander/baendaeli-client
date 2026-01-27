@@ -29,8 +29,10 @@ type StatusResponse struct {
 
 // CommandResponse is received from the server
 type CommandResponse struct {
-	ID      int    `json:"id"`
-	Command string `json:"command"`
+	ID         int    `json:"id"`
+	Command    string `json:"command"`
+	DurationMs *int   `json:"duration_ms,omitempty"` // Optional duration in milliseconds
+	Message    string `json:"message,omitempty"`      // Message text for message command
 }
 
 // AckRequest is sent to the server
@@ -287,19 +289,26 @@ func (c *Client) executeCommand(cmd *CommandResponse) error {
 	c.actuatorMutex.Lock()
 	defer c.actuatorMutex.Unlock()
 
-	log.Printf("Device client: executing command %d: %s", cmd.ID, cmd.Command)
+	// Determine duration: use API-provided duration_ms if present, otherwise use config default
+	var duration time.Duration
+	if cmd.DurationMs != nil && *cmd.DurationMs > 0 {
+		duration = time.Duration(*cmd.DurationMs) * time.Millisecond
+		log.Printf("Device client: executing command %d: %s with API-provided duration %dms", cmd.ID, cmd.Command, *cmd.DurationMs)
+	} else {
+		duration = time.Duration(c.config.ActuatorMovement) * time.Second
+		log.Printf("Device client: executing command %d: %s with default duration %v", cmd.ID, cmd.Command, duration)
+	}
+
 	c.setExecutingCommand(cmd)
 
 	switch strings.ToLower(cmd.Command) {
 	case "extend":
-		duration := time.Duration(c.config.ActuatorMovement) * time.Second
 		err := actuator.Extend(duration)
 		if err != nil {
 			log.Printf("Device client: failed to execute command %d (%s): %v", cmd.ID, cmd.Command, err)
 		}
 		return err
 	case "retract":
-		duration := time.Duration(c.config.ActuatorMovement) * time.Second
 		err := actuator.Retract(duration)
 		if err != nil {
 			log.Printf("Device client: failed to execute command %d (%s): %v", cmd.ID, cmd.Command, err)
@@ -307,6 +316,12 @@ func (c *Client) executeCommand(cmd *CommandResponse) error {
 		return err
 	case "home":
 		actuator.Home()
+		return nil
+	case "message":
+		// Message command: display in UI for specified duration
+		log.Printf("Device client: displaying message: %s for %v", cmd.Message, duration)
+		// Sleep for the duration to keep the message visible in UI
+		time.Sleep(duration)
 		return nil
 	default:
 		return fmt.Errorf("unknown command: %s", cmd.Command)

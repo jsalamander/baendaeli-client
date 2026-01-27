@@ -69,9 +69,30 @@ Authorization: Bearer <API_KEY>
 ```json
 {
   "id": 42,
-  "command": "extend"
+  "command": "extend",
+  "duration_ms": 30000
 }
 ```
+
+**Note:** The `duration_ms` field is optional. If provided and greater than 0, the device will use that duration for the command. If not provided or set to 0, the device will fall back to the configured `ACTUATOR_MOVEMENT_SECONDS` default.
+
+**Supported Commands:**
+- `extend`: Extends the actuator
+- `retract`: Retracts the actuator
+- `home`: Homes the actuator (full retraction)
+- `message`: Displays a message on the device UI
+
+**Message Command Example:**
+```json
+{
+  "id": 44,
+  "command": "message",
+  "message": "Hello Device!",
+  "duration_ms": 5000
+}
+```
+
+The `message` command displays the specified text as a popup overlay on the device UI for the duration specified by `duration_ms`. This is useful for displaying notifications, status updates, or instructions to users at the device.
 
 ### Acknowledge Command
 **POST** `/api/v1/device/commands/{id}/ack`

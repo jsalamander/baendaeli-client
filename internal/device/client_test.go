@@ -504,3 +504,181 @@ func TestLockActuatorPublicMethods(t *testing.T) {
 		t.Error("expected lock to be released, but goroutine did not acquire it")
 	}
 }
+
+func TestCommandWithDurationMs(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.Contains(r.URL.Path, "/commands") && r.Method == http.MethodGet {
+			// Return command with duration_ms
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`{"id": 43, "command": "extend", "duration_ms": 30000}`))
+		} else if strings.Contains(r.URL.Path, "/status") {
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`{"success": true}`))
+		} else if strings.Contains(r.URL.Path, "/ack") {
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`{"success": true}`))
+		}
+	}))
+	defer server.Close()
+
+	cfg := &config.Config{
+		BaendaeliURL:     server.URL,
+		BaendaeliAPIKey:  "test-key",
+		ActuatorMovement: 2, // Default 2 seconds
+	}
+	client := New(cfg)
+
+	cmd, err := client.getCommand()
+	if err != nil {
+		t.Fatalf("failed to get command: %v", err)
+	}
+
+	if cmd == nil {
+		t.Fatal("expected command, got nil")
+	}
+
+	if cmd.ID != 43 {
+		t.Errorf("expected ID 43, got %d", cmd.ID)
+	}
+
+	if cmd.Command != "extend" {
+		t.Errorf("expected command 'extend', got %s", cmd.Command)
+	}
+
+	if cmd.DurationMs == nil {
+		t.Fatal("expected duration_ms to be set")
+	}
+
+	if *cmd.DurationMs != 30000 {
+		t.Errorf("expected duration_ms 30000, got %d", *cmd.DurationMs)
+	}
+}
+
+func TestCommandWithoutDurationMs(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.Contains(r.URL.Path, "/commands") && r.Method == http.MethodGet {
+			// Return command without duration_ms
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`{"id": 44, "command": "retract"}`))
+		}
+	}))
+	defer server.Close()
+
+	cfg := &config.Config{
+		BaendaeliURL:     server.URL,
+		BaendaeliAPIKey:  "test-key",
+		ActuatorMovement: 2,
+	}
+	client := New(cfg)
+
+	cmd, err := client.getCommand()
+	if err != nil {
+		t.Fatalf("failed to get command: %v", err)
+	}
+
+	if cmd == nil {
+		t.Fatal("expected command, got nil")
+	}
+
+	if cmd.DurationMs != nil {
+		t.Errorf("expected duration_ms to be nil, got %d", *cmd.DurationMs)
+	}
+}
+
+func TestCommandWithZeroDurationMs(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.Contains(r.URL.Path, "/commands") && r.Method == http.MethodGet {
+			// Return command with duration_ms set to 0
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`{"id": 45, "command": "extend", "duration_ms": 0}`))
+		}
+	}))
+	defer server.Close()
+
+	cfg := &config.Config{
+		BaendaeliURL:     server.URL,
+		BaendaeliAPIKey:  "test-key",
+		ActuatorMovement: 2,
+	}
+	client := New(cfg)
+
+	cmd, err := client.getCommand()
+	if err != nil {
+		t.Fatalf("failed to get command: %v", err)
+	}
+
+	if cmd == nil {
+		t.Fatal("expected command, got nil")
+	}
+
+	if cmd.DurationMs == nil {
+		t.Fatal("expected duration_ms to be set")
+	}
+
+	if *cmd.DurationMs != 0 {
+		t.Errorf("expected duration_ms 0, got %d", *cmd.DurationMs)
+	}
+
+	// When executing, duration of 0 should fall back to default (tested in executeCommand logic)
+}
+
+func TestCommandMessage(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.Contains(r.URL.Path, "/commands") && r.Method == http.MethodGet {
+			// Return message command
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`{"id": 46, "command": "message", "message": "Hello Device!", "duration_ms": 100}`))
+		}
+	}))
+	defer server.Close()
+
+	cfg := &config.Config{
+		BaendaeliURL:     server.URL,
+		BaendaeliAPIKey:  "test-key",
+		ActuatorMovement: 2,
+	}
+	client := New(cfg)
+
+	cmd, err := client.getCommand()
+	if err != nil {
+		t.Fatalf("failed to get command: %v", err)
+	}
+
+	if cmd == nil {
+		t.Fatal("expected command, got nil")
+	}
+
+	if cmd.ID != 46 {
+		t.Errorf("expected ID 46, got %d", cmd.ID)
+	}
+
+	if cmd.Command != "message" {
+		t.Errorf("expected command 'message', got %s", cmd.Command)
+	}
+
+	if cmd.Message != "Hello Device!" {
+		t.Errorf("expected message 'Hello Device!', got %s", cmd.Message)
+	}
+
+	if cmd.DurationMs == nil {
+		t.Fatal("expected duration_ms to be set")
+	}
+
+	if *cmd.DurationMs != 100 {
+		t.Errorf("expected duration_ms 100, got %d", *cmd.DurationMs)
+	}
+
+	// Test that executing the message command works and takes the right duration
+	start := time.Now()
+	err = client.executeCommand(cmd)
+	elapsed := time.Since(start)
+
+	if err != nil {
+		t.Errorf("expected no error executing message command, got %v", err)
+	}
+
+	// Should have slept for ~100ms
+	if elapsed < 90*time.Millisecond || elapsed > 200*time.Millisecond {
+		t.Errorf("expected message command to take ~100ms, took %v", elapsed)
+	}
+}
