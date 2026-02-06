@@ -11,7 +11,7 @@ import (
 )
 
 // Homing duration - fixed time to ensure full retraction from any position
-const homingDuration = 10 * time.Second
+const homingDuration = 15 * time.Second
 
 // Settling delay to ensure motor fully stops before direction change
 // This prevents momentum from affecting next movement
