@@ -682,3 +682,34 @@ func TestCommandMessage(t *testing.T) {
 		t.Errorf("expected message command to take ~100ms, took %v", elapsed)
 	}
 }
+
+func TestCommandCancelClearsPayment(t *testing.T) {
+	cfg := &config.Config{
+		BaendaeliURL:    "http://example.com",
+		BaendaeliAPIKey: "test-key",
+	}
+	client := New(cfg)
+
+	client.SetPaymentID("payment-uuid-123")
+
+	cmd := &CommandResponse{
+		ID:      50,
+		Command: "cancel",
+	}
+
+	start := time.Now()
+	err := client.executeCommand(cmd)
+	elapsed := time.Since(start)
+
+	if err != nil {
+		t.Errorf("expected no error executing cancel command, got %v", err)
+	}
+
+	if client.GetPaymentID() != "" {
+		t.Errorf("expected payment id to be cleared, got %s", client.GetPaymentID())
+	}
+
+	if elapsed < 200*time.Millisecond {
+		t.Errorf("expected cancel command to take at least 200ms, took %v", elapsed)
+	}
+}

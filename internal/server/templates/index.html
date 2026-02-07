@@ -36,6 +36,14 @@
 					</div>
 				</div>
 
+				<!-- Cancel Banner (hidden by default) -->
+				<div class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur" id="cancelBanner">
+					<div class="alert alert-warning alert-lg shadow-lg max-w-sm">
+						<svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v4m0 4h.01M12 3a9 9 0 100 18 9 9 0 000-18z" /></svg>
+						<span class="font-bold" id="cancelBannerMessage">Zahlung wurde vom Operator storniert.</span>
+					</div>
+				</div>
+
 				<!-- Device Command Overlay (hidden by default) -->
 				<div class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur" id="deviceCommandOverlay">
 					<div class="alert alert-info alert-lg shadow-lg max-w-sm">

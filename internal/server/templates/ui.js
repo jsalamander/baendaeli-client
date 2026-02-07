@@ -10,6 +10,31 @@ function showError(message) {
 	errorContainer.classList.remove('hidden');
 }
 
+let cancelBannerTimer = null;
+
+function showCancelBanner(message) {
+	const cancelBanner = document.getElementById('cancelBanner');
+	const cancelBannerMessage = document.getElementById('cancelBannerMessage');
+
+	if (!cancelBanner) {
+		return;
+	}
+
+	if (cancelBannerMessage && message) {
+		cancelBannerMessage.textContent = message;
+	}
+
+	cancelBanner.classList.remove('hidden');
+
+	if (cancelBannerTimer) {
+		clearTimeout(cancelBannerTimer);
+	}
+
+	cancelBannerTimer = setTimeout(() => {
+		cancelBanner.classList.add('hidden');
+	}, 2500);
+}
+
 function showErrorPopup(serverError) {
 	const errorPopup = document.getElementById('errorPopup');
 	const errorPopupTitle = document.getElementById('errorPopupTitle');

@@ -26,6 +26,7 @@ let expiryTimer = null;
 let deviceStatusTimer = null;
 let lastCommandDisplayed = null;
 let lastCommandDisplayedAt = null;
+let cancelInProgress = false;
 
 // Event Listeners
 retryBtn.addEventListener('click', () => {
@@ -190,6 +191,28 @@ function startDeviceStatusCheck() {
 	checkDeviceStatus();
 }
 
+function handleCancelCommand() {
+	if (cancelInProgress) {
+		return;
+	}
+
+	cancelInProgress = true;
+	console.log('[Device Command]', 'Cancel current payment');
+	showCancelBanner('Zahlung wurde vom Operator storniert.');
+	updateStatus('Zahlung abgebrochen', 'badge-warning');
+	clearPoll();
+	clearExpiry();
+	currentPaymentId = null;
+	errorEl.textContent = '';
+	errorContainer.classList.add('hidden');
+	qrEl.innerHTML = getLoadingSpinner();
+
+	setTimeout(() => {
+		cancelInProgress = false;
+		start();
+	}, 300);
+}
+
 function checkDeviceStatus() {
 	fetch('/api/device/status')
 		.then(res => res.json())
@@ -197,9 +220,18 @@ function checkDeviceStatus() {
 			const cmd = data.executing_command;
 			const now = Date.now();
 			const elapsedSinceDisplay = lastCommandDisplayedAt ? now - lastCommandDisplayedAt : Infinity;
+			let handledCancel = false;
+
+			if (cmd && cmd.command === 'cancel') {
+				handleCancelCommand();
+				handledCancel = true;
+				lastCommandDisplayed = null;
+				lastCommandDisplayedAt = null;
+				deviceCommandOverlay.classList.add('hidden');
+			}
 			
 			// Show command if it's executing or if we haven't reached 1 second yet
-			if (cmd && cmd.command) {
+			if (!handledCancel && cmd && cmd.command) {
 				// Special handling for message command
 				if (cmd.command === 'message') {
 					console.log('[Device Command]', 'Message:', cmd.message);

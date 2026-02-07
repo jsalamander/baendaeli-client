@@ -285,6 +285,8 @@ func (c *Client) executeCommand(cmd *CommandResponse) error {
 		return nil
 	}
 
+	const cancelHoldDuration = 300 * time.Millisecond
+
 	// Acquire lock - blocks if another command is executing
 	c.actuatorMutex.Lock()
 	defer c.actuatorMutex.Unlock()
@@ -322,6 +324,12 @@ func (c *Client) executeCommand(cmd *CommandResponse) error {
 		log.Printf("Device client: displaying message: %s for %v", cmd.Message, duration)
 		// Sleep for the duration to keep the message visible in UI
 		time.Sleep(duration)
+		return nil
+	case "cancel":
+		log.Printf("Device client: cancel command received, clearing current payment")
+		c.SetPaymentID("")
+		// Keep the command visible to the UI briefly.
+		time.Sleep(cancelHoldDuration)
 		return nil
 	default:
 		return fmt.Errorf("unknown command: %s", cmd.Command)
