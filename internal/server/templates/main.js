@@ -239,6 +239,14 @@ function checkDeviceStatus() {
 					deviceCommandOverlay.classList.remove('hidden');
 					lastCommandDisplayed = cmd.command;
 					lastCommandDisplayedAt = now;
+				} else if (cmd.command === 'load_test') {
+					const progress = cmd.message ? ` (${cmd.message})` : '';
+					const displayName = `Load-Test läuft...${progress}`;
+					console.log('[Device Command]', 'Load test:', cmd.message || 'progress unknown');
+					deviceCommandMessage.textContent = displayName;
+					deviceCommandOverlay.classList.remove('hidden');
+					lastCommandDisplayed = cmd.command;
+					lastCommandDisplayedAt = now;
 				} else {
 					const commandNames = {
 						'extend': 'Aktuator wird ausgefahren...',

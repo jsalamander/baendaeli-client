@@ -716,6 +716,39 @@ func TestCommandBallDispenser(t *testing.T) {
 	}
 }
 
+func TestCommandLoadTest(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.Contains(r.URL.Path, "/commands") && r.Method == http.MethodGet {
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`{"id": 48, "command": "load_test"}`))
+		}
+	}))
+	defer server.Close()
+
+	cfg := &config.Config{
+		BaendaeliURL:    server.URL,
+		BaendaeliAPIKey: "test-key",
+	}
+	client := New(cfg)
+
+	cmd, err := client.getCommand()
+	if err != nil {
+		t.Fatalf("failed to get command: %v", err)
+	}
+
+	if cmd == nil {
+		t.Fatal("expected command, got nil")
+	}
+
+	if cmd.ID != 48 {
+		t.Errorf("expected ID 48, got %d", cmd.ID)
+	}
+
+	if cmd.Command != "load_test" {
+		t.Errorf("expected command 'load_test', got %s", cmd.Command)
+	}
+}
+
 func TestCommandCancelClearsPayment(t *testing.T) {
 	cfg := &config.Config{
 		BaendaeliURL:    "http://example.com",

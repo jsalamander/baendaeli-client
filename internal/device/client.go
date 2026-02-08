@@ -107,6 +107,15 @@ func (c *Client) setExecutingCommand(cmd *CommandResponse) {
 	c.executingCommand = cmd
 }
 
+func (c *Client) updateExecutingCommandMessage(message string) {
+	c.statusMutex.Lock()
+	defer c.statusMutex.Unlock()
+	if c.executingCommand == nil {
+		return
+	}
+	c.executingCommand.Message = message
+}
+
 // clearExecutingCommand clears the executing command
 func (c *Client) clearExecutingCommand() {
 	c.statusMutex.Lock()
@@ -338,6 +347,17 @@ func (c *Client) executeCommand(cmd *CommandResponse) error {
 			log.Printf("Device client: ball dispenser failed: %v", err)
 		}
 		return err
+	case "load_test":
+		log.Printf("Device client: load test started (30 cycles)")
+		const loadTestCycles = 30
+		for i := 1; i <= loadTestCycles; i++ {
+			c.updateExecutingCommandMessage(fmt.Sprintf("%d/%d", i, loadTestCycles))
+			if _, err := actuator.Trigger(); err != nil {
+				log.Printf("Device client: load test failed on cycle %d: %v", i, err)
+				return err
+			}
+		}
+		return nil
 	default:
 		return fmt.Errorf("unknown command: %s", cmd.Command)
 	}
