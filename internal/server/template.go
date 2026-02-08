@@ -7,9 +7,6 @@ import (
 	"text/template"
 )
 
-// AppVersion is set at build time via ldflags
-var AppVersion = "dev"
-
 var (
 	//go:embed templates/index.html templates/main.js templates/api.js templates/ui.js templates/qr.js
 	templateFS embed.FS

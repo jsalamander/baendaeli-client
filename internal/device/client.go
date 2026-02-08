@@ -15,11 +15,13 @@ import (
 
 	"github.com/jsalamander/baendaeli-client/internal/actuator"
 	"github.com/jsalamander/baendaeli-client/internal/config"
+	"github.com/jsalamander/baendaeli-client/internal/version"
 )
 
 // StatusRequest is sent to the server
 type StatusRequest struct {
-	PaymentID string `json:"payment_id"`
+	PaymentID     string `json:"payment_id"`
+	ClientVersion string `json:"client_version"`
 }
 
 // StatusResponse is received from the server
@@ -207,7 +209,10 @@ func (c *Client) poll() {
 // reportStatus sends the current payment ID to the server
 func (c *Client) reportStatus(paymentID string) error {
 	url := c.buildURL("/api/v1/device/status")
-	req := StatusRequest{PaymentID: paymentID}
+	req := StatusRequest{
+		PaymentID:     paymentID,
+		ClientVersion: version.AppVersion,
+	}
 
 	body, err := json.Marshal(req)
 	if err != nil {

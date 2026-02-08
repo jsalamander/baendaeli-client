@@ -12,6 +12,7 @@ import (
 	"github.com/jsalamander/baendaeli-client/internal/actuator"
 	"github.com/jsalamander/baendaeli-client/internal/config"
 	"github.com/jsalamander/baendaeli-client/internal/device"
+	"github.com/jsalamander/baendaeli-client/internal/version"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -65,7 +66,7 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 	data := indexPageData{
 		DefaultAmount:    s.config.DefaultAmount,
 		SuccessOverlayMs: s.config.SuccessOverlayMs,
-		Version:          AppVersion,
+		Version:          version.AppVersion,
 	}
 	if err := indexTemplate.Execute(w, data); err != nil {
 		log.Printf("failed to render index template: %v", err)
@@ -83,7 +84,7 @@ func (s *Server) handleServeFile(filename string) http.HandlerFunc {
 			data := indexPageData{
 				DefaultAmount:    s.config.DefaultAmount,
 				SuccessOverlayMs: s.config.SuccessOverlayMs,
-				Version:          AppVersion,
+				Version:          version.AppVersion,
 			}
 			if err := mainJS.Execute(w, data); err != nil {
 				log.Printf("failed to serve %s: %v", filename, err)

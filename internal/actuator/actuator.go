@@ -17,6 +17,9 @@ const homingDuration = 20 * time.Second
 // This prevents momentum from affecting next movement
 const settlingDelay = 100 * time.Millisecond
 
+// Retract extra time to counter drift in repeated cycles.
+const retractExtra = 1 * time.Second
+
 // Cooldown after a full cycle to reduce drift in back-to-back operations.
 const cycleCooldown = 1 * time.Second
 
@@ -222,13 +225,13 @@ func Home() {
 	log.Println("Actuator: homing complete - now at home position")
 }
 
-// Trigger executes one extend-pause-retract cycle with precise equal timing
-// CRITICAL: Uses identical duration for extend and retract to ensure equal movement
+// Trigger executes one extend-pause-retract cycle with precise timing
+// Retract runs slightly longer to counter drift over repeated cycles.
 func (a *Actuator) Trigger() (int, error) {
 	start := time.Now()
 	if !a.enabled {
-		// Mock: wait for the configured time (2x movement + pause + settling)
-		mockDuration := 2*a.movementTime + a.pause + 2*settlingDelay + cycleCooldown
+		// Mock: wait for the configured time (extend + retract + pause + settling + cooldown)
+		mockDuration := a.movementTime + (a.movementTime + retractExtra) + a.pause + 2*settlingDelay + cycleCooldown
 		time.Sleep(mockDuration)
 		return int(mockDuration.Milliseconds()), nil
 	}
@@ -243,15 +246,15 @@ func (a *Actuator) Trigger() (int, error) {
 		log.Printf("Actuator (SIMULATION): pausing for %v...", a.pause)
 		preciseDelay(a.pause)
 
-		log.Printf("Actuator (SIMULATION): retracting for exactly %v (same as extend)...", a.movementTime)
-		preciseDelay(a.movementTime)
+		log.Printf("Actuator (SIMULATION): retracting for exactly %v...", a.movementTime+retractExtra)
+		preciseDelay(a.movementTime + retractExtra)
 		preciseDelay(settlingDelay)
 		a.isHome = true
 		preciseDelay(cycleCooldown)
 
 		totalMs := int(time.Since(start).Milliseconds())
-		log.Printf("Actuator (SIMULATION) cycle complete: extend=%v, retract=%v (identical), total=%dms", 
-			a.movementTime, a.movementTime, totalMs)
+		log.Printf("Actuator (SIMULATION) cycle complete: extend=%v, retract=%v, total=%dms", 
+			a.movementTime, a.movementTime+retractExtra, totalMs)
 		return totalMs, nil
 	}
 
@@ -280,7 +283,7 @@ func (a *Actuator) Trigger() (int, error) {
 	log.Printf("Actuator: pausing for %v...", a.pause)
 	preciseDelay(a.pause)
 
-	log.Printf("Actuator: retracting for exactly %v (same as extend)...", a.movementTime)
+	log.Printf("Actuator: retracting for exactly %v...", a.movementTime+retractExtra)
 	// Retract: IN1 LOW, IN2 HIGH
 	if err := a.in1Pin.Out(gpio.Low); err != nil {
 		return 0, fmt.Errorf("failed to set IN1 low: %w", err)
@@ -289,8 +292,8 @@ func (a *Actuator) Trigger() (int, error) {
 		return 0, fmt.Errorf("failed to set IN2 high: %w", err)
 	}
 
-	// Use identical precise timing for retract (CRITICAL for equal movement)
-	preciseDelay(a.movementTime)
+	// Use a slightly longer retract to compensate for drift
+	preciseDelay(a.movementTime + retractExtra)
 
 	// Stop and settle - back at home position
 	if err := a.stopMotor(); err != nil {
@@ -300,8 +303,8 @@ func (a *Actuator) Trigger() (int, error) {
 	preciseDelay(cycleCooldown)
 
 	totalMs := int(time.Since(start).Milliseconds())
-	log.Printf("Actuator cycle complete: extend=%v, retract=%v (identical), total=%dms", 
-		a.movementTime, a.movementTime, totalMs)
+	log.Printf("Actuator cycle complete: extend=%v, retract=%v, total=%dms", 
+		a.movementTime, a.movementTime+retractExtra, totalMs)
 	return totalMs, nil
 }
 

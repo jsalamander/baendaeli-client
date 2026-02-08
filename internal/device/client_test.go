@@ -360,7 +360,8 @@ func TestPoll(t *testing.T) {
 
 func TestMarshalStatusRequest(t *testing.T) {
 	req := StatusRequest{
-		PaymentID: "test-payment-id",
+		PaymentID:     "test-payment-id",
+		ClientVersion: "dev",
 	}
 
 	data, err := json.Marshal(req)
@@ -368,7 +369,7 @@ func TestMarshalStatusRequest(t *testing.T) {
 		t.Fatalf("failed to marshal: %v", err)
 	}
 
-	expected := `{"payment_id":"test-payment-id"}`
+	expected := `{"payment_id":"test-payment-id","client_version":"dev"}`
 	if strings.TrimSpace(string(data)) != expected {
 		t.Errorf("expected %s, got %s", expected, string(data))
 	}

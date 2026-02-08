@@ -17,7 +17,7 @@ builds:
     binary: baendaeli-client
     ldflags:
       - -s -w
-      - -X github.com/jsalamander/baendaeli-client/internal/server.AppVersion={{.Version}}
+      - -X github.com/jsalamander/baendaeli-client/internal/version.AppVersion={{.Version}}
 
 archives:
   - format: tar.gz
