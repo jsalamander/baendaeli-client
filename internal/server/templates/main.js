@@ -243,7 +243,8 @@ function checkDeviceStatus() {
 					const commandNames = {
 						'extend': 'Aktuator wird ausgefahren...',
 						'retract': 'Aktuator wird eingezogen...',
-						'home': 'Aktuator wird zurückgestellt...'
+						'home': 'Aktuator wird zurückgestellt...',
+						'ball_dispenser': 'Ball wird ausgegeben...'
 					};
 					const displayName = commandNames[cmd.command] || `Befehl wird ausgeführt: ${cmd.command}`;
 					console.log('[Device Command]', 'Starting:', cmd.command);

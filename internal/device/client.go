@@ -331,6 +331,13 @@ func (c *Client) executeCommand(cmd *CommandResponse) error {
 		// Keep the command visible to the UI briefly.
 		time.Sleep(cancelHoldDuration)
 		return nil
+	case "ball_dispenser":
+		log.Printf("Device client: ball dispenser cycle requested")
+		_, err := actuator.Trigger()
+		if err != nil {
+			log.Printf("Device client: ball dispenser failed: %v", err)
+		}
+		return err
 	default:
 		return fmt.Errorf("unknown command: %s", cmd.Command)
 	}
