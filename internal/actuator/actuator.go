@@ -11,11 +11,14 @@ import (
 )
 
 // Homing duration - fixed time to ensure full retraction from any position
-const homingDuration = 15 * time.Second
+const homingDuration = 20 * time.Second
 
 // Settling delay to ensure motor fully stops before direction change
 // This prevents momentum from affecting next movement
 const settlingDelay = 100 * time.Millisecond
+
+// Cooldown after a full cycle to reduce drift in back-to-back operations.
+const cycleCooldown = 1 * time.Second
 
 type Config struct {
 	Enabled      bool
@@ -225,7 +228,7 @@ func (a *Actuator) Trigger() (int, error) {
 	start := time.Now()
 	if !a.enabled {
 		// Mock: wait for the configured time (2x movement + pause + settling)
-		mockDuration := 2*a.movementTime + a.pause + 2*settlingDelay
+		mockDuration := 2*a.movementTime + a.pause + 2*settlingDelay + cycleCooldown
 		time.Sleep(mockDuration)
 		return int(mockDuration.Milliseconds()), nil
 	}
@@ -244,6 +247,7 @@ func (a *Actuator) Trigger() (int, error) {
 		preciseDelay(a.movementTime)
 		preciseDelay(settlingDelay)
 		a.isHome = true
+		preciseDelay(cycleCooldown)
 
 		totalMs := int(time.Since(start).Milliseconds())
 		log.Printf("Actuator (SIMULATION) cycle complete: extend=%v, retract=%v (identical), total=%dms", 
@@ -293,6 +297,7 @@ func (a *Actuator) Trigger() (int, error) {
 		return 0, fmt.Errorf("failed to stop after retract: %w", err)
 	}
 	a.isHome = true
+	preciseDelay(cycleCooldown)
 
 	totalMs := int(time.Since(start).Milliseconds())
 	log.Printf("Actuator cycle complete: extend=%v, retract=%v (identical), total=%dms", 
