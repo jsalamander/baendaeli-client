@@ -15,13 +15,15 @@ import (
 
 	"github.com/jsalamander/baendaeli-client/internal/actuator"
 	"github.com/jsalamander/baendaeli-client/internal/config"
+	"github.com/jsalamander/baendaeli-client/internal/irsensor"
 	"github.com/jsalamander/baendaeli-client/internal/version"
 )
 
 // StatusRequest is sent to the server
 type StatusRequest struct {
-	PaymentID     string `json:"payment_id"`
-	ClientVersion string `json:"client_version"`
+	PaymentID      string `json:"payment_id"`
+	ClientVersion  string `json:"client_version"`
+	DispensedCount *int   `json:"dispensed_count,omitempty"`
 }
 
 // StatusResponse is received from the server
@@ -34,7 +36,7 @@ type CommandResponse struct {
 	ID         int    `json:"id"`
 	Command    string `json:"command"`
 	DurationMs *int   `json:"duration_ms,omitempty"` // Optional duration in milliseconds
-	Message    string `json:"message,omitempty"`      // Message text for message command
+	Message    string `json:"message,omitempty"`     // Message text for message command
 }
 
 // AckRequest is sent to the server
@@ -48,36 +50,50 @@ type AckResponse struct {
 	Success bool `json:"success"`
 }
 
+type dispenseMonitor interface {
+	Measure(func() error) (int, error)
+	Close() error
+}
+
+type pendingDispense struct {
+	paymentID string
+	count     int
+}
+
 // Client polls the device API and executes commands
 type Client struct {
-	config          *config.Config
-	httpClient      *http.Client
-	ctx             context.Context
-	cancel          context.CancelFunc
-	wg              sync.WaitGroup
-	pollInterval    time.Duration
-	paymentIDMutex  sync.Mutex
+	config           *config.Config
+	httpClient       *http.Client
+	ctx              context.Context
+	cancel           context.CancelFunc
+	wg               sync.WaitGroup
+	pollInterval     time.Duration
+	paymentIDMutex   sync.Mutex
 	currentPaymentID string
-	running         atomic.Bool
-	
+	running          atomic.Bool
+	dispenseMonitor  dispenseMonitor
+
 	// Command execution status
 	statusMutex      sync.Mutex
 	executingCommand *CommandResponse
-	lastCommandError  string  // Error from last command execution
-	
+	lastCommandError string // Error from last command execution
+	dispenseMutex    sync.Mutex
+	pendingDispense  *pendingDispense
+
 	// Actuator lock to prevent concurrent commands
-	actuatorMutex   sync.Mutex
+	actuatorMutex sync.Mutex
 }
 
 // New creates a new device client
 func New(cfg *config.Config) *Client {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &Client{
-		config:       cfg,
-		httpClient:   &http.Client{Timeout: 15 * time.Second},
-		ctx:          ctx,
-		cancel:       cancel,
-		pollInterval: 7 * time.Second,
+		config:          cfg,
+		httpClient:      &http.Client{Timeout: 15 * time.Second},
+		ctx:             ctx,
+		cancel:          cancel,
+		pollInterval:    7 * time.Second,
+		dispenseMonitor: irsensor.New(cfg),
 	}
 }
 
@@ -86,6 +102,7 @@ func (c *Client) SetPaymentID(paymentID string) {
 	c.paymentIDMutex.Lock()
 	defer c.paymentIDMutex.Unlock()
 	c.currentPaymentID = paymentID
+	c.dropStalePendingDispense(paymentID)
 }
 
 // GetPaymentID returns the current payment ID
@@ -155,6 +172,9 @@ func (c *Client) Stop() {
 	}
 	c.cancel()
 	c.wg.Wait()
+	if err := c.dispenseMonitor.Close(); err != nil {
+		log.Printf("Device client: failed to close IR sensor monitor: %v", err)
+	}
 	log.Println("Device client stopped")
 }
 
@@ -201,7 +221,7 @@ func (c *Client) poll() {
 		if err := c.ackCommand(cmd.ID, execErr); err != nil {
 			log.Printf("Device client: failed to acknowledge command %d: %v", cmd.ID, err)
 		}
-		
+
 		c.clearExecutingCommand()
 	}
 }
@@ -209,9 +229,11 @@ func (c *Client) poll() {
 // reportStatus sends the current payment ID to the server
 func (c *Client) reportStatus(paymentID string) error {
 	url := c.buildURL("/api/v1/device/status")
+	dispensedCount := c.pendingDispensedCount(paymentID)
 	req := StatusRequest{
-		PaymentID:     paymentID,
-		ClientVersion: version.AppVersion,
+		PaymentID:      paymentID,
+		ClientVersion:  version.AppVersion,
+		DispensedCount: dispensedCount,
 	}
 
 	body, err := json.Marshal(req)
@@ -251,7 +273,71 @@ func (c *Client) reportStatus(paymentID string) error {
 		return fmt.Errorf("server returned success=false")
 	}
 
+	c.clearPendingDispense(paymentID, dispensedCount)
+
 	return nil
+}
+
+func (c *Client) pendingDispensedCount(paymentID string) *int {
+	if paymentID == "" {
+		return nil
+	}
+
+	c.dispenseMutex.Lock()
+	defer c.dispenseMutex.Unlock()
+
+	if c.pendingDispense == nil || c.pendingDispense.paymentID != paymentID {
+		return nil
+	}
+
+	count := c.pendingDispense.count
+	return &count
+}
+
+func (c *Client) recordDispensedCount(paymentID string, count int) {
+	if paymentID == "" || count < 0 {
+		return
+	}
+
+	c.dispenseMutex.Lock()
+	defer c.dispenseMutex.Unlock()
+
+	if c.pendingDispense != nil && c.pendingDispense.paymentID == paymentID {
+		c.pendingDispense.count += count
+		return
+	}
+
+	c.pendingDispense = &pendingDispense{paymentID: paymentID, count: count}
+}
+
+func (c *Client) clearPendingDispense(paymentID string, dispensedCount *int) {
+	if dispensedCount == nil {
+		return
+	}
+
+	c.dispenseMutex.Lock()
+	defer c.dispenseMutex.Unlock()
+
+	if c.pendingDispense == nil {
+		return
+	}
+	if c.pendingDispense.paymentID != paymentID {
+		return
+	}
+	if c.pendingDispense.count != *dispensedCount {
+		return
+	}
+
+	c.pendingDispense = nil
+}
+
+func (c *Client) dropStalePendingDispense(paymentID string) {
+	c.dispenseMutex.Lock()
+	defer c.dispenseMutex.Unlock()
+
+	if c.pendingDispense != nil && c.pendingDispense.paymentID != paymentID {
+		c.pendingDispense = nil
+	}
 }
 
 // getCommand fetches the next pending command from the server
@@ -347,7 +433,17 @@ func (c *Client) executeCommand(cmd *CommandResponse) error {
 		return nil
 	case "ball_dispenser":
 		log.Printf("Device client: ball dispenser cycle requested")
-		_, err := actuator.Trigger()
+		paymentID := c.GetPaymentID()
+		dispensedCount, err := c.dispenseMonitor.Measure(func() error {
+			_, triggerErr := actuator.Trigger()
+			return triggerErr
+		})
+		c.recordDispensedCount(paymentID, dispensedCount)
+		if paymentID != "" {
+			log.Printf("Device client: ball dispenser detected %d dispense event(s) for payment %s", dispensedCount, paymentID)
+		} else {
+			log.Printf("Device client: ball dispenser detected %d dispense event(s) without an active payment", dispensedCount)
+		}
 		if err != nil {
 			log.Printf("Device client: ball dispenser failed: %v", err)
 		}

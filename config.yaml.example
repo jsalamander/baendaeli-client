@@ -10,3 +10,8 @@ ACTUATOR_IN2_PIN: "GPIO7"
 # CRITICAL: Movement time used for BOTH extend and retract (must be identical for equal distance)
 ACTUATOR_MOVEMENT_SECONDS: 2
 ACTUATOR_PAUSE_SECONDS: 2
+# IR ball detection (beam-break sensors)
+IR_SENSOR_ENABLED: true
+IR_SENSOR_1_PIN: "GPIO27"
+IR_SENSOR_2_PIN: "GPIO17"
+IR_SENSOR_DEBOUNCE_MS: 10

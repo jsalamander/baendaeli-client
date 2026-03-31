@@ -13,6 +13,27 @@ import (
 	"github.com/jsalamander/baendaeli-client/internal/config"
 )
 
+type stubDispenseMonitor struct {
+	count      int
+	err        error
+	callAction bool
+	closed     bool
+}
+
+func (m *stubDispenseMonitor) Measure(action func() error) (int, error) {
+	if m.callAction {
+		if err := action(); err != nil {
+			return m.count, err
+		}
+	}
+	return m.count, m.err
+}
+
+func (m *stubDispenseMonitor) Close() error {
+	m.closed = true
+	return nil
+}
+
 func TestReportStatus(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -91,13 +112,71 @@ func TestReportStatus(t *testing.T) {
 	}
 }
 
+func TestReportStatusIncludesDispensedCountAndClearsIt(t *testing.T) {
+	var received StatusRequest
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if err := json.NewDecoder(r.Body).Decode(&received); err != nil {
+			t.Fatalf("failed to decode request: %v", err)
+		}
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"success": true}`))
+	}))
+	defer server.Close()
+
+	cfg := &config.Config{
+		BaendaeliURL:    server.URL,
+		BaendaeliAPIKey: "test-key",
+	}
+	client := New(cfg)
+	client.recordDispensedCount("payment-123", 4)
+
+	if err := client.reportStatus("payment-123"); err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if received.DispensedCount == nil {
+		t.Fatal("expected dispensed_count in request")
+	}
+	if *received.DispensedCount != 4 {
+		t.Fatalf("expected dispensed_count=4, got %d", *received.DispensedCount)
+	}
+	if client.pendingDispensedCount("payment-123") != nil {
+		t.Fatal("expected pending dispensed count to be cleared after successful report")
+	}
+}
+
+func TestReportStatusKeepsDispensedCountOnFailure(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(`{"error": "server error"}`))
+	}))
+	defer server.Close()
+
+	cfg := &config.Config{
+		BaendaeliURL:    server.URL,
+		BaendaeliAPIKey: "test-key",
+	}
+	client := New(cfg)
+	client.recordDispensedCount("payment-123", 2)
+
+	if err := client.reportStatus("payment-123"); err == nil {
+		t.Fatal("expected reportStatus to fail")
+	}
+
+	pending := client.pendingDispensedCount("payment-123")
+	if pending == nil || *pending != 2 {
+		t.Fatalf("expected pending count to remain at 2, got %v", pending)
+	}
+}
+
 func TestGetCommand(t *testing.T) {
 	tests := []struct {
-		name         string
-		serverCode   int
-		serverResp   string
-		expectError  bool
-		expectedCmd  *CommandResponse
+		name        string
+		serverCode  int
+		serverResp  string
+		expectError bool
+		expectedCmd *CommandResponse
 	}{
 		{
 			name:       "command available",
@@ -375,6 +454,48 @@ func TestMarshalStatusRequest(t *testing.T) {
 	}
 }
 
+func TestMarshalStatusRequestWithDispensedCount(t *testing.T) {
+	count := 7
+	req := StatusRequest{
+		PaymentID:      "test-payment-id",
+		ClientVersion:  "dev",
+		DispensedCount: &count,
+	}
+
+	data, err := json.Marshal(req)
+	if err != nil {
+		t.Fatalf("failed to marshal: %v", err)
+	}
+
+	expected := `{"payment_id":"test-payment-id","client_version":"dev","dispensed_count":7}`
+	if strings.TrimSpace(string(data)) != expected {
+		t.Errorf("expected %s, got %s", expected, string(data))
+	}
+}
+
+func TestRecordDispensedCountAccumulatesPerPayment(t *testing.T) {
+	client := New(&config.Config{})
+
+	client.recordDispensedCount("payment-123", 1)
+	client.recordDispensedCount("payment-123", 2)
+
+	pending := client.pendingDispensedCount("payment-123")
+	if pending == nil || *pending != 3 {
+		t.Fatalf("expected accumulated count of 3, got %v", pending)
+	}
+}
+
+func TestSetPaymentIDDropsStaleDispensedCount(t *testing.T) {
+	client := New(&config.Config{})
+	client.recordDispensedCount("payment-123", 5)
+
+	client.SetPaymentID("payment-456")
+
+	if pending := client.pendingDispensedCount("payment-123"); pending != nil {
+		t.Fatalf("expected stale count to be cleared, got %v", pending)
+	}
+}
+
 func TestExecutingCommandTracking(t *testing.T) {
 	cfg := &config.Config{
 		BaendaeliURL:    "http://example.com",
@@ -411,10 +532,10 @@ func TestExecutingCommandTracking(t *testing.T) {
 
 func TestActuatorLockPreventsRaceConditions(t *testing.T) {
 	cfg := &config.Config{
-		BaendaeliURL:           "http://example.com",
-		BaendaeliAPIKey:        "test-key",
-		ActuatorMovement:       1,
-		ActuatorEnabled:        false,
+		BaendaeliURL:     "http://example.com",
+		BaendaeliAPIKey:  "test-key",
+		ActuatorMovement: 1,
+		ActuatorEnabled:  false,
 	}
 	client := New(cfg)
 
@@ -470,7 +591,7 @@ func TestLockActuatorPublicMethods(t *testing.T) {
 
 	// Test public lock/unlock methods
 	client.LockActuator()
-	
+
 	// Verify lock was acquired by checking it blocks another acquire
 	acquired := make(chan bool, 1)
 	go func() {
@@ -552,6 +673,29 @@ func TestCommandWithDurationMs(t *testing.T) {
 
 	if *cmd.DurationMs != 30000 {
 		t.Errorf("expected duration_ms 30000, got %d", *cmd.DurationMs)
+	}
+}
+
+func TestBallDispenserRecordsDispensedCount(t *testing.T) {
+	cfg := &config.Config{
+		BaendaeliURL:    "http://example.com",
+		BaendaeliAPIKey: "test-key",
+	}
+	client := New(cfg)
+	client.dispenseMonitor = &stubDispenseMonitor{count: 3}
+	client.SetPaymentID("payment-123")
+
+	err := client.executeCommand(&CommandResponse{
+		ID:      47,
+		Command: "ball_dispenser",
+	})
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	pending := client.pendingDispensedCount("payment-123")
+	if pending == nil || *pending != 3 {
+		t.Fatalf("expected pending count of 3, got %v", pending)
 	}
 }
 

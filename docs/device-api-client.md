@@ -4,7 +4,7 @@
 
 The device client implements the Device API polling protocol, enabling the baendaeli-client to act as a device that:
 
-1. **Reports status** to the server with current payment ID
+1. **Reports status** to the server with current payment ID and optional dispense count
 2. **Polls for commands** (extend, retract, home)
 3. **Executes commands** via the actuator
 4. **Acknowledges** completed commands
@@ -35,7 +35,8 @@ The device client runs the following loop every 7 seconds:
 
 ```go
 1. POST /api/v1/device/status
-   - Sends current payment_id to server
+  - Sends current payment_id to server
+  - Includes dispensed_count after a monitored ball dispenser cycle
    - No client_info (ignored per requirements)
 
 2. GET /api/v1/device/commands
@@ -60,7 +61,9 @@ Authorization: Bearer <API_KEY>
 **POST** `/api/v1/device/status`
 ```json
 {
-  "payment_id": "550e8400-e29b-41d4-a716-446655440000"
+  "payment_id": "550e8400-e29b-41d4-a716-446655440000",
+  "client_version": "1.2.3",
+  "dispensed_count": 128
 }
 ```
 
@@ -81,6 +84,7 @@ Authorization: Bearer <API_KEY>
 - `retract`: Retracts the actuator
 - `home`: Homes the actuator (full retraction)
 - `message`: Displays a message on the device UI
+- `ball_dispenser`: Runs one extend-pause-retract cycle and counts IR beam breaks during the cycle
 
 **Message Command Example:**
 ```json
@@ -118,11 +122,13 @@ Uses existing configuration fields:
 - `BAENDAELI_URL`: API server URL
 - `BAENDAELI_API_KEY`: Device authentication token
 - `ACTUATOR_MOVEMENT_SECONDS`: Duration for extend/retract commands
+- `IR_SENSOR_ENABLED`, `IR_SENSOR_1_PIN`, `IR_SENSOR_2_PIN`, `IR_SENSOR_DEBOUNCE_MS`: IR ball detection inputs enabled by default, with `GPIO27`/`GPIO17` used when sensor pins are omitted
 
 ## Testing
 
 Unit tests cover:
 - Status reporting
+- Dispense count reporting and retry behavior
 - Command fetching
 - Command acknowledgment
 - Payment ID management
@@ -156,10 +162,12 @@ Device polling cycle:
   Server → deviceClient: Received status
   
   deviceClient → Server: GET /api/v1/device/commands
-  Server → deviceClient: {id: 42, command: "extend"}
+  Server → deviceClient: {id: 42, command: "ball_dispenser"}
   
-  deviceClient:          Execute actuator.Extend()
+  deviceClient:          Execute actuator.Trigger() while monitoring IR inputs
   
   deviceClient → Server: POST /api/v1/device/commands/42/ack
   Server → deviceClient: Acknowledged
+
+  deviceClient → Server: POST /api/v1/device/status (payment_id: "uuid-123", dispensed_count: 128)
 ```
