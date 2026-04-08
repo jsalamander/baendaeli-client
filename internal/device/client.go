@@ -264,8 +264,13 @@ func (c *Client) reportStatus(paymentID string) error {
 		return fmt.Errorf("unexpected status code %d: %s", resp.StatusCode, string(body))
 	}
 
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("failed to read response body: %w", err)
+	}
+
 	var statusResp StatusResponse
-	if err := json.NewDecoder(resp.Body).Decode(&statusResp); err != nil {
+	if err := decodeJSONResponse(respBody, &statusResp, resp.Header.Get("Content-Type")); err != nil {
 		return fmt.Errorf("failed to decode response: %w", err)
 	}
 
@@ -366,8 +371,13 @@ func (c *Client) getCommand() (*CommandResponse, error) {
 		return nil, fmt.Errorf("unexpected status code %d: %s", resp.StatusCode, string(body))
 	}
 
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response body: %w", err)
+	}
+
 	var cmdResp CommandResponse
-	if err := json.NewDecoder(resp.Body).Decode(&cmdResp); err != nil {
+	if err := decodeJSONResponse(respBody, &cmdResp, resp.Header.Get("Content-Type")); err != nil {
 		return nil, fmt.Errorf("failed to decode response: %w", err)
 	}
 
@@ -517,8 +527,13 @@ func (c *Client) ackCommand(commandID int, execErr error) error {
 		return fmt.Errorf("unexpected status code %d: %s", resp.StatusCode, string(body))
 	}
 
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("failed to read response body: %w", err)
+	}
+
 	var ackResp AckResponse
-	if err := json.NewDecoder(resp.Body).Decode(&ackResp); err != nil {
+	if err := decodeJSONResponse(respBody, &ackResp, resp.Header.Get("Content-Type")); err != nil {
 		return fmt.Errorf("failed to decode response: %w", err)
 	}
 
@@ -540,4 +555,23 @@ func (c *Client) buildURL(path string) string {
 // setAuthHeader adds the authorization header to the request
 func (c *Client) setAuthHeader(req *http.Request) {
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", c.config.BaendaeliAPIKey))
+}
+
+func decodeJSONResponse(body []byte, target interface{}, contentType string) error {
+	if len(bytes.TrimSpace(body)) == 0 {
+		return fmt.Errorf("empty response body")
+	}
+
+	if err := json.Unmarshal(body, target); err != nil {
+		preview := strings.TrimSpace(string(body))
+		if len(preview) > 200 {
+			preview = preview[:200] + "..."
+		}
+		if contentType == "" {
+			contentType = "unknown"
+		}
+		return fmt.Errorf("%w (content-type=%q, body=%q)", err, contentType, preview)
+	}
+
+	return nil
 }

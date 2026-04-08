@@ -40,19 +40,23 @@ func TestReportStatus(t *testing.T) {
 		paymentID   string
 		serverCode  int
 		serverResp  string
+		contentType string
 		expectError bool
+		errorHas    string
 	}{
 		{
 			name:       "successful status report",
 			paymentID:  "test-payment-123",
 			serverCode: http.StatusOK,
 			serverResp: `{"success": true}`,
+			contentType: "application/json",
 		},
 		{
 			name:        "unauthorized",
 			paymentID:   "test-payment-123",
 			serverCode:  http.StatusUnauthorized,
 			serverResp:  `{"error": "unauthorized"}`,
+			contentType: "application/json",
 			expectError: true,
 		},
 		{
@@ -60,6 +64,7 @@ func TestReportStatus(t *testing.T) {
 			paymentID:   "test-payment-123",
 			serverCode:  http.StatusInternalServerError,
 			serverResp:  `{"error": "server error"}`,
+			contentType: "application/json",
 			expectError: true,
 		},
 		{
@@ -67,7 +72,17 @@ func TestReportStatus(t *testing.T) {
 			paymentID:   "test-payment-123",
 			serverCode:  http.StatusOK,
 			serverResp:  `{"success": false}`,
+			contentType: "application/json",
 			expectError: true,
+		},
+		{
+			name:        "html body with 200 returns descriptive decode error",
+			paymentID:   "test-payment-123",
+			serverCode:  http.StatusOK,
+			serverResp:  `<html><body>gateway error</body></html>`,
+			contentType: "text/html",
+			expectError: true,
+			errorHas:    "content-type=\"text/html\"",
 		},
 	}
 
@@ -92,6 +107,9 @@ func TestReportStatus(t *testing.T) {
 				}
 
 				// Send response
+				if tt.contentType != "" {
+					w.Header().Set("Content-Type", tt.contentType)
+				}
 				w.WriteHeader(tt.serverCode)
 				w.Write([]byte(tt.serverResp))
 			}))
@@ -107,6 +125,9 @@ func TestReportStatus(t *testing.T) {
 			err := client.reportStatus(tt.paymentID)
 			if (err != nil) != tt.expectError {
 				t.Errorf("expected error=%v, got error=%v", tt.expectError, err)
+			}
+			if tt.errorHas != "" && (err == nil || !strings.Contains(err.Error(), tt.errorHas)) {
+				t.Errorf("expected error to contain %q, got %v", tt.errorHas, err)
 			}
 		})
 	}

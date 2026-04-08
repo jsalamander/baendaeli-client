@@ -6,11 +6,30 @@ function renderQr(data) {
 	const url = data.qr_code_url || data.qrcode_url || data.payment_qr_url || data.url;
 	const qrData = data.qr || data.qrcode || data.qr_data;
 
+	const applyImageSizing = (img) => {
+		img.className = 'mx-auto block h-auto max-w-full';
+		img.style.aspectRatio = '1 / 1';
+		img.style.objectFit = 'contain';
+	};
+
+	const applyInlineSvgSizing = () => {
+		const svgEl = qrEl.querySelector('svg');
+		if (!svgEl) {
+			return;
+		}
+		svgEl.style.display = 'block';
+		svgEl.style.margin = '0 auto';
+		svgEl.style.maxWidth = '100%';
+		svgEl.style.height = 'auto';
+		svgEl.style.aspectRatio = '1 / 1';
+	};
+
 	qrEl.innerHTML = '';
 
 	// Try inline SVG first
 	if (svg && typeof svg === 'string') {
 		qrEl.innerHTML = svg;
+		applyInlineSvgSizing();
 		return;
 	}
 
@@ -19,6 +38,7 @@ function renderQr(data) {
 		const img = new Image();
 		img.src = 'data:image/png;base64,' + png;
 		img.alt = 'Payment QR code';
+		applyImageSizing(img);
 		qrEl.appendChild(img);
 		return;
 	}
@@ -32,6 +52,7 @@ function renderQr(data) {
 			const img = new Image();
 			img.src = trimmed;
 			img.alt = 'Payment QR code';
+			applyImageSizing(img);
 			qrEl.appendChild(img);
 			return;
 		}
@@ -39,6 +60,7 @@ function renderQr(data) {
 		// Inline SVG
 		if (trimmed.startsWith('<svg')) {
 			qrEl.innerHTML = trimmed;
+			applyInlineSvgSizing();
 			return;
 		}
 
@@ -48,6 +70,7 @@ function renderQr(data) {
 			const img = new Image();
 			img.src = 'data:image/png;base64,' + trimmed;
 			img.alt = 'Payment QR code';
+			applyImageSizing(img);
 			qrEl.appendChild(img);
 			return;
 		}
@@ -58,6 +81,7 @@ function renderQr(data) {
 		const img = new Image();
 		img.src = url;
 		img.alt = 'Payment QR code';
+		applyImageSizing(img);
 		qrEl.appendChild(img);
 		return;
 	}

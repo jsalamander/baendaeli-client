@@ -8,16 +8,39 @@
 	<link href="https://cdn.jsdelivr.net/npm/daisyui@4.4.20/dist/full.min.css" rel="stylesheet" type="text/css" />
 	<style>
 		.hidden { display: none; }
+		:root {
+			--qr-size: clamp(180px, 52vw, 320px);
+		}
+		#qr {
+			min-height: clamp(180px, 52vw, 340px);
+			padding: clamp(0.75rem, 2vw, 1.25rem);
+		}
+		#qr svg,
+		#qr img,
+		#qr canvas {
+			display: block;
+			width: var(--qr-size) !important;
+			height: var(--qr-size) !important;
+			max-width: 100%;
+			max-height: 68vh;
+			margin: 0 auto;
+			object-fit: contain;
+		}
+		@media (max-width: 480px) {
+			:root {
+				--qr-size: min(72vw, 260px);
+			}
+		}
 	</style>
 </head>
-<body class="flex flex-col min-h-screen bg-base-900">
+<body class="flex flex-col min-h-screen bg-base-900 overflow-x-hidden">
 	<!-- Navbar with integrated status -->
-	<nav class="navbar bg-base-800 border-b border-base-700">
+	<nav class="navbar bg-base-800 border-b border-base-700 px-3 sm:px-4">
 		<div class="flex-1">
-			<a class="btn btn-ghost text-xl" href="/">Solibändäli</a>
+			<a class="btn btn-ghost text-base sm:text-xl px-2 sm:px-4" href="/">Solibändäli</a>
 		</div>
 		<div class="flex-none">
-			<div class="badge badge-dash badge-outline badge-primary text-base px-4 py-3" id="status">
+			<div class="badge badge-dash badge-outline badge-primary text-xs sm:text-sm md:text-base px-2 sm:px-4 py-2 sm:py-3 max-w-[55vw] sm:max-w-none text-center" id="status">
 				<span class="status status-sm status-success"></span>
 				<span>Zahlung wird erstellt...</span>
 			</div>
@@ -25,9 +48,9 @@
 	</nav>
 
 	<!-- Main Content -->
-	<main class="flex-1 flex items-center justify-center p-4">
-		<div class="card bg-base-800 border border-base-700 shadow-xl w-full max-w-md">
-			<div class="card-body">
+	<main class="flex-1 flex items-center justify-center p-3 sm:p-4 md:p-6 pb-20 sm:pb-24">
+		<div class="card bg-base-800 border border-base-700 shadow-xl w-full max-w-[560px]">
+			<div class="card-body p-4 sm:p-6 gap-3 sm:gap-4">
 				<!-- Success Banner (hidden by default) -->
 				<div class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur" id="successBanner">
 					<div class="alert alert-success alert-lg shadow-lg max-w-sm">
@@ -77,9 +100,9 @@
 					</div>
 				</div>
 
-				<h2 class="card-title text-2xl">Spende für ein Solibändeli</h2>
-				<p class="text-base-content/70">Scanne den QR-Code mit deinem Smartphone, um deine Spende für das Solibändeli zu tätigen. Nach Ankunft des Betrags wird das Solibändeli ausgegeben.</p>
-				<div class="bg-base-700 rounded-lg border border-dashed border-base-600 p-4 flex items-center justify-center min-h-[220px]" id="qr">
+				<h2 class="card-title text-xl sm:text-2xl leading-tight">Spende für ein Solibändeli</h2>
+				<p class="text-sm sm:text-base text-base-content/70">Scanne den QR-Code mit deinem Smartphone, um deine Spende für das Solibändeli zu tätigen. Nach Ankunft des Betrags wird das Solibändeli ausgegeben.</p>
+				<div class="bg-base-700 rounded-lg border border-dashed border-base-600 flex items-center justify-center w-full overflow-hidden" id="qr">
 					<div class="text-center">
 						<svg class="inline-block w-8 h-8 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
 							<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
@@ -108,19 +131,19 @@
 	</main>
 
 	<!-- Version Badge (fixed position on left) -->
-	<div class="fixed bottom-4 left-4 badge badge-outline text-xs">v{{.Version}}</div>
+	<div class="fixed bottom-3 left-3 sm:bottom-4 sm:left-4 badge badge-outline text-[10px] sm:text-xs">v{{.Version}}</div>
 
 	<!-- Internet & Gateway Status (fixed position on right, horizontal) -->
-	<div class="fixed bottom-4 right-4 flex flex-row gap-2 flex-wrap max-w-[calc(100vw-8rem)]">
-		<div class="flex items-center gap-2 text-xs badge badge-outline">
+	<div class="fixed bottom-3 right-3 sm:bottom-4 sm:right-4 flex flex-row gap-1.5 sm:gap-2 flex-wrap justify-end max-w-[calc(100vw-6rem)] sm:max-w-[calc(100vw-8rem)]">
+		<div class="flex items-center gap-1.5 sm:gap-2 text-[10px] sm:text-xs badge badge-outline">
 			<div class="w-2 h-2 rounded-full bg-warning" id="internetDot"></div>
 			<span id="internetStatusText">Internet...</span>
 		</div>
-		<div class="flex items-center gap-2 text-xs badge badge-outline">
+		<div class="flex items-center gap-1.5 sm:gap-2 text-[10px] sm:text-xs badge badge-outline">
 			<div class="w-2 h-2 rounded-full bg-warning" id="gatewayDot"></div>
 			<span id="gatewayStatusText">Gateway...</span>
 		</div>
-		<div class="text-xs text-base-content/60 badge badge-ghost">
+		<div class="text-[10px] sm:text-xs text-base-content/60 badge badge-ghost">
 			<span id="gatewayMeta">...</span>
 		</div>
 	</div>

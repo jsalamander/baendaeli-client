@@ -22,6 +22,10 @@ type Config struct {
 	IRSensor1Pin       string `yaml:"IR_SENSOR_1_PIN"`
 	IRSensor2Pin       string `yaml:"IR_SENSOR_2_PIN"`
 	IRSensorDebounceMs int    `yaml:"IR_SENSOR_DEBOUNCE_MS"`
+	VibrationEnabled   bool   `yaml:"VIBRATOR_ENABLED"`
+	VibrationIN3Pin    string `yaml:"VIBRATOR_IN3_PIN"`
+	VibrationIN4Pin    string `yaml:"VIBRATOR_IN4_PIN"`
+	VibrationENBPin    string `yaml:"VIBRATOR_ENB_PIN"`
 }
 
 func Load(filename string) (*Config, error) {
@@ -62,5 +66,14 @@ func (c *Config) SetDefaults() {
 	}
 	if c.IRSensorDebounceMs == 0 {
 		c.IRSensorDebounceMs = 10
+	}
+	if c.VibrationIN3Pin == "" {
+		c.VibrationIN3Pin = "GPIO16"
+	}
+	if c.VibrationIN4Pin == "" {
+		c.VibrationIN4Pin = "GPIO20"
+	}
+	if c.VibrationENBPin == "" {
+		c.VibrationENBPin = "GPIO18"
 	}
 }

@@ -9,12 +9,11 @@ async function safeParseJson(res) {
 	}
 }
 
-async function createPayment(amountCents) {
+async function createPayment() {
 	const res = await fetch('/api/payment', {
 		method: 'POST',
 		headers: { 'Content-Type': 'application/json' },
 		body: JSON.stringify({
-			amount_cents: amountCents,
 			currency: 'CHF',
 			payment_redirect_url: 'https://example.com/payments/123/complete'
 		})

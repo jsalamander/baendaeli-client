@@ -15,6 +15,7 @@ import (
 "github.com/jsalamander/baendaeli-client/internal/config"
 "github.com/jsalamander/baendaeli-client/internal/device"
 "github.com/jsalamander/baendaeli-client/internal/server"
+	"github.com/jsalamander/baendaeli-client/internal/vibrator"
 )
 
 func main() {
@@ -68,6 +69,20 @@ log.Printf("Warning: Actuator initialization failed: %v. Continuing without actu
 defer actuator.Cleanup()
 }
 
+// Initialize vibrator if enabled
+if cfg.VibrationEnabled {
+vibCfg := vibrator.Config{
+Enabled: cfg.VibrationEnabled,
+IN3Pin:  cfg.VibrationIN3Pin,
+IN4Pin:  cfg.VibrationIN4Pin,
+ENBPin:  cfg.VibrationENBPin,
+}
+if err := vibrator.Init(vibCfg); err != nil {
+log.Printf("Warning: Vibrator initialization failed: %v. Continuing without vibrator.", err)
+}
+defer vibrator.Cleanup()
+}
+
 // Create server
 srv := server.New(cfg)
 
@@ -90,6 +105,13 @@ log.Fatalf("Server error: %v", err)
 	if cfg.ActuatorEnabled {
 		go func() {
 			log.Println("Starting actuator homing sequence...")
+			if cfg.VibrationEnabled {
+				go func() {
+					if err := vibrator.Buzz(0.5, 3*time.Second); err != nil {
+						log.Printf("Warning: startup vibrator run failed: %v", err)
+					}
+				}()
+			}
 			actuator.Home()
 		}()
 	}

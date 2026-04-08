@@ -39,9 +39,6 @@ func TestHandleCreatePayment_ForwardsPayloadAndDefaults(t *testing.T) {
             t.Fatalf("payload not JSON: %v", err)
         }
 
-        if payload["amount_cents"] != float64(1234) { // json numbers decode as float64
-            t.Fatalf("amount_cents mismatch: %v", payload["amount_cents"])
-        }
         if payload["currency"] != "CHF" {
             t.Fatalf("currency mismatch: %v", payload["currency"])
         }
@@ -58,7 +55,6 @@ func TestHandleCreatePayment_ForwardsPayloadAndDefaults(t *testing.T) {
     cfg := &config.Config{
         BaendaeliAPIKey: "test-key",
         BaendaeliURL:    backend.URL,
-        DefaultAmount:   1234,
     }
     srv := newTestServer(cfg, backend.Client())
 

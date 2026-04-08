@@ -78,7 +78,7 @@ async function start() {
 	setDiagnosticsPending();
 	
 	try {
-		const data = await createPayment(defaultAmount);
+		const data = await createPayment();
 		
 		updateStatus('Zahlung wird erstellt...', 'badge-primary');
 		if (data.id) {

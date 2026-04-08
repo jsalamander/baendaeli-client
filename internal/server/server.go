@@ -9,6 +9,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jsalamander/baendaeli-client/internal/vibrator"
+
 	"github.com/jsalamander/baendaeli-client/internal/actuator"
 	"github.com/jsalamander/baendaeli-client/internal/config"
 	"github.com/jsalamander/baendaeli-client/internal/device"
@@ -25,8 +27,7 @@ type Server struct {
 }
 
 type createPaymentPayload struct {
-	AmountCents int    `json:"amount_cents"`
-	Currency    string `json:"currency"`
+	Currency string `json:"currency"`
 }
 
 func New(cfg *config.Config) *Server {
@@ -112,11 +113,12 @@ func (s *Server) handleCreatePayment(w http.ResponseWriter, r *http.Request) {
 		payload = createPaymentPayload{}
 	}
 
-	if payload.AmountCents == 0 {
-		payload.AmountCents = s.config.DefaultAmount
-	}
 	if payload.Currency == "" {
 		payload.Currency = "CHF"
+	}
+
+	if err := vibrator.Buzz(0.5, 2*time.Second); err != nil {
+		log.Printf("vibrator error (continuing): %v", err)
 	}
 
 	reqBody, err := json.Marshal(payload)
