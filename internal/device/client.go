@@ -21,9 +21,9 @@ import (
 
 // StatusRequest is sent to the server
 type StatusRequest struct {
-	PaymentID      string `json:"payment_id"`
-	ClientVersion  string `json:"client_version"`
-	DispensedCount *int   `json:"dispensed_count,omitempty"`
+	PaymentID      *string `json:"payment_id,omitempty"`
+	ClientVersion  string  `json:"client_version"`
+	DispensedCount *int    `json:"dispensed_count,omitempty"`
 }
 
 // StatusResponse is received from the server
@@ -230,8 +230,16 @@ func (c *Client) poll() {
 func (c *Client) reportStatus(paymentID string) error {
 	url := c.buildURL("/api/v1/device/status")
 	dispensedCount := c.pendingDispensedCount(paymentID)
+	if paymentID != "" && dispensedCount == nil {
+		zero := 0
+		dispensedCount = &zero
+	}
+	var requestPaymentID *string
+	if paymentID != "" {
+		requestPaymentID = &paymentID
+	}
 	req := StatusRequest{
-		PaymentID:      paymentID,
+		PaymentID:      requestPaymentID,
 		ClientVersion:  version.AppVersion,
 		DispensedCount: dispensedCount,
 	}
@@ -248,6 +256,7 @@ func (c *Client) reportStatus(paymentID string) error {
 
 	c.setAuthHeader(httpReq)
 	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set("Accept", "application/json")
 
 	resp, err := c.httpClient.Do(httpReq)
 	if err != nil {
@@ -355,6 +364,7 @@ func (c *Client) getCommand() (*CommandResponse, error) {
 	}
 
 	c.setAuthHeader(httpReq)
+	httpReq.Header.Set("Accept", "application/json")
 
 	resp, err := c.httpClient.Do(httpReq)
 	if err != nil {
@@ -507,6 +517,7 @@ func (c *Client) ackCommand(commandID int, execErr error) error {
 
 	c.setAuthHeader(httpReq)
 	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set("Accept", "application/json")
 
 	resp, err := c.httpClient.Do(httpReq)
 	if err != nil {

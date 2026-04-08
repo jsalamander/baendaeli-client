@@ -167,6 +167,36 @@ func TestReportStatusIncludesDispensedCountAndClearsIt(t *testing.T) {
 	}
 }
 
+func TestReportStatusIncludesZeroDispensedCountWhenNoPending(t *testing.T) {
+	var received StatusRequest
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if err := json.NewDecoder(r.Body).Decode(&received); err != nil {
+			t.Fatalf("failed to decode request: %v", err)
+		}
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"success": true}`))
+	}))
+	defer server.Close()
+
+	cfg := &config.Config{
+		BaendaeliURL:    server.URL,
+		BaendaeliAPIKey: "test-key",
+	}
+	client := New(cfg)
+
+	if err := client.reportStatus("payment-123"); err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if received.DispensedCount == nil {
+		t.Fatal("expected dispensed_count in request")
+	}
+	if *received.DispensedCount != 0 {
+		t.Fatalf("expected dispensed_count=0, got %d", *received.DispensedCount)
+	}
+}
+
 func TestReportStatusKeepsDispensedCountOnFailure(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
@@ -459,8 +489,9 @@ func TestPoll(t *testing.T) {
 }
 
 func TestMarshalStatusRequest(t *testing.T) {
+	paymentID := "test-payment-id"
 	req := StatusRequest{
-		PaymentID:     "test-payment-id",
+		PaymentID:     &paymentID,
 		ClientVersion: "dev",
 	}
 
@@ -477,8 +508,9 @@ func TestMarshalStatusRequest(t *testing.T) {
 
 func TestMarshalStatusRequestWithDispensedCount(t *testing.T) {
 	count := 7
+	paymentID := "test-payment-id"
 	req := StatusRequest{
-		PaymentID:      "test-payment-id",
+		PaymentID:      &paymentID,
 		ClientVersion:  "dev",
 		DispensedCount: &count,
 	}
@@ -489,6 +521,22 @@ func TestMarshalStatusRequestWithDispensedCount(t *testing.T) {
 	}
 
 	expected := `{"payment_id":"test-payment-id","client_version":"dev","dispensed_count":7}`
+	if strings.TrimSpace(string(data)) != expected {
+		t.Errorf("expected %s, got %s", expected, string(data))
+	}
+}
+
+func TestMarshalStatusRequestWithoutPaymentID(t *testing.T) {
+	req := StatusRequest{
+		ClientVersion: "dev",
+	}
+
+	data, err := json.Marshal(req)
+	if err != nil {
+		t.Fatalf("failed to marshal: %v", err)
+	}
+
+	expected := `{"client_version":"dev"}`
 	if strings.TrimSpace(string(data)) != expected {
 		t.Errorf("expected %s, got %s", expected, string(data))
 	}
