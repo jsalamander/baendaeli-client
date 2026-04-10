@@ -19,6 +19,7 @@ const expiryMeta = document.getElementById('expiryMeta');
 // Configuration (provided by Go template)
 const defaultAmount = {{ .DefaultAmount }};
 const successOverlayMs = {{ .SuccessOverlayMs }};
+const stauPollIntervalMs = 5000;
 
 // State
 let pollTimer = null;
@@ -208,7 +209,7 @@ function showStau() {
 	updateStatus('Stau detektiert - manueller Eingriff nötig', 'badge-error');
 	stauOverlay.classList.remove('hidden');
 	clearStauPoll();
-	stauPollTimer = setInterval(checkBallStatus, 5000);
+	stauPollTimer = setInterval(checkBallStatus, stauPollIntervalMs);
 }
 
 // clearStau hides the stau overlay and stops periodic polling.

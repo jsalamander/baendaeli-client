@@ -21,6 +21,9 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 )
 
+// maxVibratorIntensity is the full-speed intensity used when vibrating to load a ball.
+const maxVibratorIntensity = 1.0
+
 type Server struct {
 	config       *config.Config
 	httpClient   *http.Client
@@ -254,7 +257,7 @@ func (s *Server) waitForBall() bool {
 
 	for i := 1; i <= maxCycles; i++ {
 		log.Printf("Ball not detected; starting vibration cycle %d/%d", i, maxCycles)
-		if err := vibrator.Buzz(1.0, vibraDuration); err != nil {
+		if err := vibrator.Buzz(maxVibratorIntensity, vibraDuration); err != nil {
 			log.Printf("vibrator error during ball loading (continuing): %v", err)
 		}
 

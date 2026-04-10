@@ -175,5 +175,3 @@ func Cleanup() {
 	globalSensor = nil
 	log.Println("Pressure sensor cleaned up")
 }
-
-
