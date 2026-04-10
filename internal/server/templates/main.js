@@ -7,6 +7,8 @@ const retryBtn = document.getElementById('retry');
 const successBanner = document.getElementById('successBanner');
 const deviceCommandOverlay = document.getElementById('deviceCommandOverlay');
 const deviceCommandMessage = document.getElementById('deviceCommandMessage');
+const stauOverlay = document.getElementById('stauOverlay');
+const stauRetryBtn = document.getElementById('stauRetryBtn');
 const internetDot = document.getElementById('internetDot');
 const internetStatusText = document.getElementById('internetStatusText');
 const gatewayDot = document.getElementById('gatewayDot');
@@ -27,6 +29,7 @@ let deviceStatusTimer = null;
 let lastCommandDisplayed = null;
 let lastCommandDisplayedAt = null;
 let cancelInProgress = false;
+let stauPollTimer = null;
 
 // Event Listeners
 retryBtn.addEventListener('click', () => {
@@ -37,6 +40,10 @@ retryBtn.addEventListener('click', () => {
 	clearPoll();
 	clearExpiry();
 	start();
+});
+
+stauRetryBtn.addEventListener('click', () => {
+	checkBallStatus();
 });
 
 // Initialization
@@ -160,6 +167,7 @@ async function showSuccessThenRestart() {
 	clearExpiry();
 	
 	let actuatorTimeMs = successOverlayMs;
+	let stau = false;
 	
 	try {
 		const res = await fetch('/api/actuate', { method: 'POST' });
@@ -173,6 +181,10 @@ async function showSuccessThenRestart() {
 			showError(data.error || 'Solibändeli konnte nicht ausgegeben werden. Bitte kontaktiere den Betreiber.');
 			actuatorTimeMs = 4000;
 		}
+		if (res.ok && data.stau) {
+			stau = true;
+			console.warn('Stau detected after dispensing');
+		}
 	} catch (err) {
 		console.error('Actuator request failed:', err);
 		showError('Fehler beim Ausgeben des Solibändeli. Bitte versuche es erneut.');
@@ -183,8 +195,52 @@ async function showSuccessThenRestart() {
 		successBanner.classList.add('hidden');
 		errorEl.textContent = '';
 		errorContainer.classList.add('hidden');
-		start();
+		if (stau) {
+			showStau();
+		} else {
+			start();
+		}
 	}, actuatorTimeMs);
+}
+
+// showStau displays the stau overlay and begins periodic ball-status polling.
+function showStau() {
+	updateStatus('Stau detektiert - manueller Eingriff nötig', 'badge-error');
+	stauOverlay.classList.remove('hidden');
+	clearStauPoll();
+	stauPollTimer = setInterval(checkBallStatus, 5000);
+}
+
+// clearStau hides the stau overlay and stops periodic polling.
+function clearStau() {
+	stauOverlay.classList.add('hidden');
+	clearStauPoll();
+}
+
+function clearStauPoll() {
+	if (stauPollTimer) {
+		clearInterval(stauPollTimer);
+		stauPollTimer = null;
+	}
+}
+
+// checkBallStatus polls /api/ball/status and resumes normal operation when
+// a ball is detected.
+function checkBallStatus() {
+	fetch('/api/ball/status')
+		.then(res => res.json())
+		.then(data => {
+			if (data.loaded) {
+				console.log('Ball detected - resuming normal operation');
+				clearStau();
+				start();
+			} else {
+				console.log('Ball still not detected, staying in stau state');
+			}
+		})
+		.catch(err => {
+			console.error('Failed to check ball status:', err);
+		});
 }
 
 function startDeviceStatusCheck() {
