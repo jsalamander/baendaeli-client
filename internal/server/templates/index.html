@@ -131,6 +131,25 @@
 					</div>
 				</div>
 
+				<!-- Stau Overlay (hidden by default) -->
+				<div class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur" id="stauOverlay">
+					<div class="card bg-base-800 border border-error shadow-xl w-full max-w-md mx-4">
+						<div class="card-body">
+							<div class="flex items-start gap-3">
+								<svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-8 w-8 text-error" fill="none" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v4m0 4h.01M12 3a9 9 0 100 18 9 9 0 000-18z" /></svg>
+								<div class="flex-1">
+									<h3 class="font-bold text-xl text-error mb-2">Stau detektiert</h3>
+									<p class="text-base mb-4">Manueller Eingriff nötig</p>
+									<p class="text-sm text-base-content/70 mb-4">Kein Ball im Halter erkannt. Bitte kontrolliere den Ball-Vorrat und behebe den Stau manuell. Das System prüft automatisch alle 5 Sekunden.</p>
+								</div>
+							</div>
+							<div class="card-actions justify-end mt-2">
+								<button class="btn btn-error btn-sm" id="stauRetryBtn">Jetzt prüfen</button>
+							</div>
+						</div>
+					</div>
+				</div>
+
 				<!-- Error Popup (hidden by default) -->
 				<div class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur" id="errorPopup">
 					<div class="card bg-base-800 border border-error shadow-xl w-full max-w-md mx-4">

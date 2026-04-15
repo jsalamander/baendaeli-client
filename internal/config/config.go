@@ -26,6 +26,13 @@ type Config struct {
 	VibrationIN3Pin    string `yaml:"VIBRATOR_IN3_PIN"`
 	VibrationIN4Pin    string `yaml:"VIBRATOR_IN4_PIN"`
 	VibrationENBPin    string `yaml:"VIBRATOR_ENB_PIN"`
+	// Pressure sensor (ADS1115 via I2C) for ball-loaded detection
+	PressureEnabled         bool    `yaml:"PRESSURE_ENABLED"`
+	PressureI2CBus          string  `yaml:"PRESSURE_I2C_BUS"`
+	PressureI2CAddr         int     `yaml:"PRESSURE_I2C_ADDR"`
+	PressureThresholdVolts  float64 `yaml:"PRESSURE_THRESHOLD_VOLTS"`
+	PressureMaxVibraCycles  int     `yaml:"PRESSURE_MAX_VIBRA_CYCLES"`
+	PressureVibraDurationMs int     `yaml:"PRESSURE_VIBRA_DURATION_MS"`
 }
 
 func Load(filename string) (*Config, error) {
@@ -75,5 +82,20 @@ func (c *Config) SetDefaults() {
 	}
 	if c.VibrationENBPin == "" {
 		c.VibrationENBPin = "GPIO18"
+	}
+	if c.PressureI2CBus == "" {
+		c.PressureI2CBus = "1"
+	}
+	if c.PressureI2CAddr == 0 {
+		c.PressureI2CAddr = 0x48
+	}
+	if c.PressureThresholdVolts == 0 {
+		c.PressureThresholdVolts = 1.0
+	}
+	if c.PressureMaxVibraCycles == 0 {
+		c.PressureMaxVibraCycles = 5
+	}
+	if c.PressureVibraDurationMs == 0 {
+		c.PressureVibraDurationMs = 3000
 	}
 }

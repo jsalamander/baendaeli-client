@@ -20,3 +20,13 @@ VIBRATOR_ENABLED: false
 VIBRATOR_IN3_PIN: "GPIO16"
 VIBRATOR_IN4_PIN: "GPIO20"
 VIBRATOR_ENB_PIN: "GPIO18"
+# Pressure sensor (ADS1115 via I2C) for ball-loaded detection
+# The sensor reads voltage on A0; a ball in the holder raises the pressure and thus the voltage.
+PRESSURE_ENABLED: false
+PRESSURE_I2C_BUS: "1"
+PRESSURE_I2C_ADDR: 0x48
+PRESSURE_THRESHOLD_VOLTS: 1.0
+# Number of vibration cycles before declaring a jam ("Stau")
+PRESSURE_MAX_VIBRA_CYCLES: 5
+# Duration of each vibration pulse in milliseconds
+PRESSURE_VIBRA_DURATION_MS: 3000

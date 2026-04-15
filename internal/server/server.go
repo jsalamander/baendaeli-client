@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jsalamander/baendaeli-client/internal/pressure"
 	"github.com/jsalamander/baendaeli-client/internal/vibrator"
 
 	"github.com/jsalamander/baendaeli-client/internal/actuator"
@@ -19,6 +20,9 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 )
+
+// maxVibratorIntensity is the full-speed intensity used when vibrating to load a ball.
+const maxVibratorIntensity = 1.0
 
 type Server struct {
 	config       *config.Config
@@ -57,6 +61,7 @@ func (s *Server) Router() *chi.Mux {
 	r.Post("/api/payment", s.handleCreatePayment)
 	r.Get("/api/payment/{id}", s.handleGetPaymentStatus)
 	r.Post("/api/actuate", s.handleActuate)
+	r.Get("/api/ball/status", s.handleBallStatus)
 	r.Get("/api/device/status", s.handleDeviceStatus)
 
 	return r
@@ -218,10 +223,90 @@ func (s *Server) handleActuate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// After dispensing, check whether a new ball has loaded into the holder.
+	stau := s.waitForBall()
+
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"status":        "ok",
 		"total_time_ms": totalMs,
+		"stau":          stau,
+	})
+}
+
+// waitForBall checks the pressure sensor and, if no ball is detected, runs
+// vibration cycles until a ball is loaded or the maximum number of cycles is
+// exhausted. Returns true when a jam ("Stau") is declared (ball never detected).
+func (s *Server) waitForBall() bool {
+	if !s.config.PressureEnabled {
+		return false
+	}
+
+	loaded, err := pressure.IsBallLoaded()
+	if err != nil {
+		log.Printf("pressure sensor error (continuing): %v", err)
+		return false
+	}
+	if loaded {
+		log.Println("Ball loaded: pressure sensor detected ball after dispensing")
+		return false
+	}
+
+	maxCycles := s.config.PressureMaxVibraCycles
+	vibraDuration := time.Duration(s.config.PressureVibraDurationMs) * time.Millisecond
+
+	for i := 1; i <= maxCycles; i++ {
+		log.Printf("Ball not detected; starting vibration cycle %d/%d", i, maxCycles)
+		if err := vibrator.Buzz(maxVibratorIntensity, vibraDuration); err != nil {
+			log.Printf("vibrator error during ball loading (continuing): %v", err)
+		}
+
+		loaded, err = pressure.IsBallLoaded()
+		if err != nil {
+			log.Printf("pressure sensor error after vibration (continuing): %v", err)
+			continue
+		}
+		if loaded {
+			log.Printf("Ball loaded after vibration cycle %d", i)
+			return false
+		}
+	}
+
+	log.Printf("Stau detected: ball not loaded after %d vibration cycles", maxCycles)
+	return true
+}
+
+// handleBallStatus reports whether a ball is currently loaded in the holder.
+// Returns {"loaded": true} or {"loaded": false, "stau": true} when not loaded.
+func (s *Server) handleBallStatus(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	if !s.config.PressureEnabled {
+		// Pressure sensor disabled: report ball always loaded.
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"loaded": true,
+			"stau":   false,
+		})
+		return
+	}
+
+	loaded, err := pressure.IsBallLoaded()
+	if err != nil {
+		log.Printf("pressure sensor error on /api/ball/status: %v", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"loaded": false,
+			"stau":   false,
+			"error":  err.Error(),
+		})
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"loaded": loaded,
+		"stau":   !loaded,
 	})
 }
 

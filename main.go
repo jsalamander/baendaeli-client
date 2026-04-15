@@ -14,6 +14,7 @@ import (
 "github.com/jsalamander/baendaeli-client/internal/actuator"
 "github.com/jsalamander/baendaeli-client/internal/config"
 "github.com/jsalamander/baendaeli-client/internal/device"
+"github.com/jsalamander/baendaeli-client/internal/pressure"
 "github.com/jsalamander/baendaeli-client/internal/server"
 	"github.com/jsalamander/baendaeli-client/internal/vibrator"
 )
@@ -81,6 +82,22 @@ if err := vibrator.Init(vibCfg); err != nil {
 log.Printf("Warning: Vibrator initialization failed: %v. Continuing without vibrator.", err)
 }
 defer vibrator.Cleanup()
+}
+
+// Initialize pressure sensor if enabled
+if cfg.PressureEnabled {
+	pressureCfg := pressure.Config{
+		Enabled:         cfg.PressureEnabled,
+		I2CBus:          cfg.PressureI2CBus,
+		I2CAddr:         uint16(cfg.PressureI2CAddr),
+		ThresholdVolts:  cfg.PressureThresholdVolts,
+		MaxVibraCycles:  cfg.PressureMaxVibraCycles,
+		VibraDurationMs: cfg.PressureVibraDurationMs,
+	}
+	if err := pressure.Init(pressureCfg); err != nil {
+		log.Printf("Warning: Pressure sensor initialization failed: %v. Continuing without pressure sensor.", err)
+	}
+	defer pressure.Cleanup()
 }
 
 // Create server

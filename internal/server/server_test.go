@@ -140,3 +140,55 @@ func TestServeStaticJS(t *testing.T) {
         t.Fatalf("ui.js content unexpected: %s", rr.Body.String())
     }
 }
+
+func TestHandleBallStatus_PressureDisabled(t *testing.T) {
+    cfg := &config.Config{PressureEnabled: false}
+    srv := newTestServer(cfg, nil)
+
+    rr := httptest.NewRecorder()
+    req := httptest.NewRequest(http.MethodGet, "/api/ball/status", nil)
+    srv.Router().ServeHTTP(rr, req)
+
+    if rr.Code != http.StatusOK {
+        t.Fatalf("unexpected status: %d", rr.Code)
+    }
+
+    var resp map[string]interface{}
+    if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
+        t.Fatalf("failed to parse response: %v", err)
+    }
+    if loaded, _ := resp["loaded"].(bool); !loaded {
+        t.Fatalf("expected loaded=true when pressure sensor is disabled, got %v", resp["loaded"])
+    }
+    if stau, _ := resp["stau"].(bool); stau {
+        t.Fatalf("expected stau=false when pressure sensor is disabled, got %v", resp["stau"])
+    }
+}
+
+func TestWaitForBall_PressureDisabled(t *testing.T) {
+    cfg := &config.Config{PressureEnabled: false}
+    srv := newTestServer(cfg, nil)
+
+    if stau := srv.waitForBall(); stau {
+        t.Fatal("expected no stau when pressure sensor is disabled")
+    }
+}
+
+func TestHandleIndex_ContainsStauOverlay(t *testing.T) {
+    cfg := &config.Config{}
+    srv := newTestServer(cfg, nil)
+
+    rr := httptest.NewRecorder()
+    req := httptest.NewRequest(http.MethodGet, "/", nil)
+    srv.Router().ServeHTTP(rr, req)
+
+    if rr.Code != http.StatusOK {
+        t.Fatalf("unexpected status: %d", rr.Code)
+    }
+    if !strings.Contains(rr.Body.String(), "stauOverlay") {
+        t.Fatal("index page missing stau overlay element")
+    }
+    if !strings.Contains(rr.Body.String(), "Stau detektiert") {
+        t.Fatal("index page missing 'Stau detektiert' text")
+    }
+}
