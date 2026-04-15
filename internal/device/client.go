@@ -17,6 +17,7 @@ import (
 	"github.com/jsalamander/baendaeli-client/internal/config"
 	"github.com/jsalamander/baendaeli-client/internal/irsensor"
 	"github.com/jsalamander/baendaeli-client/internal/version"
+	"github.com/jsalamander/baendaeli-client/internal/vibrator"
 )
 
 // StatusRequest is sent to the server
@@ -37,6 +38,7 @@ type CommandResponse struct {
 	Command    string `json:"command"`
 	DurationMs *int   `json:"duration_ms,omitempty"` // Optional duration in milliseconds
 	Message    string `json:"message,omitempty"`     // Message text for message command
+	Percent    *int   `json:"percent,omitempty"`     // Vibration intensity (1-100) for vibrate command
 }
 
 // AckRequest is sent to the server
@@ -230,7 +232,7 @@ func (c *Client) poll() {
 func (c *Client) reportStatus(paymentID string) error {
 	url := c.buildURL("/api/v1/device/status")
 	dispensedCount := c.pendingDispensedCount(paymentID)
-	if paymentID != "" && dispensedCount == nil {
+	if dispensedCount == nil {
 		zero := 0
 		dispensedCount = &zero
 	}
@@ -479,6 +481,28 @@ func (c *Client) executeCommand(cmd *CommandResponse) error {
 			}
 		}
 		return nil
+	case "vibrate":
+		// Vibrate command: validate percent and duration_ms, then buzz vibrator
+		if cmd.Percent == nil {
+			return fmt.Errorf("vibrate command missing required field: percent")
+		}
+		if *cmd.Percent < 1 || *cmd.Percent > 100 {
+			return fmt.Errorf("vibrate command: percent must be between 1 and 100, got %d", *cmd.Percent)
+		}
+		if cmd.DurationMs == nil {
+			return fmt.Errorf("vibrate command missing required field: duration_ms")
+		}
+		if *cmd.DurationMs < 100 || *cmd.DurationMs > 60000 {
+			return fmt.Errorf("vibrate command: duration_ms must be between 100 and 60000, got %d", *cmd.DurationMs)
+		}
+		intensity := float64(*cmd.Percent) / 100.0
+		dur := time.Duration(*cmd.DurationMs) * time.Millisecond
+		log.Printf("Device client: vibrating at %d%% for %dms", *cmd.Percent, *cmd.DurationMs)
+		err := vibrator.Buzz(intensity, dur)
+		if err != nil {
+			log.Printf("Device client: failed to execute command %d (%s): %v", cmd.ID, cmd.Command, err)
+		}
+		return err
 	default:
 		return fmt.Errorf("unknown command: %s", cmd.Command)
 	}
