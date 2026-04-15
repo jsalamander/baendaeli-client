@@ -112,7 +112,7 @@ func Buzz(intensity float64, duration time.Duration) error {
 
 	// Attempt hardware PWM on ENB pin; fall back to digital HIGH if unsupported.
 	duty := gpio.Duty(float64(gpio.DutyMax) * intensity)
-	if err := vib.enbPin.PWM(duty, physic.KiloHertz); err != nil {
+	if err := vib.enbPin.PWM(duty, 1*physic.KiloHertz); err != nil {
 		log.Printf("Vibrator: PWM unavailable on ENB pin (falling back to digital HIGH): %v", err)
 		if err2 := vib.enbPin.Out(gpio.High); err2 != nil {
 			if stopErr := vib.in3Pin.Out(gpio.Low); stopErr != nil {
