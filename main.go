@@ -117,13 +117,6 @@ log.Fatalf("Server error: %v", err)
 	if cfg.ActuatorEnabled {
 		go func() {
 			log.Println("Starting actuator homing sequence...")
-			if cfg.VibrationEnabled {
-				go func() {
-					if err := vibrator.Buzz(0.5, 3*time.Second); err != nil {
-						log.Printf("Warning: startup vibrator run failed: %v", err)
-					}
-				}()
-			}
 			actuator.Home()
 		}()
 	}
