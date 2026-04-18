@@ -29,7 +29,7 @@ var c *cam
 // CheckTools logs whether the required capture tool is available on this system.
 // Call this once at startup so operators can see immediately if libcamera is missing.
 func CheckTools() {
-	for _, candidate := range []string{"libcamera-still", "rpicam-still"} {
+	for _, candidate := range []string{"rpicam-still", "libcamera-still"} {
 		if path, err := exec.LookPath(candidate); err == nil {
 			log.Printf("Camera: capture tool found: %s", path)
 			return
@@ -45,7 +45,7 @@ func Init(cfg Config) error {
 		return nil
 	}
 
-	for _, candidate := range []string{"libcamera-still", "rpicam-still"} {
+	for _, candidate := range []string{"rpicam-still", "libcamera-still"} {
 		if path, err := exec.LookPath(candidate); err == nil {
 			c = &cam{bin: path}
 			log.Printf("Camera initialised using %s", path)
