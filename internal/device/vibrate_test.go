@@ -37,7 +37,7 @@ func TestVibrateCommandValidPercent(t *testing.T) {
 				DurationMs: &durationMs,
 			}
 
-			err := client.executeCommand(cmd)
+			_, err := client.executeCommand(cmd)
 			if (err != nil) != tt.expectErr {
 				t.Errorf("expected error=%v, got error=%v", tt.expectErr, err)
 			}
@@ -75,7 +75,7 @@ func TestVibrateCommandInvalidPercent(t *testing.T) {
 				DurationMs: &durationMs,
 			}
 
-			err := client.executeCommand(cmd)
+			_, err := client.executeCommand(cmd)
 			if err == nil {
 				t.Errorf("expected error, got nil")
 			} else if !strings.Contains(err.Error(), tt.errorMsg) {
@@ -115,7 +115,7 @@ func TestVibrateCommandInvalidDuration(t *testing.T) {
 				DurationMs: &durationMs,
 			}
 
-			err := client.executeCommand(cmd)
+			_, err := client.executeCommand(cmd)
 			if err == nil {
 				t.Errorf("expected error, got nil")
 			} else if !strings.Contains(err.Error(), tt.errorMsg) {
@@ -140,7 +140,7 @@ func TestVibrateCommandMissingPercent(t *testing.T) {
 		DurationMs: &durationMs,
 	}
 
-	err := client.executeCommand(cmd)
+	_, err := client.executeCommand(cmd)
 	if err == nil {
 		t.Errorf("expected error for missing percent, got nil")
 	} else if !strings.Contains(err.Error(), "missing required field: percent") {
@@ -163,7 +163,7 @@ func TestVibrateCommandMissingDuration(t *testing.T) {
 		DurationMs: nil,
 	}
 
-	err := client.executeCommand(cmd)
+	_, err := client.executeCommand(cmd)
 	if err == nil {
 		t.Errorf("expected error for missing duration_ms, got nil")
 	} else if !strings.Contains(err.Error(), "missing required field: duration_ms") {
@@ -203,7 +203,7 @@ func TestVibratePercentToIntensityConversion(t *testing.T) {
 				DurationMs: &durationMs,
 			}
 
-			err := client.executeCommand(cmd)
+			_, err := client.executeCommand(cmd)
 			if err != nil {
 				t.Errorf("expected no error executing vibrate command, got %v", err)
 			}
@@ -241,7 +241,7 @@ func TestVibrateDurationBoundaries(t *testing.T) {
 				DurationMs: &durationMs,
 			}
 
-			err := client.executeCommand(cmd)
+			_, err := client.executeCommand(cmd)
 			if (err != nil) != tt.expectErr {
 				t.Errorf("expected error=%v, got error=%v", tt.expectErr, err)
 			}

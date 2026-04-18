@@ -12,6 +12,7 @@ import (
 "time"
 
 "github.com/jsalamander/baendaeli-client/internal/actuator"
+"github.com/jsalamander/baendaeli-client/internal/camera"
 "github.com/jsalamander/baendaeli-client/internal/config"
 "github.com/jsalamander/baendaeli-client/internal/device"
 "github.com/jsalamander/baendaeli-client/internal/server"
@@ -53,6 +54,9 @@ log.Fatalf("Failed to load config: %v", err)
 // Apply defaults
 cfg.SetDefaults()
 
+// Check camera tool availability at startup regardless of config
+camera.CheckTools()
+
 // Initialize actuator if enabled
 if cfg.ActuatorEnabled {
 actuatorCfg := actuator.Config{
@@ -81,6 +85,14 @@ if err := vibrator.Init(vibCfg); err != nil {
 log.Printf("Warning: Vibrator initialization failed: %v. Continuing without vibrator.", err)
 }
 defer vibrator.Cleanup()
+}
+
+// Initialize camera if enabled
+if cfg.CameraEnabled {
+if err := camera.Init(camera.Config{Enabled: true}); err != nil {
+log.Printf("Warning: Camera initialization failed: %v. Continuing without camera.", err)
+}
+defer camera.Cleanup()
 }
 
 // Create server

@@ -3,6 +3,7 @@ package device
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -14,6 +15,7 @@ import (
 	"time"
 
 	"github.com/jsalamander/baendaeli-client/internal/actuator"
+	"github.com/jsalamander/baendaeli-client/internal/camera"
 	"github.com/jsalamander/baendaeli-client/internal/config"
 	"github.com/jsalamander/baendaeli-client/internal/irsensor"
 	"github.com/jsalamander/baendaeli-client/internal/version"
@@ -43,8 +45,9 @@ type CommandResponse struct {
 
 // AckRequest is sent to the server
 type AckRequest struct {
-	Status       string `json:"status"`        // "success" or "failed"
-	ErrorMessage string `json:"error_message"` // max 1000 chars, only for failed status
+	Status       string `json:"status"`                  // "success" or "failed"
+	ErrorMessage string `json:"error_message,omitempty"` // max 1000 chars, only for failed status
+	ImageBase64  string `json:"image_base64,omitempty"`  // base64-encoded JPEG, required on success for take_picture
 }
 
 // AckResponse is received from the server
@@ -214,13 +217,13 @@ func (c *Client) poll() {
 
 	// 3. If command is not null, execute it
 	if cmd != nil && cmd.Command != "" {
-		execErr := c.executeCommand(cmd)
+		imageData, execErr := c.executeCommand(cmd)
 		if execErr != nil {
 			log.Printf("Device client: failed to execute command %d (%s): %v", cmd.ID, cmd.Command, execErr)
 		}
 
 		// 4. Acknowledge the command with success/failure status
-		if err := c.ackCommand(cmd.ID, execErr); err != nil {
+		if err := c.ackCommand(cmd.ID, execErr, imageData); err != nil {
 			log.Printf("Device client: failed to acknowledge command %d: %v", cmd.ID, err)
 		}
 
@@ -401,10 +404,11 @@ func (c *Client) getCommand() (*CommandResponse, error) {
 	return &cmdResp, nil
 }
 
-// executeCommand executes the command using the actuator
-func (c *Client) executeCommand(cmd *CommandResponse) error {
+// executeCommand executes the command using the actuator.
+// Returns an optional base64-encoded JPEG image (non-empty only for take_picture on success) and an error.
+func (c *Client) executeCommand(cmd *CommandResponse) (string, error) {
 	if cmd == nil || cmd.Command == "" {
-		return nil
+		return "", nil
 	}
 
 	const cancelHoldDuration = 300 * time.Millisecond
@@ -431,28 +435,28 @@ func (c *Client) executeCommand(cmd *CommandResponse) error {
 		if err != nil {
 			log.Printf("Device client: failed to execute command %d (%s): %v", cmd.ID, cmd.Command, err)
 		}
-		return err
+		return "", err
 	case "retract":
 		err := actuator.Retract(duration)
 		if err != nil {
 			log.Printf("Device client: failed to execute command %d (%s): %v", cmd.ID, cmd.Command, err)
 		}
-		return err
+		return "", err
 	case "home":
 		actuator.Home()
-		return nil
+		return "", nil
 	case "message":
 		// Message command: display in UI for specified duration
 		log.Printf("Device client: displaying message: %s for %v", cmd.Message, duration)
 		// Sleep for the duration to keep the message visible in UI
 		time.Sleep(duration)
-		return nil
+		return "", nil
 	case "cancel":
 		log.Printf("Device client: cancel command received, clearing current payment")
 		c.SetPaymentID("")
 		// Keep the command visible to the UI briefly.
 		time.Sleep(cancelHoldDuration)
-		return nil
+		return "", nil
 	case "ball_dispenser":
 		log.Printf("Device client: ball dispenser cycle requested")
 		paymentID := c.GetPaymentID()
@@ -469,7 +473,7 @@ func (c *Client) executeCommand(cmd *CommandResponse) error {
 		if err != nil {
 			log.Printf("Device client: ball dispenser failed: %v", err)
 		}
-		return err
+		return "", err
 	case "load_test":
 		log.Printf("Device client: load test started (30 cycles)")
 		const loadTestCycles = 30
@@ -477,23 +481,23 @@ func (c *Client) executeCommand(cmd *CommandResponse) error {
 			c.updateExecutingCommandMessage(fmt.Sprintf("%d/%d", i, loadTestCycles))
 			if _, err := actuator.Trigger(); err != nil {
 				log.Printf("Device client: load test failed on cycle %d: %v", i, err)
-				return err
+				return "", err
 			}
 		}
-		return nil
+		return "", nil
 	case "vibrate":
 		// Vibrate command: validate percent and duration_ms, then buzz vibrator
 		if cmd.Percent == nil {
-			return fmt.Errorf("vibrate command missing required field: percent")
+			return "", fmt.Errorf("vibrate command missing required field: percent")
 		}
 		if *cmd.Percent < 1 || *cmd.Percent > 100 {
-			return fmt.Errorf("vibrate command: percent must be between 1 and 100, got %d", *cmd.Percent)
+			return "", fmt.Errorf("vibrate command: percent must be between 1 and 100, got %d", *cmd.Percent)
 		}
 		if cmd.DurationMs == nil {
-			return fmt.Errorf("vibrate command missing required field: duration_ms")
+			return "", fmt.Errorf("vibrate command missing required field: duration_ms")
 		}
 		if *cmd.DurationMs < 100 || *cmd.DurationMs > 60000 {
-			return fmt.Errorf("vibrate command: duration_ms must be between 100 and 60000, got %d", *cmd.DurationMs)
+			return "", fmt.Errorf("vibrate command: duration_ms must be between 100 and 60000, got %d", *cmd.DurationMs)
 		}
 		intensity := float64(*cmd.Percent) / 100.0
 		dur := time.Duration(*cmd.DurationMs) * time.Millisecond
@@ -502,14 +506,25 @@ func (c *Client) executeCommand(cmd *CommandResponse) error {
 		if err != nil {
 			log.Printf("Device client: failed to execute command %d (%s): %v", cmd.ID, cmd.Command, err)
 		}
-		return err
+		return "", err
+	case "take_picture":
+		log.Printf("Device client: take_picture command received")
+		imgBytes, err := camera.Capture()
+		if err != nil {
+			log.Printf("Device client: failed to capture image: %v", err)
+			return "", err
+		}
+		imageBase64 := base64.StdEncoding.EncodeToString(imgBytes)
+		log.Printf("Device client: image captured (%d bytes)", len(imgBytes))
+		return imageBase64, nil
 	default:
-		return fmt.Errorf("unknown command: %s", cmd.Command)
+		return "", fmt.Errorf("unknown command: %s", cmd.Command)
 	}
 }
 
-// ackCommand acknowledges a command to the server
-func (c *Client) ackCommand(commandID int, execErr error) error {
+// ackCommand acknowledges a command to the server.
+// imageData is the base64-encoded JPEG image, required for a successful take_picture ack.
+func (c *Client) ackCommand(commandID int, execErr error, imageData string) error {
 	url := c.buildURL(fmt.Sprintf("/api/v1/device/commands/%d/ack", commandID))
 
 	// Determine status and error message
@@ -527,6 +542,7 @@ func (c *Client) ackCommand(commandID int, execErr error) error {
 	req := AckRequest{
 		Status:       status,
 		ErrorMessage: errorMsg,
+		ImageBase64:  imageData,
 	}
 
 	body, err := json.Marshal(req)

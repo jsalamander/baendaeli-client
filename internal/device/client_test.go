@@ -369,7 +369,7 @@ func TestAckCommand(t *testing.T) {
 			}
 			client := New(cfg)
 
-			err := client.ackCommand(42, tt.execErr)
+			err := client.ackCommand(42, tt.execErr, "")
 			if (err != nil) != tt.expectError {
 				t.Errorf("expected error=%v, got error=%v", tt.expectError, err)
 			}
@@ -754,7 +754,7 @@ func TestBallDispenserRecordsDispensedCount(t *testing.T) {
 	client.dispenseMonitor = &stubDispenseMonitor{count: 3}
 	client.SetPaymentID("payment-123")
 
-	err := client.executeCommand(&CommandResponse{
+	_, err := client.executeCommand(&CommandResponse{
 		ID:      47,
 		Command: "ball_dispenser",
 	})
@@ -884,7 +884,7 @@ func TestCommandMessage(t *testing.T) {
 
 	// Test that executing the message command works and takes the right duration
 	start := time.Now()
-	err = client.executeCommand(cmd)
+	_, err = client.executeCommand(cmd)
 	elapsed := time.Since(start)
 
 	if err != nil {
@@ -978,7 +978,7 @@ func TestCommandCancelClearsPayment(t *testing.T) {
 	}
 
 	start := time.Now()
-	err := client.executeCommand(cmd)
+	_, err := client.executeCommand(cmd)
 	elapsed := time.Since(start)
 
 	if err != nil {

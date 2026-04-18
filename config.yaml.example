@@ -20,3 +20,5 @@ VIBRATOR_ENABLED: false
 VIBRATOR_IN3_PIN: "GPIO16"
 VIBRATOR_IN4_PIN: "GPIO20"
 VIBRATOR_ENB_PIN: "GPIO18"
+# Camera (Raspberry Pi Camera Module 3, requires libcamera-still or rpicam-still)
+CAMERA_ENABLED: true

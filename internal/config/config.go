@@ -26,6 +26,7 @@ type Config struct {
 	VibrationIN3Pin    string `yaml:"VIBRATOR_IN3_PIN"`
 	VibrationIN4Pin    string `yaml:"VIBRATOR_IN4_PIN"`
 	VibrationENBPin    string `yaml:"VIBRATOR_ENB_PIN"`
+	CameraEnabled      bool   `yaml:"CAMERA_ENABLED"`
 }
 
 func Load(filename string) (*Config, error) {
@@ -75,5 +76,8 @@ func (c *Config) SetDefaults() {
 	}
 	if c.VibrationENBPin == "" {
 		c.VibrationENBPin = "GPIO18"
+	}
+	if !c.CameraEnabled {
+		c.CameraEnabled = true
 	}
 }
