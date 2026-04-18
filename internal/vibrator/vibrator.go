@@ -78,10 +78,35 @@ func Init(cfg Config) error {
 	return nil
 }
 
+// pinToggler is a minimal interface used by softwarePWM.
+type pinToggler interface {
+	Out(l gpio.Level) error
+}
+
+// softwarePWM emulates PWM on a digital output pin by toggling it at ~100 Hz.
+// This is used as a fallback when hardware PWM is unavailable.
+func softwarePWM(pin pinToggler, intensity float64, duration time.Duration) {
+	const periodMs = 10 // 100 Hz
+	highMs := time.Duration(float64(periodMs)*intensity) * time.Millisecond
+	lowMs := time.Duration(float64(periodMs)*(1-intensity)) * time.Millisecond
+	deadline := time.Now().Add(duration)
+	for time.Now().Before(deadline) {
+		if highMs > 0 {
+			_ = pin.Out(gpio.High)
+			time.Sleep(highMs)
+		}
+		if lowMs > 0 {
+			_ = pin.Out(gpio.Low)
+			time.Sleep(lowMs)
+		}
+	}
+	_ = pin.Out(gpio.Low)
+}
+
 // Buzz runs the vibrator at the given intensity (0.0–1.0) for the specified duration.
 // If the vibrator is not initialised or disabled, this is a no-op.
-// Intensity is applied via hardware PWM on the ENB pin; falls back to digital HIGH if
-// PWM is not supported by the GPIO driver.
+// Intensity is applied via hardware PWM on the ENB pin; falls back to software PWM if
+// hardware PWM is not supported by the GPIO driver.
 func Buzz(intensity float64, duration time.Duration) error {
 	if vib == nil {
 		return nil
@@ -110,16 +135,18 @@ func Buzz(intensity float64, duration time.Duration) error {
 		return fmt.Errorf("vibrator: failed to set IN4 low: %w", err)
 	}
 
-	// Attempt hardware PWM on ENB pin; fall back to digital HIGH if unsupported.
+	// Attempt hardware PWM on ENB pin; fall back to software PWM if unsupported.
 	duty := gpio.Duty(float64(gpio.DutyMax) * intensity)
 	if err := vib.enbPin.PWM(duty, 1*physic.KiloHertz); err != nil {
-		log.Printf("Vibrator: PWM unavailable on ENB pin (falling back to digital HIGH): %v", err)
-		if err2 := vib.enbPin.Out(gpio.High); err2 != nil {
-			if stopErr := vib.in3Pin.Out(gpio.Low); stopErr != nil {
-				log.Printf("vibrator: failed to reset IN3 after ENB error: %v", stopErr)
-			}
-			return fmt.Errorf("vibrator: failed to set ENB high: %w", err2)
+		log.Printf("Vibrator: hardware PWM unavailable on ENB pin (using software PWM): %v", err)
+		// Software PWM: toggle ENB at ~100 Hz with correct duty cycle to honour intensity.
+		// This mirrors the Python gpiozero PWMOutputDevice approach.
+		softwarePWM(vib.enbPin, intensity, duration)
+		if stopErr := vib.in3Pin.Out(gpio.Low); stopErr != nil {
+			log.Printf("vibrator: failed to set IN3 low on stop: %v", stopErr)
 		}
+		log.Printf("Vibrator: buzzed at %.0f%% for %v (software PWM)", intensity*100, duration)
+		return nil
 	}
 
 	time.Sleep(duration)
@@ -132,7 +159,7 @@ func Buzz(intensity float64, duration time.Duration) error {
 		log.Printf("vibrator: failed to set ENB low on stop: %v", err)
 	}
 
-	log.Printf("Vibrator: buzzed at %.0f%% for %v", intensity*100, duration)
+	log.Printf("Vibrator: buzzed at %.0f%% for %v (hardware PWM)", intensity*100, duration)
 	return nil
 }
 
