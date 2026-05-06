@@ -13,27 +13,6 @@ import (
 	"github.com/jsalamander/baendaeli-client/internal/config"
 )
 
-type stubDispenseMonitor struct {
-	count      int
-	err        error
-	callAction bool
-	closed     bool
-}
-
-func (m *stubDispenseMonitor) Measure(action func() error) (int, error) {
-	if m.callAction {
-		if err := action(); err != nil {
-			return m.count, err
-		}
-	}
-	return m.count, m.err
-}
-
-func (m *stubDispenseMonitor) Close() error {
-	m.closed = true
-	return nil
-}
-
 func TestReportStatus(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -45,10 +24,10 @@ func TestReportStatus(t *testing.T) {
 		errorHas    string
 	}{
 		{
-			name:       "successful status report",
-			paymentID:  "test-payment-123",
-			serverCode: http.StatusOK,
-			serverResp: `{"success": true}`,
+			name:        "successful status report",
+			paymentID:   "test-payment-123",
+			serverCode:  http.StatusOK,
+			serverResp:  `{"success": true}`,
 			contentType: "application/json",
 		},
 		{
@@ -751,7 +730,6 @@ func TestBallDispenserRecordsDispensedCount(t *testing.T) {
 		BaendaeliAPIKey: "test-key",
 	}
 	client := New(cfg)
-	client.dispenseMonitor = &stubDispenseMonitor{count: 3}
 	client.SetPaymentID("payment-123")
 
 	_, err := client.executeCommand(&CommandResponse{
@@ -763,8 +741,8 @@ func TestBallDispenserRecordsDispensedCount(t *testing.T) {
 	}
 
 	pending := client.pendingDispensedCount("payment-123")
-	if pending == nil || *pending != 3 {
-		t.Fatalf("expected pending count of 3, got %v", pending)
+	if pending == nil || *pending != 1 {
+		t.Fatalf("expected pending count of 1, got %v", pending)
 	}
 }
 

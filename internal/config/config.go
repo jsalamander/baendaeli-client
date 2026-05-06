@@ -8,25 +8,30 @@ import (
 )
 
 type Config struct {
-	BaendaeliAPIKey    string `yaml:"BAENDAELI_API_KEY"`
-	BaendaeliURL       string `yaml:"BAENDAELI_URL"`
-	DefaultAmount      int    `yaml:"DEFAULT_AMOUNT_CENTS"`
-	SuccessOverlayMs   int    `yaml:"SUCCESS_OVERLAY_MILLIS"`
-	ActuatorEnabled    bool   `yaml:"ACTUATOR_ENABLED"`
-	ActuatorENAPin     string `yaml:"ACTUATOR_ENA_PIN"`
-	ActuatorIN1Pin     string `yaml:"ACTUATOR_IN1_PIN"`
-	ActuatorIN2Pin     string `yaml:"ACTUATOR_IN2_PIN"`
-	ActuatorMovement   int    `yaml:"ACTUATOR_MOVEMENT_SECONDS"` // Used for both extend and retract
-	ActuatorPause      int    `yaml:"ACTUATOR_PAUSE_SECONDS"`
-	IRSensorEnabled    bool   `yaml:"IR_SENSOR_ENABLED"`
-	IRSensor1Pin       string `yaml:"IR_SENSOR_1_PIN"`
-	IRSensor2Pin       string `yaml:"IR_SENSOR_2_PIN"`
-	IRSensorDebounceMs int    `yaml:"IR_SENSOR_DEBOUNCE_MS"`
-	VibrationEnabled   bool   `yaml:"VIBRATOR_ENABLED"`
-	VibrationIN3Pin    string `yaml:"VIBRATOR_IN3_PIN"`
-	VibrationIN4Pin    string `yaml:"VIBRATOR_IN4_PIN"`
-	VibrationENBPin    string `yaml:"VIBRATOR_ENB_PIN"`
-	CameraEnabled      bool   `yaml:"CAMERA_ENABLED"`
+	BaendaeliAPIKey              string  `yaml:"BAENDAELI_API_KEY"`
+	BaendaeliURL                 string  `yaml:"BAENDAELI_URL"`
+	DefaultAmount                int     `yaml:"DEFAULT_AMOUNT_CENTS"`
+	SuccessOverlayMs             int     `yaml:"SUCCESS_OVERLAY_MILLIS"`
+	ActuatorEnabled              bool    `yaml:"ACTUATOR_ENABLED"`
+	ActuatorENAPin               string  `yaml:"ACTUATOR_ENA_PIN"`
+	ActuatorIN1Pin               string  `yaml:"ACTUATOR_IN1_PIN"`
+	ActuatorIN2Pin               string  `yaml:"ACTUATOR_IN2_PIN"`
+	ActuatorMovement             int     `yaml:"ACTUATOR_MOVEMENT_SECONDS"` // Used for both extend and retract
+	ActuatorPause                int     `yaml:"ACTUATOR_PAUSE_SECONDS"`
+	ColorSensorEnabled           bool    `yaml:"COLOR_SENSOR_ENABLED"`
+	ColorSensorI2CBus            int     `yaml:"COLOR_SENSOR_I2C_BUS"`
+	ColorSensorI2CAddress        string  `yaml:"COLOR_SENSOR_I2C_ADDRESS"`
+	ColorSensorMovementThreshold int     `yaml:"COLOR_SENSOR_MOVEMENT_THRESHOLD"`
+	ColorSensorCheckDurationMs   int     `yaml:"COLOR_SENSOR_CHECK_DURATION_MS"`
+	ColorSensorVibrateIntensity  float64 `yaml:"COLOR_SENSOR_VIBRATE_INTENSITY"`
+	ColorSensorVibrateDurationMs int     `yaml:"COLOR_SENSOR_VIBRATE_DURATION_MS"`
+	ColorSensorVibrateBursts     int     `yaml:"COLOR_SENSOR_VIBRATE_BURSTS"`
+	ColorSensorMaxAttempts       int     `yaml:"COLOR_SENSOR_MAX_ATTEMPTS"`
+	VibrationEnabled             bool    `yaml:"VIBRATOR_ENABLED"`
+	VibrationIN3Pin              string  `yaml:"VIBRATOR_IN3_PIN"`
+	VibrationIN4Pin              string  `yaml:"VIBRATOR_IN4_PIN"`
+	VibrationENBPin              string  `yaml:"VIBRATOR_ENB_PIN"`
+	CameraEnabled                bool    `yaml:"CAMERA_ENABLED"`
 }
 
 func Load(filename string) (*Config, error) {
@@ -56,17 +61,32 @@ func (c *Config) SetDefaults() {
 	if c.ActuatorPause == 0 {
 		c.ActuatorPause = 2 // 2 seconds by default
 	}
-	if !c.IRSensorEnabled {
-		c.IRSensorEnabled = true
+	if !c.ColorSensorEnabled {
+		c.ColorSensorEnabled = true
 	}
-	if c.IRSensor1Pin == "" {
-		c.IRSensor1Pin = "GPIO27"
+	if c.ColorSensorI2CBus == 0 {
+		c.ColorSensorI2CBus = 1
 	}
-	if c.IRSensor2Pin == "" {
-		c.IRSensor2Pin = "GPIO17"
+	if c.ColorSensorI2CAddress == "" {
+		c.ColorSensorI2CAddress = "0x29"
 	}
-	if c.IRSensorDebounceMs == 0 {
-		c.IRSensorDebounceMs = 10
+	if c.ColorSensorMovementThreshold == 0 {
+		c.ColorSensorMovementThreshold = 500
+	}
+	if c.ColorSensorCheckDurationMs == 0 {
+		c.ColorSensorCheckDurationMs = 5000
+	}
+	if c.ColorSensorVibrateIntensity == 0 {
+		c.ColorSensorVibrateIntensity = 0.8
+	}
+	if c.ColorSensorVibrateDurationMs == 0 {
+		c.ColorSensorVibrateDurationMs = 400
+	}
+	if c.ColorSensorVibrateBursts == 0 {
+		c.ColorSensorVibrateBursts = 3
+	}
+	if c.ColorSensorMaxAttempts == 0 {
+		c.ColorSensorMaxAttempts = 5
 	}
 	if c.VibrationIN3Pin == "" {
 		c.VibrationIN3Pin = "GPIO16"

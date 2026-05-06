@@ -1,125 +1,117 @@
 package main
 
 import (
-"fmt"
-"log"
-"net"
-"net/http"
-"os"
-"os/signal"
-"strconv"
-"syscall"
-"time"
+	"fmt"
+	"log"
+	"net"
+	"net/http"
+	"os"
+	"os/signal"
+	"strconv"
+	"syscall"
+	"time"
 
-"github.com/jsalamander/baendaeli-client/internal/actuator"
-"github.com/jsalamander/baendaeli-client/internal/camera"
-"github.com/jsalamander/baendaeli-client/internal/config"
-"github.com/jsalamander/baendaeli-client/internal/device"
-"github.com/jsalamander/baendaeli-client/internal/server"
+	"github.com/jsalamander/baendaeli-client/internal/actuator"
+	"github.com/jsalamander/baendaeli-client/internal/camera"
+	"github.com/jsalamander/baendaeli-client/internal/config"
+	"github.com/jsalamander/baendaeli-client/internal/device"
+	"github.com/jsalamander/baendaeli-client/internal/server"
 	"github.com/jsalamander/baendaeli-client/internal/vibrator"
 )
 
 func main() {
-// Check for subcommands
-if len(os.Args) > 1 {
-switch os.Args[1] {
-case "extend":
-runExtendCommand()
-return
-case "extract": // alias for extend (per request wording)
-runExtendCommand()
-return
-case "retract":
-runRetractCommand()
-return
-case "home":
-runHomeCommand()
-return
-case "help", "-h", "--help":
-printUsage()
-return
-default:
-// Unknown subcommand: show usage and exit without starting server
-printUsage()
-return
-}
-}
+	// Check for subcommands
+	if len(os.Args) > 1 {
+		switch os.Args[1] {
+		case "extend":
+			runExtendCommand()
+			return
+		case "extract": // alias for extend (per request wording)
+			runExtendCommand()
+			return
+		case "retract":
+			runRetractCommand()
+			return
+		case "home":
+			runHomeCommand()
+			return
+		case "help", "-h", "--help":
+			printUsage()
+			return
+		default:
+			// Unknown subcommand: show usage and exit without starting server
+			printUsage()
+			return
+		}
+	}
 
-// Load configuration
-cfg, err := config.Load("config.yaml")
-if err != nil {
-log.Fatalf("Failed to load config: %v", err)
-}
+	// Load configuration
+	cfg, err := config.Load("config.yaml")
+	if err != nil {
+		log.Fatalf("Failed to load config: %v", err)
+	}
 
-// Apply defaults
-cfg.SetDefaults()
+	// Apply defaults
+	cfg.SetDefaults()
 
-// Check camera tool availability at startup regardless of config
-camera.CheckTools()
+	// Check camera tool availability at startup regardless of config
+	camera.CheckTools()
 
-// Initialize actuator if enabled
-if cfg.ActuatorEnabled {
-actuatorCfg := actuator.Config{
-Enabled:      cfg.ActuatorEnabled,
-ENAPin:       cfg.ActuatorENAPin,
-IN1Pin:       cfg.ActuatorIN1Pin,
-IN2Pin:       cfg.ActuatorIN2Pin,
-MovementTime: cfg.ActuatorMovement,
-PauseTime:    cfg.ActuatorPause,
-}
-if err := actuator.Init(actuatorCfg); err != nil {
-log.Printf("Warning: Actuator initialization failed: %v. Continuing without actuator.", err)
-}
-defer actuator.Cleanup()
-}
+	// Initialize actuator if enabled
+	if cfg.ActuatorEnabled {
+		actuatorCfg := actuator.Config{
+			Enabled:      cfg.ActuatorEnabled,
+			ENAPin:       cfg.ActuatorENAPin,
+			IN1Pin:       cfg.ActuatorIN1Pin,
+			IN2Pin:       cfg.ActuatorIN2Pin,
+			MovementTime: cfg.ActuatorMovement,
+			PauseTime:    cfg.ActuatorPause,
+		}
+		if err := actuator.Init(actuatorCfg); err != nil {
+			log.Printf("Warning: Actuator initialization failed: %v. Continuing without actuator.", err)
+		}
+		defer actuator.Cleanup()
+	}
 
-// Initialize vibrator if enabled
-if cfg.VibrationEnabled {
-vibCfg := vibrator.Config{
-Enabled: cfg.VibrationEnabled,
-IN3Pin:  cfg.VibrationIN3Pin,
-IN4Pin:  cfg.VibrationIN4Pin,
-ENBPin:  cfg.VibrationENBPin,
-}
-if err := vibrator.Init(vibCfg); err != nil {
-log.Printf("Warning: Vibrator initialization failed: %v. Continuing without vibrator.", err)
-}
-defer vibrator.Cleanup()
-}
+	// Initialize vibrator if enabled
+	if cfg.VibrationEnabled {
+		vibCfg := vibrator.Config{
+			Enabled: cfg.VibrationEnabled,
+			IN3Pin:  cfg.VibrationIN3Pin,
+			IN4Pin:  cfg.VibrationIN4Pin,
+			ENBPin:  cfg.VibrationENBPin,
+		}
+		if err := vibrator.Init(vibCfg); err != nil {
+			log.Printf("Warning: Vibrator initialization failed: %v. Continuing without vibrator.", err)
+		}
+		defer vibrator.Cleanup()
+	}
 
-// Initialize camera if enabled
-if cfg.CameraEnabled {
-if err := camera.Init(camera.Config{Enabled: true}); err != nil {
-log.Printf("Warning: Camera initialization failed: %v. Continuing without camera.", err)
-}
-defer camera.Cleanup()
-}
+	// Initialize camera if enabled
+	if cfg.CameraEnabled {
+		if err := camera.Init(camera.Config{Enabled: true}); err != nil {
+			log.Printf("Warning: Camera initialization failed: %v. Continuing without camera.", err)
+		}
+		defer camera.Cleanup()
+	}
 
-// Create server
-srv := server.New(cfg)
+	// Create server
+	srv := server.New(cfg)
 
 	// Create device client and set it on the server
 	deviceClient := device.New(cfg)
 	srv.SetDeviceClient(deviceClient)
-sigChan := make(chan os.Signal, 1)
-signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 
-// Start HTTP server in a goroutine
-go func() {
-addr := ":8000"
-log.Printf("Starting server on %s", addr)
-if err := http.ListenAndServe(addr, srv.Router()); err != nil && err != http.ErrServerClosed {
-log.Fatalf("Server error: %v", err)
-}
-}()
-
-	// Start actuator homing in background after server is up
-	if cfg.ActuatorEnabled {
-		go func() {
-			log.Println("Starting actuator homing sequence...")
-			actuator.Home()
-		}()
-	}
+	// Start HTTP server in a goroutine
+	go func() {
+		addr := ":8000"
+		log.Printf("Starting server on %s", addr)
+		if err := http.ListenAndServe(addr, srv.Router()); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("Server error: %v", err)
+		}
+	}()
 
 	// Start device client
 	deviceClient.Start()

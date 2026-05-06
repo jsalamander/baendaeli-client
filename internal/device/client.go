@@ -16,8 +16,8 @@ import (
 
 	"github.com/jsalamander/baendaeli-client/internal/actuator"
 	"github.com/jsalamander/baendaeli-client/internal/camera"
+	"github.com/jsalamander/baendaeli-client/internal/colorsensor"
 	"github.com/jsalamander/baendaeli-client/internal/config"
-	"github.com/jsalamander/baendaeli-client/internal/irsensor"
 	"github.com/jsalamander/baendaeli-client/internal/version"
 	"github.com/jsalamander/baendaeli-client/internal/vibrator"
 )
@@ -55,11 +55,6 @@ type AckResponse struct {
 	Success bool `json:"success"`
 }
 
-type dispenseMonitor interface {
-	Measure(func() error) (int, error)
-	Close() error
-}
-
 type pendingDispense struct {
 	paymentID string
 	count     int
@@ -76,7 +71,8 @@ type Client struct {
 	paymentIDMutex   sync.Mutex
 	currentPaymentID string
 	running          atomic.Bool
-	dispenseMonitor  dispenseMonitor
+	colorSensor      *colorsensor.Sensor
+	jammed           atomic.Bool
 
 	// Command execution status
 	statusMutex      sync.Mutex
@@ -93,12 +89,12 @@ type Client struct {
 func New(cfg *config.Config) *Client {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &Client{
-		config:          cfg,
-		httpClient:      &http.Client{Timeout: 15 * time.Second},
-		ctx:             ctx,
-		cancel:          cancel,
-		pollInterval:    7 * time.Second,
-		dispenseMonitor: irsensor.New(cfg),
+		config:       cfg,
+		httpClient:   &http.Client{Timeout: 15 * time.Second},
+		ctx:          ctx,
+		cancel:       cancel,
+		pollInterval: 7 * time.Second,
+		colorSensor:  colorsensor.New(cfg),
 	}
 }
 
@@ -165,6 +161,21 @@ func (c *Client) Start() {
 		return
 	}
 
+	if c.config.ActuatorEnabled {
+		log.Println("Device client: homing actuator before startup ball check")
+		actuator.Home()
+	}
+
+	if err := c.colorSensor.Init(c.config); err != nil {
+		log.Printf("Device client: colour sensor init failed: %v", err)
+	}
+
+	// Check that a ball is ready before entering the poll loop.
+	if err := c.waitForBallReady(); err != nil {
+		// waitForBallReady already set the on-screen message; just log the error.
+		log.Printf("Device client: startup ball-ready check failed: %v", err)
+	}
+
 	c.wg.Add(1)
 	go c.pollLoop()
 	log.Println("Device client started")
@@ -177,8 +188,8 @@ func (c *Client) Stop() {
 	}
 	c.cancel()
 	c.wg.Wait()
-	if err := c.dispenseMonitor.Close(); err != nil {
-		log.Printf("Device client: failed to close IR sensor monitor: %v", err)
+	if err := c.colorSensor.Close(); err != nil {
+		log.Printf("Device client: failed to close colour sensor: %v", err)
 	}
 	log.Println("Device client stopped")
 }
@@ -208,6 +219,11 @@ func (c *Client) poll() {
 		log.Printf("Device client: failed to report status: %v", err)
 	}
 
+	// If a jam was detected, keep showing the message and skip command execution.
+	if c.jammed.Load() {
+		return
+	}
+
 	// 2. Get next command
 	cmd, err := c.getCommand()
 	if err != nil {
@@ -227,7 +243,9 @@ func (c *Client) poll() {
 			log.Printf("Device client: failed to acknowledge command %d: %v", cmd.ID, err)
 		}
 
-		c.clearExecutingCommand()
+		if !c.jammed.Load() {
+			c.clearExecutingCommand()
+		}
 	}
 }
 
@@ -460,20 +478,22 @@ func (c *Client) executeCommand(cmd *CommandResponse) (string, error) {
 	case "ball_dispenser":
 		log.Printf("Device client: ball dispenser cycle requested")
 		paymentID := c.GetPaymentID()
-		dispensedCount, err := c.dispenseMonitor.Measure(func() error {
-			_, triggerErr := actuator.Trigger()
-			return triggerErr
-		})
-		c.recordDispensedCount(paymentID, dispensedCount)
+		_, err := actuator.Trigger()
 		if paymentID != "" {
-			log.Printf("Device client: ball dispenser detected %d dispense event(s) for payment %s", dispensedCount, paymentID)
+			log.Printf("Device client: ball dispenser cycle complete for payment %s", paymentID)
+			c.recordDispensedCount(paymentID, 1)
 		} else {
-			log.Printf("Device client: ball dispenser detected %d dispense event(s) without an active payment", dispensedCount)
+			log.Printf("Device client: ball dispenser cycle complete (no active payment)")
 		}
 		if err != nil {
 			log.Printf("Device client: ball dispenser failed: %v", err)
+			return "", err
 		}
-		return "", err
+		// After retract, wait for the next ball to be ready before resuming.
+		if ballErr := c.waitForBallReady(); ballErr != nil {
+			return "", ballErr
+		}
+		return "", nil
 	case "load_test":
 		log.Printf("Device client: load test started (30 cycles)")
 		const loadTestCycles = 30
@@ -625,4 +645,27 @@ func decodeJSONResponse(body []byte, target interface{}, contentType string) err
 	}
 
 	return nil
+}
+
+// waitForBallReady calls the colour sensor monitor to confirm a ball is in position.
+// On ErrNoBallDetected it sets a permanent error overlay in the UI.
+func (c *Client) waitForBallReady() error {
+	err := colorsensor.WaitForBall(c.colorSensor, vibratorAdapter{}, c.config, log.Default())
+	if err != nil {
+		log.Printf("Device client: ball not detected — showing jam message")
+		c.jammed.Store(true)
+		c.setExecutingCommand(&CommandResponse{
+			Command: "message",
+			Message: "Stau detektiert. Rufe eine Techniker*in.",
+		})
+		return err
+	}
+	c.jammed.Store(false)
+	return nil
+}
+
+type vibratorAdapter struct{}
+
+func (vibratorAdapter) Buzz(intensity float64, duration time.Duration) error {
+	return vibrator.Buzz(intensity, duration)
 }

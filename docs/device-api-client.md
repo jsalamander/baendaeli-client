@@ -122,7 +122,8 @@ Uses existing configuration fields:
 - `BAENDAELI_URL`: API server URL
 - `BAENDAELI_API_KEY`: Device authentication token
 - `ACTUATOR_MOVEMENT_SECONDS`: Duration for extend/retract commands
-- `IR_SENSOR_ENABLED`, `IR_SENSOR_1_PIN`, `IR_SENSOR_2_PIN`, `IR_SENSOR_DEBOUNCE_MS`: IR ball detection inputs enabled by default, with `GPIO27`/`GPIO17` used when sensor pins are omitted
+- `COLOR_SENSOR_ENABLED`, `COLOR_SENSOR_I2C_BUS`, `COLOR_SENSOR_I2C_ADDRESS`: TCS34725 color sensor setup for ball readiness detection
+- `COLOR_SENSOR_MOVEMENT_THRESHOLD`, `COLOR_SENSOR_CHECK_DURATION_MS`, `COLOR_SENSOR_VIBRATE_*`, `COLOR_SENSOR_MAX_ATTEMPTS`: Movement detection and jam-recovery tuning
 
 ## Testing
 
@@ -164,7 +165,7 @@ Device polling cycle:
   deviceClient → Server: GET /api/v1/device/commands
   Server → deviceClient: {id: 42, command: "ball_dispenser"}
   
-  deviceClient:          Execute actuator.Trigger() while monitoring IR inputs
+  deviceClient:          Execute actuator.Trigger(), then verify next ball readiness via color sensor movement
   
   deviceClient → Server: POST /api/v1/device/commands/42/ack
   Server → deviceClient: Acknowledged

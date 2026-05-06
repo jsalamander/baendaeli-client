@@ -59,13 +59,18 @@ Optional GPIO actuator settings:
 - `ACTUATOR_IN2_PIN`: IN2 pin for direction control
 - `ACTUATOR_MOVEMENT_SECONDS`: Duration for both extending and retracting (ensures equal movement)
 - `ACTUATOR_PAUSE_SECONDS`: Pause duration between extend and retract
-- `IR_SENSOR_ENABLED`: Enabled by default to count beam-break detections during `ball_dispenser`
-- `IR_SENSOR_1_PIN`: First IR sensor input pin (defaults to `GPIO27`, green cable in your current wiring)
-- `IR_SENSOR_2_PIN`: Second IR sensor input pin (defaults to `GPIO17`, blue cable in your current wiring)
-- `IR_SENSOR_DEBOUNCE_MS`: Minimum gap between counts on the same sensor
+- `COLOR_SENSOR_ENABLED`: Enabled by default to detect ball movement with the TCS34725
+- `COLOR_SENSOR_I2C_BUS`: I2C bus number (defaults to `1`)
+- `COLOR_SENSOR_I2C_ADDRESS`: Sensor I2C address (defaults to `0x29`)
+- `COLOR_SENSOR_MOVEMENT_THRESHOLD`: Minimum clear-channel delta treated as movement
+- `COLOR_SENSOR_CHECK_DURATION_MS`: Observation window per attempt
+- `COLOR_SENSOR_VIBRATE_INTENSITY`: Vibrator intensity per jam-clear burst (`0.0` to `1.0`)
+- `COLOR_SENSOR_VIBRATE_DURATION_MS`: Duration of each jam-clear burst
+- `COLOR_SENSOR_VIBRATE_BURSTS`: Number of bursts per failed detection attempt
+- `COLOR_SENSOR_MAX_ATTEMPTS`: Max detect/retry attempts before declaring a jam
 
 See [Actuator Calibration Guide](docs/actuator-calibration.md) for detailed setup instructions.
-When IR monitoring is enabled, the client counts beam breaks for the full extend-pause-retract dispenser cycle and includes the total as `dispensed_count` in the next device status update for the active payment.
+After each dispense cycle, the client checks for ball movement using the color sensor. If no movement is detected after configured vibration retries, it shows: `Stau detektiert. Rufe eine Techniker*in.`
 
 ## Running
 
