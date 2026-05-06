@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jsalamander/baendaeli-client/internal/colorsensor"
 	"github.com/jsalamander/baendaeli-client/internal/config"
 )
 
@@ -969,5 +970,78 @@ func TestCommandCancelClearsPayment(t *testing.T) {
 
 	if elapsed < 200*time.Millisecond {
 		t.Errorf("expected cancel command to take at least 200ms, took %v", elapsed)
+	}
+}
+
+func TestWaitForBallReadySetsJamStateAndMessage(t *testing.T) {
+	cfg := &config.Config{}
+	cfg.SetDefaults()
+	// Force failure quickly so we can assert jam behavior deterministically.
+	cfg.ColorSensorMovementThreshold = 10000
+	cfg.ColorSensorCheckDurationMs = 1
+	cfg.ColorSensorVibrateBursts = 0
+	cfg.ColorSensorMaxAttempts = 1
+
+	client := New(cfg)
+	if err := client.colorSensor.Init(cfg); err != nil {
+		t.Fatalf("failed to init color sensor in test: %v", err)
+	}
+	defer client.colorSensor.Close()
+
+	err := client.waitForBallReady()
+	if err == nil {
+		t.Fatal("expected waitForBallReady to fail")
+	}
+	if err != colorsensor.ErrNoBallDetected {
+		t.Fatalf("expected ErrNoBallDetected, got %v", err)
+	}
+	if !client.jammed.Load() {
+		t.Fatal("expected client to be jammed")
+	}
+
+	exec := client.GetExecutingCommand()
+	if exec == nil {
+		t.Fatal("expected executing command to contain jam message")
+	}
+	if exec.Command != "message" {
+		t.Fatalf("expected executing command 'message', got %q", exec.Command)
+	}
+	if exec.Message != "Stau detektiert. Rufe eine Techniker*in." {
+		t.Fatalf("unexpected jam message: %q", exec.Message)
+	}
+}
+
+func TestPollSkipsCommandFetchWhenJammed(t *testing.T) {
+	statusCalled := false
+	commandCalled := false
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.Contains(r.URL.Path, "/status") {
+			statusCalled = true
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`{"success": true}`))
+			return
+		}
+		if strings.Contains(r.URL.Path, "/commands") {
+			commandCalled = true
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`{"command":"extend","id":1}`))
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	cfg := &config.Config{BaendaeliURL: server.URL, BaendaeliAPIKey: "test-key"}
+	client := New(cfg)
+	client.jammed.Store(true)
+
+	client.poll()
+
+	if !statusCalled {
+		t.Fatal("expected status endpoint to be called")
+	}
+	if commandCalled {
+		t.Fatal("expected command endpoint to be skipped while jammed")
 	}
 }
