@@ -2,9 +2,11 @@ package camera
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"os/exec"
+	"strings"
 	"time"
 )
 
@@ -87,6 +89,16 @@ func Capture() ([]byte, error) {
 		"--nopreview",
 	).Output()
 	if err != nil {
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) {
+			stderr := strings.TrimSpace(string(exitErr.Stderr))
+			if stderr != "" {
+				if len(stderr) > 500 {
+					stderr = stderr[:500]
+				}
+				return nil, fmt.Errorf("camera capture failed: %v: %s", err, stderr)
+			}
+		}
 		return nil, fmt.Errorf("camera capture failed: %w", err)
 	}
 
