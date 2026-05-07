@@ -32,7 +32,7 @@ func TestWaitForBallDetectsMovementInSimMode(t *testing.T) {
 		ColorSensorMaxAttempts:       1,
 	}
 
-	err := WaitForBall(s, nil, cfg, silentLogger())
+	err := WaitForBall(s, nil, cfg, silentLogger(), nil)
 	if err != nil {
 		t.Fatalf("expected movement detection, got error: %v", err)
 	}
@@ -51,7 +51,7 @@ func TestWaitForBallReturnsErrNoBallDetectedAfterMaxAttempts(t *testing.T) {
 		ColorSensorMaxAttempts:       1,
 	}
 
-	err := WaitForBall(s, b, cfg, silentLogger())
+	err := WaitForBall(s, b, cfg, silentLogger(), nil)
 	if err == nil {
 		t.Fatal("expected ErrNoBallDetected, got nil")
 	}
@@ -60,5 +60,32 @@ func TestWaitForBallReturnsErrNoBallDetectedAfterMaxAttempts(t *testing.T) {
 	}
 	if b.count != 1 {
 		t.Fatalf("expected 1 vibration burst, got %d", b.count)
+	}
+}
+
+func TestWaitForBallCallsAttemptObserver(t *testing.T) {
+	s := &Sensor{enabled: true, sim: true}
+	cfg := &config.Config{
+		ColorSensorEnabled:           true,
+		ColorSensorMovementThreshold: 10000,
+		ColorSensorCheckDurationMs:   1,
+		ColorSensorVibrateBursts:     0,
+		ColorSensorMaxAttempts:       3,
+	}
+
+	var got []int
+	err := WaitForBall(s, nil, cfg, silentLogger(), func(attempt int, _ int) {
+		got = append(got, attempt)
+	})
+	if err == nil {
+		t.Fatal("expected ErrNoBallDetected, got nil")
+	}
+	if len(got) != 3 {
+		t.Fatalf("expected observer to be called 3 times, got %d", len(got))
+	}
+	for i := 1; i <= 3; i++ {
+		if got[i-1] != i {
+			t.Fatalf("expected attempt %d at index %d, got %d", i, i-1, got[i-1])
+		}
 	}
 }

@@ -668,10 +668,17 @@ func (c *Client) waitForBallReady(showWaitingMessage bool, allowVibration bool) 
 	}
 
 	var err error
+	var observer colorsensor.AttemptObserver
+	if showWaitingMessage {
+		observer = func(attempt int, maxAttempts int) {
+			c.updateExecutingCommandMessage(fmt.Sprintf("Waiting for Ball Release (%d/%d)", attempt, maxAttempts))
+		}
+	}
+
 	if allowVibration {
-		err = colorsensor.WaitForBall(c.colorSensor, vibratorAdapter{}, c.config, log.Default())
+		err = colorsensor.WaitForBall(c.colorSensor, vibratorAdapter{}, c.config, log.Default(), observer)
 	} else {
-		err = colorsensor.WaitForBall(c.colorSensor, nil, c.config, log.Default())
+		err = colorsensor.WaitForBall(c.colorSensor, nil, c.config, log.Default(), observer)
 	}
 	if err != nil {
 		log.Printf("Device client: ball not detected — showing jam message")

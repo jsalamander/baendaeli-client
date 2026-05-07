@@ -44,8 +44,49 @@ document.addEventListener('DOMContentLoaded', () => {
 	setDiagnosticsPending();
 	startInternetCheck();
 	startDeviceStatusCheck();
-	start();
+	startWhenDeviceReady();
 });
+
+function sleep(ms) {
+	return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+async function startWhenDeviceReady() {
+	const maxStartupWaitMs = 120000;
+	const pollMs = 500;
+	const deadline = Date.now() + maxStartupWaitMs;
+	renderQrPlaceholder(
+		'Gerat wird vorbereitet',
+		'Bitte warten, bis die Ballausgabe bereit ist.'
+	);
+
+	while (Date.now() < deadline) {
+		try {
+			const res = await fetch('/api/device/status');
+			const data = await res.json();
+			const cmd = data.executing_command;
+
+			if (cmd && cmd.command) {
+				updateStatus('Gerät wird vorbereitet...', 'badge-warning');
+				renderQrPlaceholder(
+					'Gerat wird vorbereitet',
+					'Warte auf Ballfreigabe und Geratestatus.'
+				);
+				await sleep(pollMs);
+				continue;
+			}
+
+			start();
+			return;
+		} catch (err) {
+			console.error('Failed to verify startup device readiness:', err);
+			await sleep(pollMs);
+		}
+	}
+
+	console.warn('Startup device readiness wait timed out, creating payment anyway');
+	start();
+}
 
 function getLoadingSpinner() {
 	return '<div class="text-center"><svg class="inline-block w-8 h-8 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg><p class="mt-2 text-sm">Warten auf QR Code...</p></div>';
@@ -90,6 +131,10 @@ async function start() {
 	} catch (err) {
 		console.error('Payment creation failed', err);
 		updateStatus('Etwas ist schiefgelaufen.', 'badge-error');
+		renderQrPlaceholder(
+			'QR-Code derzeit nicht verfugbar',
+			'Wir versuchen es automatisch gleich erneut.'
+		);
 		
 		// Show error popup with server error details
 		if (err.serverError) {

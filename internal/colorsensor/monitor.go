@@ -16,6 +16,10 @@ type vibratorBuzzer interface {
 	Buzz(intensity float64, duration time.Duration) error
 }
 
+// AttemptObserver is called at the beginning of each detection attempt.
+// attempt is 1-based and maxAttempts is the configured total.
+type AttemptObserver func(attempt int, maxAttempts int)
+
 // WaitForBall monitors the colour sensor and waits until a ball drop is detected.
 // It uses the clear channel (C) to detect movement: a ball passing the sensor causes
 // a significant change in the ambient light reading.
@@ -28,7 +32,7 @@ type vibratorBuzzer interface {
 //  5. Repeats up to MaxAttempts total.
 //
 // Returns ErrNoBallDetected if no ball is detected after all attempts.
-func WaitForBall(s *Sensor, vib vibratorBuzzer, cfg *config.Config, logger *log.Logger) error {
+func WaitForBall(s *Sensor, vib vibratorBuzzer, cfg *config.Config, logger *log.Logger, observer AttemptObserver) error {
 	if !s.IsEnabled() {
 		logger.Println("Color sensor disabled, skipping ball detection")
 		return nil
@@ -40,6 +44,10 @@ func WaitForBall(s *Sensor, vib vibratorBuzzer, cfg *config.Config, logger *log.
 	pauseBetweenBursts := 300 * time.Millisecond
 
 	for attempt := 1; attempt <= cfg.ColorSensorMaxAttempts; attempt++ {
+		if observer != nil {
+			observer(attempt, cfg.ColorSensorMaxAttempts)
+		}
+
 		baseline, err := baseline(s, logger)
 		if err != nil {
 			logger.Printf("Color sensor: could not read baseline (attempt %d/%d): %v", attempt, cfg.ColorSensorMaxAttempts, err)

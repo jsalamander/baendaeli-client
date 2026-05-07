@@ -112,6 +112,17 @@ if (window.visualViewport) {
 
 document.addEventListener('DOMContentLoaded', scheduleResponsiveQrSizeUpdate);
 
+function renderQrPlaceholder(title, subtitle) {
+	qrEl.innerHTML =
+		'<div class="mx-auto flex max-w-xs flex-col items-center justify-center gap-3 text-center text-base-content/80">' +
+		'<svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 opacity-70" fill="none" viewBox="0 0 24 24" stroke="currentColor">' +
+		'<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 3h6a2 2 0 012 2v6m0 2v6a2 2 0 01-2 2H9a2 2 0 01-2-2v-6m0-2V5a2 2 0 012-2zm-2 8h10m-5-5v10" />' +
+		'</svg>' +
+		'<p class="text-sm font-semibold">' + title + '</p>' +
+		'<p class="text-xs text-base-content/60">' + subtitle + '</p>' +
+		'</div>';
+}
+
 function renderQr(data) {
 	const svg = data.qr_code_svg || data.qrcode_svg || data.qr_svg || data.twint_qr_code_svg;
 	const png = data.qr_code_png_base64 || data.qrcode_png_base64 || data.twint_qr_code_png_base64;
@@ -203,5 +214,8 @@ function renderQr(data) {
 		return;
 	}
 
-	qrEl.textContent = 'No QR code found in the response.';
+	renderQrPlaceholder(
+		'QR-Code aktuell nicht verfugbar',
+		'Die Zahlung wird vorbereitet. Bitte kurz warten.'
+	);
 }
