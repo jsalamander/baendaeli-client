@@ -171,7 +171,7 @@ func (c *Client) Start() {
 	}
 
 	// Check that a ball is ready before entering the poll loop.
-	if err := c.waitForBallReady(); err != nil {
+	if err := c.waitForBallReady(true, true); err != nil {
 		// waitForBallReady already set the on-screen message; just log the error.
 		log.Printf("Device client: startup ball-ready check failed: %v", err)
 	}
@@ -220,6 +220,15 @@ func (c *Client) poll() {
 	}
 
 	// If a jam was detected, keep showing the message and skip command execution.
+	if c.jammed.Load() {
+		if err := c.waitForBallReady(false, false); err != nil {
+			return
+		}
+		// Jam cleared, continue normal polling and command handling.
+		log.Printf("Device client: jam cleared by passive ball detection")
+	}
+
+	// If a jam is still active after passive scan attempt, skip command execution.
 	if c.jammed.Load() {
 		return
 	}
@@ -490,7 +499,7 @@ func (c *Client) executeCommand(cmd *CommandResponse) (string, error) {
 			return "", err
 		}
 		// After retract, wait for the next ball to be ready before resuming.
-		if ballErr := c.waitForBallReady(); ballErr != nil {
+		if ballErr := c.waitForBallReady(true, true); ballErr != nil {
 			return "", ballErr
 		}
 		return "", nil
@@ -648,9 +657,22 @@ func decodeJSONResponse(body []byte, target interface{}, contentType string) err
 }
 
 // waitForBallReady calls the colour sensor monitor to confirm a ball is in position.
-// On ErrNoBallDetected it sets a permanent error overlay in the UI.
-func (c *Client) waitForBallReady() error {
-	err := colorsensor.WaitForBall(c.colorSensor, vibratorAdapter{}, c.config, log.Default())
+// When showWaitingMessage is true, it displays a waiting overlay while scanning.
+// When allowVibration is false, scanning is passive and never triggers vibrator bursts.
+func (c *Client) waitForBallReady(showWaitingMessage bool, allowVibration bool) error {
+	if showWaitingMessage {
+		c.setExecutingCommand(&CommandResponse{
+			Command: "message",
+			Message: "Waiting for Ball Release",
+		})
+	}
+
+	var err error
+	if allowVibration {
+		err = colorsensor.WaitForBall(c.colorSensor, vibratorAdapter{}, c.config, log.Default())
+	} else {
+		err = colorsensor.WaitForBall(c.colorSensor, nil, c.config, log.Default())
+	}
 	if err != nil {
 		log.Printf("Device client: ball not detected — showing jam message")
 		c.jammed.Store(true)
@@ -660,7 +682,14 @@ func (c *Client) waitForBallReady() error {
 		})
 		return err
 	}
+
 	c.jammed.Store(false)
+	c.setExecutingCommand(&CommandResponse{
+		Command: "message",
+		Message: "Ball erkannt",
+	})
+	time.Sleep(700 * time.Millisecond)
+	c.clearExecutingCommand()
 	return nil
 }
 

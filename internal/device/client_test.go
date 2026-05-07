@@ -988,7 +988,7 @@ func TestWaitForBallReadySetsJamStateAndMessage(t *testing.T) {
 	}
 	defer client.colorSensor.Close()
 
-	err := client.waitForBallReady()
+	err := client.waitForBallReady(true, true)
 	if err == nil {
 		t.Fatal("expected waitForBallReady to fail")
 	}
@@ -1033,7 +1033,16 @@ func TestPollSkipsCommandFetchWhenJammed(t *testing.T) {
 	defer server.Close()
 
 	cfg := &config.Config{BaendaeliURL: server.URL, BaendaeliAPIKey: "test-key"}
+	cfg.SetDefaults()
+	cfg.ColorSensorMovementThreshold = 10000
+	cfg.ColorSensorCheckDurationMs = 1
+	cfg.ColorSensorVibrateBursts = 0
+	cfg.ColorSensorMaxAttempts = 1
 	client := New(cfg)
+	if err := client.colorSensor.Init(cfg); err != nil {
+		t.Fatalf("failed to init color sensor in test: %v", err)
+	}
+	defer client.colorSensor.Close()
 	client.jammed.Store(true)
 
 	client.poll()
@@ -1043,5 +1052,53 @@ func TestPollSkipsCommandFetchWhenJammed(t *testing.T) {
 	}
 	if commandCalled {
 		t.Fatal("expected command endpoint to be skipped while jammed")
+	}
+}
+
+func TestPollJammedRecoversAndFetchesCommand(t *testing.T) {
+	statusCalled := false
+	commandCalled := false
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.Contains(r.URL.Path, "/status") {
+			statusCalled = true
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`{"success": true}`))
+			return
+		}
+		if strings.Contains(r.URL.Path, "/commands") {
+			commandCalled = true
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`{"command": null}`))
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	cfg := &config.Config{BaendaeliURL: server.URL, BaendaeliAPIKey: "test-key"}
+	cfg.SetDefaults()
+	cfg.ColorSensorMovementThreshold = 1
+	cfg.ColorSensorCheckDurationMs = 400
+	cfg.ColorSensorVibrateBursts = 0
+	cfg.ColorSensorMaxAttempts = 1
+
+	client := New(cfg)
+	if err := client.colorSensor.Init(cfg); err != nil {
+		t.Fatalf("failed to init color sensor in test: %v", err)
+	}
+	defer client.colorSensor.Close()
+	client.jammed.Store(true)
+
+	client.poll()
+
+	if !statusCalled {
+		t.Fatal("expected status endpoint to be called")
+	}
+	if !commandCalled {
+		t.Fatal("expected command endpoint to be called after jam recovery")
+	}
+	if client.jammed.Load() {
+		t.Fatal("expected jam flag to be cleared after passive detection")
 	}
 }
