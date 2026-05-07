@@ -59,10 +59,26 @@ func (s *Sensor) Init(cfg *config.Config) error {
 		return nil
 	}
 
-	busName := fmt.Sprintf("%d", cfg.ColorSensorI2CBus)
-	bus, err := i2creg.Open(busName)
+	busNames := []string{
+		fmt.Sprintf("/dev/i2c-%d", cfg.ColorSensorI2CBus),
+		fmt.Sprintf("I2C%d", cfg.ColorSensorI2CBus),
+		fmt.Sprintf("%d", cfg.ColorSensorI2CBus),
+	}
+
+	var (
+		bus     i2c.BusCloser
+		err     error
+		busName string
+	)
+	for _, candidate := range busNames {
+		bus, err = i2creg.Open(candidate)
+		if err == nil {
+			busName = candidate
+			break
+		}
+	}
 	if err != nil {
-		log.Printf("Color sensor: failed to open I2C bus %s, running in simulation mode: %v", busName, err)
+		log.Printf("Color sensor: failed to open I2C bus (tried %q), running in simulation mode: %v", strings.Join(busNames, ", "), err)
 		s.sim = true
 		return nil
 	}
@@ -131,6 +147,9 @@ func (s *Sensor) Read() (c, r, g, b uint16, err error) {
 
 // IsEnabled reports whether the sensor is enabled.
 func (s *Sensor) IsEnabled() bool { return s.enabled }
+
+// IsSimulation reports whether the sensor is currently using simulation mode.
+func (s *Sensor) IsSimulation() bool { return s.sim }
 
 // Close releases the I2C bus.
 func (s *Sensor) Close() error {

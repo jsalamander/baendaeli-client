@@ -13,6 +13,7 @@ import (
 
 	"github.com/jsalamander/baendaeli-client/internal/actuator"
 	"github.com/jsalamander/baendaeli-client/internal/camera"
+	"github.com/jsalamander/baendaeli-client/internal/colorsensor"
 	"github.com/jsalamander/baendaeli-client/internal/config"
 	"github.com/jsalamander/baendaeli-client/internal/device"
 	"github.com/jsalamander/baendaeli-client/internal/server"
@@ -34,6 +35,9 @@ func main() {
 			return
 		case "home":
 			runHomeCommand()
+			return
+		case "color-debug":
+			runColorDebugCommand()
 			return
 		case "help", "-h", "--help":
 			printUsage()
@@ -134,6 +138,7 @@ func printUsage() {
 	fmt.Println("  baendaeli-client extract <ms>       Alias for extend (same behavior)")
 	fmt.Println("  baendaeli-client retract <ms>       Retract actuator for specified milliseconds")
 	fmt.Println("  baendaeli-client home               Bring actuator to home position")
+	fmt.Println("  baendaeli-client color-debug [ms]   Print live TCS34725 C/R/G/B readings")
 	fmt.Println("  baendaeli-client help               Show this help message")
 	fmt.Println()
 	fmt.Println("Examples:")
@@ -141,8 +146,67 @@ func printUsage() {
 	fmt.Println("  baendaeli-client extract 2000       Extend for 2 seconds (alias)")
 	fmt.Println("  baendaeli-client retract 1500       Retract for 1.5 seconds")
 	fmt.Println("  baendaeli-client home               Retract fully to home position")
+	fmt.Println("  baendaeli-client color-debug 300    Print color values every 300ms")
 	fmt.Println()
 	fmt.Println("Note: Actuator commands require ACTUATOR_ENABLED: true in config.yaml")
+}
+
+// runColorDebugCommand prints live color sensor readings for threshold calibration.
+func runColorDebugCommand() {
+	interval := 500 * time.Millisecond
+	if len(os.Args) >= 3 {
+		ms, err := strconv.Atoi(os.Args[2])
+		if err != nil || ms <= 0 {
+			fmt.Printf("Error: invalid interval '%s'. Must be a positive integer (milliseconds)\n", os.Args[2])
+			os.Exit(1)
+		}
+		interval = time.Duration(ms) * time.Millisecond
+	}
+
+	cfg, err := config.Load("config.yaml")
+	if err != nil {
+		fmt.Printf("Error: failed to load config.yaml: %v\n", err)
+		os.Exit(1)
+	}
+	cfg.SetDefaults()
+	cfg.ColorSensorEnabled = true
+
+	sensor := colorsensor.New(cfg)
+	if err := sensor.Init(cfg); err != nil {
+		fmt.Printf("Error: failed to initialize color sensor: %v\n", err)
+		os.Exit(1)
+	}
+	defer sensor.Close()
+
+	fmt.Printf("Color debug started (interval=%v, threshold=%d)\n", interval, cfg.ColorSensorMovementThreshold)
+	if sensor.IsSimulation() {
+		fmt.Println("WARNING: color sensor is in SIMULATION mode (check I2C wiring/bus/address)")
+	} else {
+		fmt.Println("Color sensor is in HARDWARE mode")
+	}
+	fmt.Println("Press Ctrl+C to stop")
+
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	var baseline uint16
+	for {
+		c, r, g, b, err := sensor.Read()
+		if err != nil {
+			fmt.Printf("Read error: %v\n", err)
+		} else {
+			if baseline == 0 {
+				baseline = c
+			}
+			delta := int(c) - int(baseline)
+			if delta < 0 {
+				delta = -delta
+			}
+			fmt.Printf("C:%5d R:%5d G:%5d B:%5d | dC:%4d baseline:%5d threshold:%d\n", c, r, g, b, delta, baseline, cfg.ColorSensorMovementThreshold)
+		}
+
+		<-ticker.C
+	}
 }
 
 // runExtendCommand extends the actuator for specified milliseconds
