@@ -579,6 +579,47 @@ func TestExecutingCommandTracking(t *testing.T) {
 	}
 }
 
+func TestCommandExecutionPolicy(t *testing.T) {
+	client := New(&config.Config{})
+
+	// Always-allowed commands
+	for _, command := range []string{"message", "take_picture", "cancel"} {
+		if !client.canExecuteCommandNow(&CommandResponse{Command: command}) {
+			t.Fatalf("expected %q to be executable immediately", command)
+		}
+	}
+
+	// Clean-state-only command should execute when clean
+	client.setRuntimeState(StateIdle, "Idle")
+	if !client.canExecuteCommandNow(&CommandResponse{Command: "load_test"}) {
+		t.Fatal("expected load_test to be executable in idle state")
+	}
+
+	client.setRuntimeState(StateDetectingBall, "Warte auf Ball")
+	if !client.canExecuteCommandNow(&CommandResponse{Command: "load_test"}) {
+		t.Fatal("expected load_test to be executable in clean detecting_ball state")
+	}
+
+	// With an active payment, clean-state-only commands must be deferred
+	client.SetPaymentID("payment-123")
+	if client.canExecuteCommandNow(&CommandResponse{Command: "load_test"}) {
+		t.Fatal("expected load_test to be deferred while payment is active")
+	}
+
+	// During active payment and waiting_for_amount, lightweight actuator commands are allowed.
+	client.setRuntimeState(StateBallDetected, "Ball erkannt")
+	client.setCurrentPayment("payment-123", map[string]any{"payment_phase": "waiting_for_amount"})
+	if !client.canExecuteCommandNow(&CommandResponse{Command: "extend"}) {
+		t.Fatal("expected extend to be executable while waiting_for_amount")
+	}
+
+	// During waiting_for_payment, actuator commands must be deferred.
+	client.setCurrentPayment("payment-123", map[string]any{"payment_phase": "waiting_for_payment"})
+	if client.canExecuteCommandNow(&CommandResponse{Command: "extend"}) {
+		t.Fatal("expected extend to be deferred while waiting_for_payment")
+	}
+}
+
 func TestActuatorLockPreventsRaceConditions(t *testing.T) {
 	cfg := &config.Config{
 		BaendaeliURL:     "http://example.com",
@@ -1109,6 +1150,7 @@ func TestGetStateSnapshotIncludesRuntimeFields(t *testing.T) {
 	client.jammed.Store(true)
 	client.setRuntimeState(StateAwaitingPayment, "Warten auf Zahlung")
 	client.setExecutingCommand(&CommandResponse{Command: "message", Message: "Waiting"})
+	client.setPendingCommand(&CommandResponse{Command: "load_test"})
 
 	snapshot := client.GetStateSnapshot()
 
@@ -1126,6 +1168,9 @@ func TestGetStateSnapshotIncludesRuntimeFields(t *testing.T) {
 	}
 	if snapshot.ExecutingCommand == nil || snapshot.ExecutingCommand.Command != "message" {
 		t.Fatalf("expected executing command message, got %+v", snapshot.ExecutingCommand)
+	}
+	if snapshot.PendingCommand == nil || snapshot.PendingCommand.Command != "load_test" {
+		t.Fatalf("expected pending command load_test, got %+v", snapshot.PendingCommand)
 	}
 }
 

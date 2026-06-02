@@ -132,8 +132,12 @@ function renderDeviceState(data) {
 	const state = (data.state || '').toLowerCase();
 	const ui = mapStateUi(state);
 	const message = data.message || ui.status;
+	let statusMessage = message;
+	if (!data.executing_command && data.pending_command && data.pending_command.command) {
+		statusMessage = message + ' · Befehl ausstehend: ' + data.pending_command.command;
+	}
 
-	updateStatus(message, ui.badge);
+	updateStatus(statusMessage, ui.badge);
 	paymentTitleEl.textContent = ui.title;
 	paymentDescriptionEl.textContent = ui.description;
 	renderPaymentExpiry(data.payment);

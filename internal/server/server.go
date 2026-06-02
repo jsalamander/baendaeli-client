@@ -252,6 +252,7 @@ func (s *Server) handleDeviceStatus(w http.ResponseWriter, r *http.Request) {
 			"payment_id":       "",
 			"jammed":           false,
 			"executing_command": nil,
+			"pending_command":  nil,
 		})
 		return
 	}

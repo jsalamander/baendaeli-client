@@ -176,6 +176,9 @@ func TestHandleDeviceStatusWithoutDeviceClient(t *testing.T) {
     if body["jammed"] != false {
         t.Fatalf("expected jammed=false, got %v", body["jammed"])
     }
+    if _, ok := body["pending_command"]; !ok {
+        t.Fatal("expected pending_command field in default device status")
+    }
 }
 
 func TestHandleDeviceStatusWithDeviceClientSnapshot(t *testing.T) {

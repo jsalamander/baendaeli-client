@@ -96,6 +96,7 @@ type StateSnapshot struct {
 	Payment          map[string]any   `json:"payment,omitempty"`
 	Jammed           bool             `json:"jammed"`
 	ExecutingCommand *CommandResponse `json:"executing_command,omitempty"`
+	PendingCommand   *CommandResponse `json:"pending_command,omitempty"`
 }
 
 // Client polls the device API and executes commands
@@ -116,6 +117,7 @@ type Client struct {
 	// Command execution status
 	statusMutex      sync.Mutex
 	executingCommand *CommandResponse
+	pendingCommand   *CommandResponse
 	state            RuntimeState
 	stateMessage     string
 	lastCommandError string // Error from last command execution
@@ -191,9 +193,14 @@ func (c *Client) GetStateSnapshot() StateSnapshot {
 	state := c.state
 	message := c.stateMessage
 	var cmdCopy *CommandResponse
+	var pendingCopy *CommandResponse
 	if c.executingCommand != nil {
 		copyValue := *c.executingCommand
 		cmdCopy = &copyValue
+	}
+	if c.pendingCommand != nil {
+		copyValue := *c.pendingCommand
+		pendingCopy = &copyValue
 	}
 	c.statusMutex.Unlock()
 
@@ -204,6 +211,7 @@ func (c *Client) GetStateSnapshot() StateSnapshot {
 		Payment:          c.getCurrentPayment(),
 		Jammed:           c.jammed.Load(),
 		ExecutingCommand: cmdCopy,
+		PendingCommand:   pendingCopy,
 	}
 }
 
@@ -235,6 +243,33 @@ func (c *Client) clearExecutingCommand() {
 	c.statusMutex.Lock()
 	defer c.statusMutex.Unlock()
 	c.executingCommand = nil
+}
+
+func (c *Client) getPendingCommand() *CommandResponse {
+	c.statusMutex.Lock()
+	defer c.statusMutex.Unlock()
+	if c.pendingCommand == nil {
+		return nil
+	}
+	copyValue := *c.pendingCommand
+	return &copyValue
+}
+
+func (c *Client) setPendingCommand(cmd *CommandResponse) {
+	c.statusMutex.Lock()
+	defer c.statusMutex.Unlock()
+	if cmd == nil {
+		c.pendingCommand = nil
+		return
+	}
+	copyValue := *cmd
+	c.pendingCommand = &copyValue
+}
+
+func (c *Client) clearPendingCommand() {
+	c.statusMutex.Lock()
+	defer c.statusMutex.Unlock()
+	c.pendingCommand = nil
 }
 
 // LockActuator acquires the actuator lock
@@ -334,12 +369,14 @@ func (c *Client) poll() {
 		return
 	}
 
-	if c.runStateMachineCycle() {
-		return
-	}
+	c.runStateMachineCycle()
 
-	// 2. Get next command
-	cmd, err := c.getCommand()
+	// 2. Get next command (or keep a previously deferred command)
+	cmd := c.getPendingCommand()
+	var err error
+	if cmd == nil {
+		cmd, err = c.getCommand()
+	}
 	if err != nil {
 		log.Printf("Device client: failed to get command: %v", err)
 		return
@@ -347,6 +384,12 @@ func (c *Client) poll() {
 
 	// 3. If command is not null, execute it
 	if cmd != nil && cmd.Command != "" {
+		if !c.canExecuteCommandNow(cmd) {
+			c.setPendingCommand(cmd)
+			return
+		}
+
+		c.clearPendingCommand()
 		c.setRuntimeState(StateCommandExecuting, "Operator-Befehl wird ausgefuhrt")
 		imageData, execErr := c.executeCommand(cmd)
 		if execErr != nil {
@@ -1045,6 +1088,79 @@ func paymentPhase(payment map[string]any) string {
 	}
 	phase, _ := payment["payment_phase"].(string)
 	return strings.ToLower(strings.TrimSpace(phase))
+}
+
+func (c *Client) canExecuteCommandNow(cmd *CommandResponse) bool {
+	if cmd == nil {
+		return false
+	}
+
+	command := strings.ToLower(strings.TrimSpace(cmd.Command))
+	if command == "" {
+		return false
+	}
+
+	// These commands are always safe to execute immediately.
+	switch command {
+	case "message", "take_picture", "cancel":
+		return true
+	}
+
+	// These commands require an idle/clean machine state.
+	switch command {
+	case "load_test", "ball_dispenser":
+		return c.isCleanCommandState()
+	case "home", "extend", "retract", "vibrate":
+		return c.isActuationCommandState()
+	}
+
+	// Unknown commands should still be executed and fail through normal validation/ack flow.
+	return true
+}
+
+func (c *Client) isCleanCommandState() bool {
+	if c.jammed.Load() {
+		return false
+	}
+
+	if c.GetPaymentID() != "" {
+		return false
+	}
+
+	c.statusMutex.Lock()
+	defer c.statusMutex.Unlock()
+
+	return c.state == StateDetectingBall || c.state == StateIdle
+}
+
+func (c *Client) isActuationCommandState() bool {
+	if c.jammed.Load() {
+		return false
+	}
+
+	paymentID := c.GetPaymentID()
+	if paymentID == "" {
+		return c.isCleanCommandState()
+	}
+
+	// While waiting for user payment confirmation, only non-actuation commands are allowed.
+	if c.currentPaymentPhase() == "waiting_for_payment" {
+		return false
+	}
+
+	c.statusMutex.Lock()
+	defer c.statusMutex.Unlock()
+
+	switch c.state {
+	case StateStarting, StateStartupCycle, StateDispensing, StateCommandExecuting, StateError, StateJam:
+		return false
+	default:
+		return true
+	}
+}
+
+func (c *Client) currentPaymentPhase() string {
+	return paymentPhase(c.getCurrentPayment())
 }
 
 type vibratorAdapter struct{}
