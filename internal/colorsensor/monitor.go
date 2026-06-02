@@ -38,7 +38,7 @@ func WaitForBall(s *Sensor, vib vibratorBuzzer, cfg *config.Config, logger *log.
 		return nil
 	}
 
-	pollInterval := 200 * time.Millisecond
+	pollInterval := time.Duration(cfg.ColorSensorPollIntervalMs) * time.Millisecond
 	checkDuration := time.Duration(cfg.ColorSensorCheckDurationMs) * time.Millisecond
 	vibrateDuration := time.Duration(cfg.ColorSensorVibrateDurationMs) * time.Millisecond
 	pauseBetweenBursts := 300 * time.Millisecond

@@ -27,6 +27,9 @@ func TestSetDefaultsAppliesValues(t *testing.T) {
 	if cfg.ColorSensorMovementThreshold != 500 {
 		t.Fatalf("ColorSensorMovementThreshold default not set, got %d", cfg.ColorSensorMovementThreshold)
 	}
+	if cfg.ColorSensorPollIntervalMs != 100 {
+		t.Fatalf("ColorSensorPollIntervalMs default not set, got %d", cfg.ColorSensorPollIntervalMs)
+	}
 }
 
 func TestSetDefaultsPreservesValues(t *testing.T) {
@@ -39,10 +42,11 @@ func TestSetDefaultsPreservesValues(t *testing.T) {
 		ColorSensorI2CBus:            3,
 		ColorSensorI2CAddress:        "0x30",
 		ColorSensorMovementThreshold: 1000,
+		ColorSensorPollIntervalMs:    250,
 	}
 	cfg.SetDefaults()
 
-	if cfg.DefaultAmount != 123 || cfg.SuccessOverlayMs != 5000 || cfg.ActuatorMovement != 3 || cfg.ActuatorPause != 5 || !cfg.ColorSensorEnabled || cfg.ColorSensorI2CBus != 3 || cfg.ColorSensorI2CAddress != "0x30" || cfg.ColorSensorMovementThreshold != 1000 {
+	if cfg.DefaultAmount != 123 || cfg.SuccessOverlayMs != 5000 || cfg.ActuatorMovement != 3 || cfg.ActuatorPause != 5 || !cfg.ColorSensorEnabled || cfg.ColorSensorI2CBus != 3 || cfg.ColorSensorI2CAddress != "0x30" || cfg.ColorSensorMovementThreshold != 1000 || cfg.ColorSensorPollIntervalMs != 250 {
 		t.Fatalf("values should be preserved: %+v", cfg)
 	}
 }
