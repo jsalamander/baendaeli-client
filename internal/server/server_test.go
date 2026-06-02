@@ -9,6 +9,7 @@ import (
     "testing"
 
     "github.com/jsalamander/baendaeli-client/internal/config"
+    "github.com/jsalamander/baendaeli-client/internal/device"
 )
 
 // helper to build server with injectable HTTP client
@@ -123,6 +124,18 @@ func TestServeMainTemplate_SubstitutesConfig(t *testing.T) {
     if !strings.Contains(body, "const successOverlayMs = 5555") {
         t.Fatalf("successOverlayMs not substituted: %s", body)
     }
+    if !strings.Contains(body, "fetch('/api/device/status')") {
+        t.Fatalf("main.js should poll device status endpoint, body: %s", body)
+    }
+    if strings.Contains(body, "createPayment(") {
+        t.Fatalf("main.js should not orchestrate payment creation anymore, body: %s", body)
+    }
+    if !strings.Contains(body, "renderQr(data.payment)") {
+        t.Fatalf("main.js should render QR from device status payment payload, body: %s", body)
+    }
+    if strings.Contains(body, "state === 'ball_detected' || state === 'awaiting_payment'") {
+        t.Fatalf("main.js should not keep QR visible once awaiting_payment starts, body: %s", body)
+    }
 }
 
 func TestServeStaticJS(t *testing.T) {
@@ -138,5 +151,59 @@ func TestServeStaticJS(t *testing.T) {
     }
     if !strings.Contains(rr.Body.String(), "function updateStatus") {
         t.Fatalf("ui.js content unexpected: %s", rr.Body.String())
+    }
+}
+
+func TestHandleDeviceStatusWithoutDeviceClient(t *testing.T) {
+    cfg := &config.Config{}
+    srv := newTestServer(cfg, nil)
+
+    rr := httptest.NewRecorder()
+    req := httptest.NewRequest(http.MethodGet, "/api/device/status", nil)
+    srv.Router().ServeHTTP(rr, req)
+
+    if rr.Code != http.StatusOK {
+        t.Fatalf("unexpected status: %d", rr.Code)
+    }
+
+    var body map[string]any
+    if err := json.Unmarshal(rr.Body.Bytes(), &body); err != nil {
+        t.Fatalf("failed to parse response: %v", err)
+    }
+    if body["state"] != "idle" {
+        t.Fatalf("expected state=idle, got %v", body["state"])
+    }
+    if body["jammed"] != false {
+        t.Fatalf("expected jammed=false, got %v", body["jammed"])
+    }
+}
+
+func TestHandleDeviceStatusWithDeviceClientSnapshot(t *testing.T) {
+    cfg := &config.Config{}
+    srv := newTestServer(cfg, nil)
+    dc := device.New(cfg)
+    dc.SetPaymentID("pay-777")
+    srv.SetDeviceClient(dc)
+
+    rr := httptest.NewRecorder()
+    req := httptest.NewRequest(http.MethodGet, "/api/device/status", nil)
+    srv.Router().ServeHTTP(rr, req)
+
+    if rr.Code != http.StatusOK {
+        t.Fatalf("unexpected status: %d", rr.Code)
+    }
+
+    var body map[string]any
+    if err := json.Unmarshal(rr.Body.Bytes(), &body); err != nil {
+        t.Fatalf("failed to parse response: %v", err)
+    }
+    if body["payment_id"] != "pay-777" {
+        t.Fatalf("expected payment_id pay-777, got %v", body["payment_id"])
+    }
+    if _, ok := body["state"]; !ok {
+        t.Fatal("expected state field in device snapshot")
+    }
+    if _, ok := body["jammed"]; !ok {
+        t.Fatal("expected jammed field in device snapshot")
     }
 }

@@ -10,6 +10,10 @@ function showError(message) {
 	errorContainer.classList.remove('hidden');
 }
 
+let expiryTimer = null;
+let expiryAt = null;
+const expiryMeta = document.getElementById('expiryMeta');
+
 let cancelBannerTimer = null;
 
 function showCancelBanner(message) {
@@ -86,6 +90,21 @@ function startExpiryCountdown(expiresAtString, validForMinutes) {
 	expiryTimer = setInterval(updateExpiryCountdown, 1000);
 }
 
+function formatExpiryDate(ts) {
+	try {
+		return new Date(ts).toLocaleString('de-CH', {
+			year: 'numeric',
+			month: '2-digit',
+			day: '2-digit',
+			hour: '2-digit',
+			minute: '2-digit',
+			hour12: false
+		});
+	} catch {
+		return '--';
+	}
+}
+
 function updateExpiryCountdown() {
 	if (!expiryAt) return;
 	
@@ -98,7 +117,21 @@ function updateExpiryCountdown() {
 	
 	const mins = Math.floor(remaining / 60_000);
 	const secs = Math.floor((remaining % 60_000) / 1_000);
-	expiryMeta.textContent = 'Gültig für ' + String(mins).padStart(2, '0') + ':' + String(secs).padStart(2, '0');
+	if (!expiryMeta) {
+		return;
+	}
+	expiryMeta.textContent = 'Gültig bis ' + formatExpiryDate(expiryAt) + ' (' + String(mins).padStart(2, '0') + ':' + String(secs).padStart(2, '0') + ')';
+}
+
+function clearExpiry() {
+	if (expiryTimer) {
+		clearInterval(expiryTimer);
+		expiryTimer = null;
+	}
+	expiryAt = null;
+	if (expiryMeta) {
+		expiryMeta.textContent = 'Gültig bis --';
+	}
 }
 
 // Diagnostics state tracking
@@ -115,7 +148,7 @@ function setDiagnosticsPending() {
 	gatewayDot.className = 'w-2 h-2 rounded-full bg-warning';
 	gatewayStatusText.textContent = 'Gateway...';
 	gatewayMeta.textContent = 'Warte...';
-	expiryMeta.textContent = 'Gültig für --:--';
+	clearExpiry();
 }
 
 function updateDiagnostics({ ok, latencyMs, at }) {

@@ -127,7 +127,7 @@ function renderQr(data) {
 	const svg = data.qr_code_svg || data.qrcode_svg || data.qr_svg || data.twint_qr_code_svg;
 	const png = data.qr_code_png_base64 || data.qrcode_png_base64 || data.twint_qr_code_png_base64;
 	const url = data.qr_code_url || data.qrcode_url || data.payment_qr_url || data.url;
-	const qrData = data.qr || data.qrcode || data.qr_data;
+	const qrData = data.qr || data.qrcode || data.qr_data || data.qr_code;
 
 	const applyImageSizing = (img) => {
 		img.className = 'mx-auto block h-auto max-w-full';

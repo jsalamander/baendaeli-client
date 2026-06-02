@@ -197,11 +197,27 @@ func (s *Server) handleGetPaymentStatus(w http.ResponseWriter, r *http.Request) 
 }
 
 func (s *Server) handleActuate(w http.ResponseWriter, r *http.Request) {
-	// Acquire device client's actuator lock to prevent concurrent execution
-	// with device API commands
 	if s.deviceClient != nil {
-		s.deviceClient.LockActuator()
-		defer s.deviceClient.UnlockActuator()
+		totalMs, err := s.deviceClient.DispenseAndWaitForBall()
+		w.Header().Set("Content-Type", "application/json")
+
+		if err != nil {
+			log.Printf("actuator error: %v", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"status":        "error",
+				"error":         "Solibändeli konnte nicht ausgegeben werden",
+				"total_time_ms": totalMs,
+			})
+			return
+		}
+
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"status":        "ok",
+			"total_time_ms": totalMs,
+		})
+		return
 	}
 
 	totalMs, err := actuator.Trigger()
@@ -231,14 +247,16 @@ func (s *Server) handleDeviceStatus(w http.ResponseWriter, r *http.Request) {
 	if s.deviceClient == nil {
 		w.WriteHeader(http.StatusOK)
 		json.NewEncoder(w).Encode(map[string]interface{}{
+			"state":            "idle",
+			"message":          "Device client not attached",
+			"payment_id":       "",
+			"jammed":           false,
 			"executing_command": nil,
 		})
 		return
 	}
 
-	cmd := s.deviceClient.GetExecutingCommand()
+	snapshot := s.deviceClient.GetStateSnapshot()
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]interface{}{
-		"executing_command": cmd,
-	})
+	json.NewEncoder(w).Encode(snapshot)
 }

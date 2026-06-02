@@ -1,343 +1,184 @@
 // DOM Elements
 const statusEl = document.getElementById('status');
 const qrEl = document.getElementById('qr');
-const errorEl = document.getElementById('error');
-const errorContainer = document.getElementById('errorContainer');
-const retryBtn = document.getElementById('retry');
-const successBanner = document.getElementById('successBanner');
+const paymentTitleEl = document.getElementById('paymentTitle');
+const paymentDescriptionEl = document.getElementById('paymentDescription');
 const deviceCommandOverlay = document.getElementById('deviceCommandOverlay');
 const deviceCommandMessage = document.getElementById('deviceCommandMessage');
-const internetDot = document.getElementById('internetDot');
-const internetStatusText = document.getElementById('internetStatusText');
-const gatewayDot = document.getElementById('gatewayDot');
-const gatewayStatusText = document.getElementById('gatewayStatusText');
-const gatewayMeta = document.getElementById('gatewayMeta');
-const expiryMeta = document.getElementById('expiryMeta');
 
-// Configuration (provided by Go template)
+// Keep template config constants for compatibility/tests.
 const defaultAmount = {{ .DefaultAmount }};
 const successOverlayMs = {{ .SuccessOverlayMs }};
 
-// State
-let pollTimer = null;
-let currentPaymentId = null;
-let expiryAt = null;
-let expiryTimer = null;
 let deviceStatusTimer = null;
-let lastCommandDisplayed = null;
-let lastCommandDisplayedAt = null;
-let cancelInProgress = false;
 
-// Event Listeners
-retryBtn.addEventListener('click', () => {
-	retryBtn.classList.add('hidden');
-	errorEl.textContent = '';
-	errorContainer.classList.add('hidden');
-	qrEl.innerHTML = getLoadingSpinner();
-	clearPoll();
-	clearExpiry();
-	start();
-});
-
-// Initialization
-document.addEventListener('DOMContentLoaded', () => {
-	setDiagnosticsPending();
-	startInternetCheck();
-	startDeviceStatusCheck();
-	startWhenDeviceReady();
-});
-
-function sleep(ms) {
-	return new Promise(resolve => setTimeout(resolve, ms));
-}
-
-async function startWhenDeviceReady() {
-	const maxStartupWaitMs = 120000;
-	const pollMs = 500;
-	const deadline = Date.now() + maxStartupWaitMs;
-	renderQrPlaceholder(
-		'Gerat wird vorbereitet',
-		'Bitte warten, bis die Ballausgabe bereit ist.'
-	);
-
-	while (Date.now() < deadline) {
-		try {
-			const res = await fetch('/api/device/status');
-			const data = await res.json();
-			const cmd = data.executing_command;
-
-			if (cmd && cmd.command) {
-				updateStatus('Gerät wird vorbereitet...', 'badge-warning');
-				renderQrPlaceholder(
-					'Gerat wird vorbereitet',
-					'Warte auf Ballfreigabe und Geratestatus.'
-				);
-				await sleep(pollMs);
-				continue;
-			}
-
-			start();
-			return;
-		} catch (err) {
-			console.error('Failed to verify startup device readiness:', err);
-			await sleep(pollMs);
-		}
+const stateUi = {
+	starting: {
+		status: 'Gerät startet...',
+		badge: 'badge-primary',
+		title: 'Gerät startet',
+		description: 'Die Ausgabe wird vorbereitet. Bitte kurz warten.',
+		placeholderTitle: 'Systemstart läuft',
+		placeholderSubtitle: 'Bitte einen Moment Geduld.'
+	},
+	startup_cycle: {
+		status: 'Initialzyklus läuft...',
+		badge: 'badge-primary',
+		title: 'Initialzyklus',
+		description: 'Der erste Ausgabedurchlauf wird ausgeführt.',
+		placeholderTitle: 'Initialzyklus läuft',
+		placeholderSubtitle: 'Danach startet die automatische Erkennung.'
+	},
+	detecting_ball: {
+		status: 'Warte auf Ball',
+		badge: 'badge-info',
+		title: 'Spende für ein Solibändeli',
+		description: 'Bitte warten. Das System bereitet die Ausgabe vor und erstellt danach automatisch die Zahlung.',
+		placeholderTitle: 'Bereit für nächsten Ball',
+		placeholderSubtitle: 'Sobald ein Ball erkannt wird, startet die Zahlung automatisch.'
+	},
+	ball_detected: {
+		status: 'Ball erkannt',
+		badge: 'badge-warning',
+		title: 'QR scannen und Betrag wählen',
+		description: 'Bitte scanne den QR-Code und wähle danach den Betrag auf dem Gerät.',
+		placeholderTitle: 'Zahlung wird vorbereitet',
+		placeholderSubtitle: 'QR-Code wird geladen...'
+	},
+	awaiting_payment: {
+		status: 'Warten auf Zahlung',
+		badge: 'badge-warning',
+		title: 'Zahlung offen',
+		description: 'Bitte zahle jetzt, damit die Ausgabe gestartet wird.',
+		placeholderTitle: 'Warten auf Zahlung',
+		placeholderSubtitle: 'Nach erfolgreicher Zahlung wird automatisch ausgegeben.'
+	},
+	dispensing: {
+		status: 'Ausgabe läuft',
+		badge: 'badge-success',
+		title: 'Ausgabe läuft',
+		description: 'Dein Solibändeli wird ausgegeben.',
+		placeholderTitle: 'Ausgabe läuft',
+		placeholderSubtitle: 'Bitte kurz warten.'
+	},
+	payment_failed: {
+		status: 'Zahlung fehlgeschlagen',
+		badge: 'badge-error',
+		title: 'Zahlung fehlgeschlagen',
+		description: 'Der Vorgang wurde zurückgesetzt.',
+		placeholderTitle: 'Vorgang zurückgesetzt',
+		placeholderSubtitle: 'Bitte erneut versuchen.'
+	},
+	jam: {
+		status: 'Stau erkannt',
+		badge: 'badge-error',
+		title: 'Technik-Hinweis',
+		description: 'Bitte Techniker*in informieren.',
+		placeholderTitle: 'Stau detektiert',
+		placeholderSubtitle: 'Bitte rufe eine Techniker*in.'
+	},
+	error: {
+		status: 'Fehlerzustand',
+		badge: 'badge-error',
+		title: 'Fehlerzustand',
+		description: 'Das System meldet einen Fehler.',
+		placeholderTitle: 'Fehlerzustand',
+		placeholderSubtitle: 'Bitte Techniker*in informieren.'
 	}
+};
 
-	console.warn('Startup device readiness wait timed out, creating payment anyway');
-	start();
+function mapStateUi(state) {
+	return stateUi[state] || {
+		status: 'Status unbekannt',
+		badge: 'badge-warning',
+		title: 'Status unbekannt',
+		description: 'Der aktuelle Zustand konnte nicht zugeordnet werden.',
+		placeholderTitle: 'Status unbekannt',
+		placeholderSubtitle: 'Bitte kurz warten.'
+	};
 }
 
-function getLoadingSpinner() {
-	return '<div class="text-center"><svg class="inline-block w-8 h-8 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg><p class="mt-2 text-sm">Warten auf QR Code...</p></div>';
+function updateStatus(text, badgeClass = 'badge-info') {
+	statusEl.innerHTML = '<span class="status status-sm status-success"></span><span>' + text + '</span>';
+	statusEl.className = 'badge badge-dash badge-outline text-base px-4 py-3 ' + badgeClass;
 }
 
-function clearPoll() {
-	if (pollTimer) {
-		clearTimeout(pollTimer);
-		pollTimer = null;
+function setCommandOverlay(executingCommand, fallbackMessage) {
+	if (executingCommand && executingCommand.command) {
+		deviceCommandMessage.textContent = executingCommand.message || fallbackMessage || 'Aktion läuft';
+		deviceCommandOverlay.classList.remove('hidden');
+		return;
 	}
+	deviceCommandOverlay.classList.add('hidden');
 }
 
-function clearExpiry() {
-	if (expiryTimer) {
-		clearInterval(expiryTimer);
-		expiryTimer = null;
-	}
-	expiryAt = null;
-	expiryMeta.textContent = 'Gültig für --:--';
-}
-
-async function start() {
-	updateStatus('Zahlungsformular wird erstellt...', 'badge-primary');
-	errorEl.textContent = '';
-	errorContainer.classList.add('hidden');
-	successBanner.classList.add('hidden');
-	qrEl.classList.remove('hidden');
-	clearPoll();
-	clearExpiry();
-	setDiagnosticsPending();
-	
-	try {
-		const data = await createPayment();
-		
-		updateStatus('Zahlung wird erstellt...', 'badge-primary');
-		if (data.id) {
-			currentPaymentId = data.id;
-			pollStatus(data.id);
-		}
-		startExpiryCountdown(data.expires_at, data.valid_for_minutes);
-		renderQr(data);
-	} catch (err) {
-		console.error('Payment creation failed', err);
-		updateStatus('Etwas ist schiefgelaufen.', 'badge-error');
-		renderQrPlaceholder(
-			'QR-Code derzeit nicht verfugbar',
-			'Wir versuchen es automatisch gleich erneut.'
-		);
-		
-		// Show error popup with server error details
-		if (err.serverError) {
-			showErrorPopup(err.serverError);
-		} else {
-			showError('Die Zahlung konnte nicht gestartet werden. Bitte versuche es erneut.');
-		}
-		
-		// Auto-retry after 3 seconds
-		setTimeout(() => {
-			start();
-		}, 3000);
-	}
-}
-
-async function pollStatus(id) {
-	if (!id) return;
-	clearPoll();
-	const attemptStarted = performance.now();
-	let diagUpdated = false;
-	try {
-		const timestamp = Date.now();
-		const data = await getPaymentStatus(id, null, timestamp);
-		const latencyMs = Math.round(performance.now() - attemptStarted);
-
-		if (!data) {
-			return;
-		}
-
-		updateDiagnostics({ ok: true, latencyMs, at: timestamp });
-		diagUpdated = true;
-		errorEl.textContent = '';
-		errorContainer.classList.add('hidden');
-
-		const status = (data.status || '').toLowerCase();
-		switch (status) {
-			case 'waiting':
-			updateStatus('Warten auf Zahlung...', 'badge-warning');
-				pollTimer = setTimeout(() => pollStatus(id), 2000);
-				break;
-			case 'success':
-				updateStatus('Zahlung erfolgreich', 'badge-success');
-				showSuccessThenRestart();
-				break;
-			case 'failure':
-				updateStatus('Zahlung fehlgeschlagen', 'badge-error');
-				setTimeout(() => start(), 1200);
-				break;
-			default:
-				updateStatus('Unbekannter Status', 'badge-warning');
-				pollTimer = setTimeout(() => pollStatus(id), 3000);
-		}
-	} catch (err) {
-		console.error('Status check failed', err);
-		if (!diagUpdated) {
-			updateDiagnostics({ ok: false, latencyMs: null, at: Date.now() });
-		}
-		showError('Der Zahlungsstatus konnte nicht geprüft werden. Wir versuchen es gleich erneut.');
-		updateStatus('Status wird überprüft...', 'badge-warning');
-		pollTimer = setTimeout(() => pollStatus(id), 3000);
-	}
-}
-
-async function showSuccessThenRestart() {
-	successBanner.classList.remove('hidden');
-	qrEl.classList.add('hidden');
-	clearPoll();
-	clearExpiry();
-	
-	let actuatorTimeMs = successOverlayMs;
-	
-	try {
-		const res = await fetch('/api/actuate', { method: 'POST' });
-		const data = await safeParseJson(res);
-		
-		if (res.ok && data.total_time_ms) {
-			actuatorTimeMs = Math.max(successOverlayMs, data.total_time_ms);
-			console.log('Actuator completed in', data.total_time_ms, 'ms');
-		} else if (!res.ok) {
-			console.error('Actuator error:', data.error);
-			showError(data.error || 'Solibändeli konnte nicht ausgegeben werden. Bitte kontaktiere den Betreiber.');
-			actuatorTimeMs = 4000;
-		}
-	} catch (err) {
-		console.error('Actuator request failed:', err);
-		showError('Fehler beim Ausgeben des Solibändeli. Bitte versuche es erneut.');
-		actuatorTimeMs = 4000;
-	}
-	
-	setTimeout(() => {
-		successBanner.classList.add('hidden');
-		errorEl.textContent = '';
-		errorContainer.classList.add('hidden');
-		start();
-	}, actuatorTimeMs);
-}
-
-function startDeviceStatusCheck() {
-	checkDeviceStatus();
-}
-
-function handleCancelCommand() {
-	if (cancelInProgress) {
+function renderPaymentExpiry(payment) {
+	if (!payment) {
+		clearExpiry();
 		return;
 	}
 
-	cancelInProgress = true;
-	console.log('[Device Command]', 'Cancel current payment');
-	showCancelBanner('Zahlung wurde vom Operator storniert.');
-	updateStatus('Zahlung abgebrochen', 'badge-warning');
-	clearPoll();
-	clearExpiry();
-	currentPaymentId = null;
-	errorEl.textContent = '';
-	errorContainer.classList.add('hidden');
-	qrEl.innerHTML = getLoadingSpinner();
+	const expiresAt = payment.expires_at || payment.expiresAt || payment.expiration_at || payment.expirationAt || null;
+	const validForMinutes = Number(payment.valid_for_minutes || payment.validForMinutes || 0);
+	if (expiresAt || validForMinutes > 0) {
+		startExpiryCountdown(expiresAt, validForMinutes);
+		return;
+	}
 
-	setTimeout(() => {
-		cancelInProgress = false;
-		start();
-	}, 300);
+	clearExpiry();
+}
+
+function renderDeviceState(data) {
+	const state = (data.state || '').toLowerCase();
+	const ui = mapStateUi(state);
+	const message = data.message || ui.status;
+
+	updateStatus(message, ui.badge);
+	paymentTitleEl.textContent = ui.title;
+	paymentDescriptionEl.textContent = ui.description;
+	renderPaymentExpiry(data.payment);
+
+	if (data.payment && state === 'ball_detected') {
+		renderQr(data.payment);
+	} else {
+		renderQrPlaceholder(ui.placeholderTitle, ui.placeholderSubtitle);
+	}
+	setCommandOverlay(data.executing_command, message);
 }
 
 function checkDeviceStatus() {
-	fetch('/api/device/status')
-		.then(res => res.json())
-		.then(data => {
-			const cmd = data.executing_command;
-			const now = Date.now();
-			const elapsedSinceDisplay = lastCommandDisplayedAt ? now - lastCommandDisplayedAt : Infinity;
-			let handledCancel = false;
+	const startedAt = performance.now();
+	const timestamp = Date.now();
 
-			if (cmd && cmd.command === 'cancel') {
-				handleCancelCommand();
-				handledCancel = true;
-				lastCommandDisplayed = null;
-				lastCommandDisplayedAt = null;
-				deviceCommandOverlay.classList.add('hidden');
+	fetch('/api/device/status')
+		.then(async (res) => {
+			const data = await res.json();
+			if (!res.ok) {
+				throw new Error('Device status unavailable');
 			}
-			
-			// Show command if it's executing or if we haven't reached 1 second yet
-			if (!handledCancel && cmd && cmd.command) {
-				// Special handling for message command
-				if (cmd.command === 'message') {
-					console.log('[Device Command]', 'Message:', cmd.message);
-					deviceCommandMessage.textContent = cmd.message || 'Nachricht';
-					deviceCommandOverlay.classList.remove('hidden');
-					lastCommandDisplayed = cmd.command;
-					lastCommandDisplayedAt = now;
-				} else if (cmd.command === 'load_test') {
-					const progress = cmd.message ? ` (${cmd.message})` : '';
-					const displayName = `Load-Test läuft...${progress}`;
-					console.log('[Device Command]', 'Load test:', cmd.message || 'progress unknown');
-					deviceCommandMessage.textContent = displayName;
-					deviceCommandOverlay.classList.remove('hidden');
-					lastCommandDisplayed = cmd.command;
-					lastCommandDisplayedAt = now;
-				} else {
-					const commandNames = {
-						'extend': 'Aktuator wird ausgefahren...',
-						'retract': 'Aktuator wird eingezogen...',
-						'home': 'Aktuator wird zurückgestellt...',
-						'ball_dispenser': 'Ball wird ausgegeben...'
-					};
-					const displayName = commandNames[cmd.command] || `Befehl wird ausgeführt: ${cmd.command}`;
-					console.log('[Device Command]', 'Starting:', cmd.command);
-					deviceCommandMessage.textContent = displayName;
-					deviceCommandOverlay.classList.remove('hidden');
-					lastCommandDisplayed = cmd.command;
-					lastCommandDisplayedAt = now;
-				}
-			} else if (lastCommandDisplayed && elapsedSinceDisplay < 1000) {
-				// Keep showing the command until 1 second has passed
-				if (lastCommandDisplayed === 'message') {
-					// Message already displayed, just keep the overlay visible
-					console.log('[Device Command]', 'Keeping message display', `(${1000 - elapsedSinceDisplay}ms remaining)`);
-					deviceCommandOverlay.classList.remove('hidden');
-				} else {
-					const commandNames = {
-						'extend': 'Aktuator wird ausgefahren...',
-						'retract': 'Aktuator wird eingezogen...',
-						'home': 'Aktuator wird zurückgestellt...'
-					};
-					const displayName = commandNames[lastCommandDisplayed] || `Befehl wird ausgeführt: ${lastCommandDisplayed}`;
-					console.log('[Device Command]', 'Keeping display for', lastCommandDisplayed, `(${1000 - elapsedSinceDisplay}ms remaining)`);
-					deviceCommandMessage.textContent = displayName;
-					deviceCommandOverlay.classList.remove('hidden');
-				}
-			} else {
-				// Command finished and 1 second has passed, clear it
-				if (lastCommandDisplayed) {
-					console.log('[Device Command]', 'Completed:', lastCommandDisplayed);
-				}
-				lastCommandDisplayed = null;
-				lastCommandDisplayedAt = null;
-				deviceCommandOverlay.classList.add('hidden');
-			}
-			// Schedule next check
-			deviceStatusTimer = setTimeout(checkDeviceStatus, 500);
+
+			const latencyMs = Math.round(performance.now() - startedAt);
+			updateDiagnostics({ ok: true, latencyMs, at: timestamp });
+			renderDeviceState(data);
 		})
-		.catch(err => {
+		.catch((err) => {
 			console.error('Failed to check device status:', err);
-			// Continue checking even if this fails
+			updateDiagnostics({ ok: false, latencyMs: null, at: Date.now() });
+			updateStatus('Gerätestatus nicht verfügbar', 'badge-error');
+			renderQrPlaceholder('Verbindung fehlt', 'Statusdaten konnten nicht geladen werden.');
+			deviceCommandOverlay.classList.add('hidden');
+		})
+		.finally(() => {
 			deviceStatusTimer = setTimeout(checkDeviceStatus, 1000);
 		});
 }
+
+function start() {
+	setDiagnosticsPending();
+	startInternetCheck();
+	checkDeviceStatus();
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+	start();
+});

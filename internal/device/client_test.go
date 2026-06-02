@@ -1102,3 +1102,193 @@ func TestPollJammedRecoversAndFetchesCommand(t *testing.T) {
 		t.Fatal("expected jam flag to be cleared after passive detection")
 	}
 }
+
+func TestGetStateSnapshotIncludesRuntimeFields(t *testing.T) {
+	client := New(&config.Config{})
+	client.SetPaymentID("payment-42")
+	client.jammed.Store(true)
+	client.setRuntimeState(StateAwaitingPayment, "Warten auf Zahlung")
+	client.setExecutingCommand(&CommandResponse{Command: "message", Message: "Waiting"})
+
+	snapshot := client.GetStateSnapshot()
+
+	if snapshot.State != string(StateAwaitingPayment) {
+		t.Fatalf("expected state %q, got %q", StateAwaitingPayment, snapshot.State)
+	}
+	if snapshot.Message != "Warten auf Zahlung" {
+		t.Fatalf("expected message to be preserved, got %q", snapshot.Message)
+	}
+	if snapshot.PaymentID != "payment-42" {
+		t.Fatalf("expected payment_id payment-42, got %q", snapshot.PaymentID)
+	}
+	if !snapshot.Jammed {
+		t.Fatal("expected jammed=true")
+	}
+	if snapshot.ExecutingCommand == nil || snapshot.ExecutingCommand.Command != "message" {
+		t.Fatalf("expected executing command message, got %+v", snapshot.ExecutingCommand)
+	}
+}
+
+func TestRunStateMachineCycleCreatesPaymentAndMovesToAwaiting(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost && strings.Contains(r.URL.Path, "/api/v1/payment") {
+			w.WriteHeader(http.StatusCreated)
+			w.Write([]byte(`{"id":"pay-100","qr_code_url":"https://example.com/qr/pay-100"}`))
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer server.Close()
+
+	client := New(&config.Config{BaendaeliURL: server.URL, BaendaeliAPIKey: "test-key"})
+
+	handled := client.runStateMachineCycle()
+	if !handled {
+		t.Fatal("expected state machine cycle to handle payment creation path")
+	}
+	if got := client.GetPaymentID(); got != "pay-100" {
+		t.Fatalf("expected payment id pay-100, got %q", got)
+	}
+
+	snapshot := client.GetStateSnapshot()
+	if snapshot.State != string(StateBallDetected) {
+		t.Fatalf("expected state ball_detected after payment creation, got %q", snapshot.State)
+	}
+	if snapshot.Payment == nil {
+		t.Fatal("expected payment payload in snapshot")
+	}
+	if snapshot.Payment["qr_code_url"] != "https://example.com/qr/pay-100" {
+		t.Fatalf("expected QR payload to be retained, got %+v", snapshot.Payment)
+	}
+}
+
+func TestRunStateMachineCycleWaitingForAmountStaysBallDetected(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet && strings.Contains(r.URL.Path, "/api/v1/payment/") {
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`{"status":"waiting","payment_phase":"waiting_for_amount","amount_cents":null}`))
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer server.Close()
+
+	client := New(&config.Config{BaendaeliURL: server.URL, BaendaeliAPIKey: "test-key"})
+	client.setCurrentPayment("pay-200", map[string]any{"id": "pay-200", "qr_code_url": "https://example.com/qr/pay-200"})
+
+	handled := client.runStateMachineCycle()
+	if !handled {
+		t.Fatal("expected waiting payment cycle to be handled")
+	}
+
+	snapshot := client.GetStateSnapshot()
+	if snapshot.State != string(StateBallDetected) {
+		t.Fatalf("expected state ball_detected while waiting for amount, got %q", snapshot.State)
+	}
+	if snapshot.ExecutingCommand != nil {
+		t.Fatalf("expected no waiting message command while QR should remain visible, got %+v", snapshot.ExecutingCommand)
+	}
+	if snapshot.Payment == nil || snapshot.Payment["qr_code_url"] != "https://example.com/qr/pay-200" {
+		t.Fatalf("expected payment QR payload to be retained, got %+v", snapshot.Payment)
+	}
+}
+
+func TestRunStateMachineCycleWaitingForPaymentMovesToAwaitingPayment(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet && strings.Contains(r.URL.Path, "/api/v1/payment/") {
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`{"status":"waiting","payment_phase":"waiting_for_payment","amount_cents":2000}`))
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer server.Close()
+
+	client := New(&config.Config{BaendaeliURL: server.URL, BaendaeliAPIKey: "test-key"})
+	client.setCurrentPayment("pay-201", map[string]any{"id": "pay-201", "qr_code_url": "https://example.com/qr/pay-201"})
+
+	handled := client.runStateMachineCycle()
+	if !handled {
+		t.Fatal("expected waiting-for-payment cycle to be handled")
+	}
+
+	snapshot := client.GetStateSnapshot()
+	if snapshot.State != string(StateAwaitingPayment) {
+		t.Fatalf("expected state awaiting_payment after amount selection, got %q", snapshot.State)
+	}
+	if snapshot.ExecutingCommand == nil || snapshot.ExecutingCommand.Message != "Warten auf Zahlung" {
+		t.Fatalf("expected waiting message command, got %+v", snapshot.ExecutingCommand)
+	}
+	if snapshot.Payment == nil || snapshot.Payment["qr_code_url"] != "https://example.com/qr/pay-201" {
+		t.Fatalf("expected payment QR payload to be retained, got %+v", snapshot.Payment)
+	}
+}
+
+func TestRunStateMachineCyclePaymentFailureClearsPayment(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet && strings.Contains(r.URL.Path, "/api/v1/payment/") {
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`{"status":"failed"}`))
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer server.Close()
+
+	client := New(&config.Config{BaendaeliURL: server.URL, BaendaeliAPIKey: "test-key"})
+	client.SetPaymentID("pay-300")
+
+	handled := client.runStateMachineCycle()
+	if !handled {
+		t.Fatal("expected failed payment cycle to be handled")
+	}
+	if got := client.GetPaymentID(); got != "" {
+		t.Fatalf("expected payment id to be cleared after failed payment, got %q", got)
+	}
+
+	snapshot := client.GetStateSnapshot()
+	if snapshot.State != string(StateDetectingBall) {
+		t.Fatalf("expected state detecting_ball after reset, got %q", snapshot.State)
+	}
+}
+
+func TestRunStateMachineCyclePaymentSuccessDispensesAndResets(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet && strings.Contains(r.URL.Path, "/api/v1/payment/") {
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`{"status":"success"}`))
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer server.Close()
+
+	client := New(&config.Config{BaendaeliURL: server.URL, BaendaeliAPIKey: "test-key"})
+	client.SetPaymentID("pay-400")
+
+	handled := client.runStateMachineCycle()
+	if !handled {
+		t.Fatal("expected paid payment cycle to be handled")
+	}
+	if got := client.GetPaymentID(); got != "" {
+		t.Fatalf("expected payment id to be cleared after dispense, got %q", got)
+	}
+
+	snapshot := client.GetStateSnapshot()
+	if snapshot.State != string(StateDetectingBall) {
+		t.Fatalf("expected state detecting_ball after successful dispense, got %q", snapshot.State)
+	}
+}
+
+func TestStartSetsDetectingState(t *testing.T) {
+	client := New(&config.Config{})
+	client.Start()
+	defer client.Stop()
+
+	time.Sleep(20 * time.Millisecond)
+
+	snapshot := client.GetStateSnapshot()
+	if snapshot.State != string(StateDetectingBall) {
+		t.Fatalf("expected start state detecting_ball, got %q", snapshot.State)
+	}
+}

@@ -60,6 +60,44 @@ type pendingDispense struct {
 	count     int
 }
 
+type paymentCreateRequest struct {
+	Currency           string `json:"currency"`
+	PaymentRedirectURL string `json:"payment_redirect_url"`
+}
+
+type paymentCreateResponse struct {
+	ID string `json:"id"`
+}
+
+type paymentStatusResponse struct {
+	Status string `json:"status"`
+}
+
+type RuntimeState string
+
+const (
+	StateStarting         RuntimeState = "starting"
+	StateStartupCycle     RuntimeState = "startup_cycle"
+	StateDetectingBall    RuntimeState = "detecting_ball"
+	StateBallDetected     RuntimeState = "ball_detected"
+	StateAwaitingPayment  RuntimeState = "awaiting_payment"
+	StateDispensing       RuntimeState = "dispensing"
+	StatePaymentFailed    RuntimeState = "payment_failed"
+	StateJam              RuntimeState = "jam"
+	StateIdle             RuntimeState = "idle"
+	StateCommandExecuting RuntimeState = "command_executing"
+	StateError            RuntimeState = "error"
+)
+
+type StateSnapshot struct {
+	State            string           `json:"state"`
+	Message          string           `json:"message,omitempty"`
+	PaymentID        string           `json:"payment_id,omitempty"`
+	Payment          map[string]any   `json:"payment,omitempty"`
+	Jammed           bool             `json:"jammed"`
+	ExecutingCommand *CommandResponse `json:"executing_command,omitempty"`
+}
+
 // Client polls the device API and executes commands
 type Client struct {
 	config           *config.Config
@@ -70,6 +108,7 @@ type Client struct {
 	pollInterval     time.Duration
 	paymentIDMutex   sync.Mutex
 	currentPaymentID string
+	currentPayment   map[string]any
 	running          atomic.Bool
 	colorSensor      *colorsensor.Sensor
 	jammed           atomic.Bool
@@ -77,6 +116,8 @@ type Client struct {
 	// Command execution status
 	statusMutex      sync.Mutex
 	executingCommand *CommandResponse
+	state            RuntimeState
+	stateMessage     string
 	lastCommandError string // Error from last command execution
 	dispenseMutex    sync.Mutex
 	pendingDispense  *pendingDispense
@@ -95,6 +136,7 @@ func New(cfg *config.Config) *Client {
 		cancel:       cancel,
 		pollInterval: 7 * time.Second,
 		colorSensor:  colorsensor.New(cfg),
+		state:        StateStarting,
 	}
 }
 
@@ -103,6 +145,9 @@ func (c *Client) SetPaymentID(paymentID string) {
 	c.paymentIDMutex.Lock()
 	defer c.paymentIDMutex.Unlock()
 	c.currentPaymentID = paymentID
+	if paymentID == "" {
+		c.currentPayment = nil
+	}
 	c.dropStalePendingDispense(paymentID)
 }
 
@@ -113,6 +158,27 @@ func (c *Client) GetPaymentID() string {
 	return c.currentPaymentID
 }
 
+func (c *Client) setCurrentPayment(paymentID string, payment map[string]any) {
+	c.paymentIDMutex.Lock()
+	defer c.paymentIDMutex.Unlock()
+	c.currentPaymentID = paymentID
+	merged := cloneMap(c.currentPayment)
+	if merged == nil {
+		merged = make(map[string]any)
+	}
+	for key, value := range payment {
+		merged[key] = value
+	}
+	c.currentPayment = merged
+	c.dropStalePendingDispense(paymentID)
+}
+
+func (c *Client) getCurrentPayment() map[string]any {
+	c.paymentIDMutex.Lock()
+	defer c.paymentIDMutex.Unlock()
+	return cloneMap(c.currentPayment)
+}
+
 // GetExecutingCommand returns the currently executing command, if any
 func (c *Client) GetExecutingCommand() *CommandResponse {
 	c.statusMutex.Lock()
@@ -120,11 +186,39 @@ func (c *Client) GetExecutingCommand() *CommandResponse {
 	return c.executingCommand
 }
 
+func (c *Client) GetStateSnapshot() StateSnapshot {
+	c.statusMutex.Lock()
+	state := c.state
+	message := c.stateMessage
+	var cmdCopy *CommandResponse
+	if c.executingCommand != nil {
+		copyValue := *c.executingCommand
+		cmdCopy = &copyValue
+	}
+	c.statusMutex.Unlock()
+
+	return StateSnapshot{
+		State:            string(state),
+		Message:          message,
+		PaymentID:        c.GetPaymentID(),
+		Payment:          c.getCurrentPayment(),
+		Jammed:           c.jammed.Load(),
+		ExecutingCommand: cmdCopy,
+	}
+}
+
 // setExecutingCommand sets the currently executing command
 func (c *Client) setExecutingCommand(cmd *CommandResponse) {
 	c.statusMutex.Lock()
 	defer c.statusMutex.Unlock()
 	c.executingCommand = cmd
+}
+
+func (c *Client) setRuntimeState(state RuntimeState, message string) {
+	c.statusMutex.Lock()
+	defer c.statusMutex.Unlock()
+	c.state = state
+	c.stateMessage = message
 }
 
 func (c *Client) updateExecutingCommandMessage(message string) {
@@ -163,6 +257,7 @@ func (c *Client) Start() {
 
 	if c.config.ActuatorEnabled {
 		log.Println("Device client: homing actuator before startup ball check")
+		c.setRuntimeState(StateStarting, "Homing actuator")
 		actuator.Home()
 	}
 
@@ -170,11 +265,14 @@ func (c *Client) Start() {
 		log.Printf("Device client: colour sensor init failed: %v", err)
 	}
 
-	// Check that a ball is ready before entering the poll loop.
-	if err := c.waitForBallReady(true, true); err != nil {
-		// waitForBallReady already set the on-screen message; just log the error.
-		log.Printf("Device client: startup ball-ready check failed: %v", err)
+	if c.config.ActuatorEnabled {
+		if err := c.runStartupExtractorCycle(); err != nil {
+			c.setRuntimeState(StateError, "Startup cycle failed")
+			log.Printf("Device client: startup extractor cycle failed: %v", err)
+		}
 	}
+
+	c.setRuntimeState(StateDetectingBall, "Warte auf Ball")
 
 	c.wg.Add(1)
 	go c.pollLoop()
@@ -222,14 +320,21 @@ func (c *Client) poll() {
 	// If a jam was detected, keep showing the message and skip command execution.
 	if c.jammed.Load() {
 		if err := c.waitForBallReady(false, false); err != nil {
+			c.setRuntimeState(StateJam, "Stau detektiert")
 			return
 		}
 		// Jam cleared, continue normal polling and command handling.
+		c.setRuntimeState(StateDetectingBall, "Stau behoben")
 		log.Printf("Device client: jam cleared by passive ball detection")
 	}
 
 	// If a jam is still active after passive scan attempt, skip command execution.
 	if c.jammed.Load() {
+		c.setRuntimeState(StateJam, "Stau detektiert")
+		return
+	}
+
+	if c.runStateMachineCycle() {
 		return
 	}
 
@@ -242,8 +347,10 @@ func (c *Client) poll() {
 
 	// 3. If command is not null, execute it
 	if cmd != nil && cmd.Command != "" {
+		c.setRuntimeState(StateCommandExecuting, "Operator-Befehl wird ausgefuhrt")
 		imageData, execErr := c.executeCommand(cmd)
 		if execErr != nil {
+			c.setRuntimeState(StateError, execErr.Error())
 			log.Printf("Device client: failed to execute command %d (%s): %v", cmd.ID, cmd.Command, execErr)
 		}
 
@@ -254,7 +361,84 @@ func (c *Client) poll() {
 
 		if !c.jammed.Load() {
 			c.clearExecutingCommand()
+			if c.GetPaymentID() == "" {
+				c.setRuntimeState(StateDetectingBall, "Warte auf Ball")
+			}
 		}
+	}
+}
+
+// runStateMachineCycle returns true when the state-driven flow handled this cycle.
+func (c *Client) runStateMachineCycle() bool {
+	paymentID := c.GetPaymentID()
+	if paymentID == "" {
+		c.setRuntimeState(StateDetectingBall, "Warte auf Ball")
+		if err := c.waitForBallReady(true, true); err != nil {
+			c.setRuntimeState(StateJam, "Stau detektiert")
+			log.Printf("Device client: ball detection failed: %v", err)
+			return true
+		}
+		c.setRuntimeState(StateBallDetected, "Ball erkannt")
+		if _, err := c.createPayment(); err != nil {
+			c.setRuntimeState(StateError, "Payment konnte nicht erstellt werden")
+			log.Printf("Device client: failed to create payment after ball detection: %v", err)
+			return false
+		}
+		c.setRuntimeState(StateBallDetected, "Bitte Betrag waehlen und QR-Code scannen")
+		return true
+	}
+
+	status, payment, err := c.getPaymentStatus(paymentID)
+	if err != nil {
+		c.setRuntimeState(StateError, "Payment-Status nicht verfugbar")
+		log.Printf("Device client: failed to fetch payment status for %s: %v", paymentID, err)
+		return true
+	}
+	c.setCurrentPayment(paymentID, payment)
+
+	switch status {
+	case "waiting", "pending", "open":
+		if paymentPhase(payment) == "waiting_for_payment" {
+			c.setRuntimeState(StateAwaitingPayment, "Warten auf Zahlung")
+			c.setExecutingCommand(&CommandResponse{
+				Command: "message",
+				Message: "Warten auf Zahlung",
+			})
+			return true
+		}
+		c.setRuntimeState(StateBallDetected, "Bitte Betrag waehlen und QR-Code scannen")
+		c.clearExecutingCommand()
+		return true
+	case "success", "paid", "completed":
+		c.setRuntimeState(StateDispensing, "Ausgabe laeuft")
+		c.setExecutingCommand(&CommandResponse{
+			Command: "message",
+			Message: "Zahlung erhalten - Ausgabe läuft",
+		})
+		if _, err := c.DispenseAndWaitForBall(); err != nil {
+			c.setRuntimeState(StateError, "Ausgabe fehlgeschlagen")
+			log.Printf("Device client: dispense failed after successful payment: %v", err)
+			return true
+		}
+		c.SetPaymentID("")
+		c.clearExecutingCommand()
+		c.setRuntimeState(StateDetectingBall, "Warte auf Ball")
+		return true
+	case "failure", "failed", "cancelled", "canceled", "expired", "timeout":
+		c.setRuntimeState(StatePaymentFailed, "Zahlung fehlgeschlagen")
+		c.setExecutingCommand(&CommandResponse{
+			Command: "message",
+			Message: "Zahlung abgebrochen - zurückgesetzt",
+		})
+		c.SetPaymentID("")
+		time.Sleep(500 * time.Millisecond)
+		c.clearExecutingCommand()
+		c.setRuntimeState(StateDetectingBall, "Warte auf Ball")
+		return true
+	default:
+		c.setRuntimeState(StateError, "Unbekannter Payment-Status")
+		log.Printf("Device client: unknown payment status %q for payment %s", status, paymentID)
+		return true
 	}
 }
 
@@ -431,6 +615,109 @@ func (c *Client) getCommand() (*CommandResponse, error) {
 	return &cmdResp, nil
 }
 
+func (c *Client) createPayment() (string, error) {
+	url := c.buildURL("/api/v1/payment")
+	c.setRuntimeState(StateBallDetected, "Erstelle Zahlung")
+
+	req := paymentCreateRequest{
+		Currency:           "CHF",
+		PaymentRedirectURL: "https://example.com/payments/complete",
+	}
+	body, err := json.Marshal(req)
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal payment request: %w", err)
+	}
+
+	httpReq, err := http.NewRequestWithContext(c.ctx, http.MethodPost, url, bytes.NewReader(body))
+	if err != nil {
+		return "", fmt.Errorf("failed to create request: %w", err)
+	}
+
+	c.setAuthHeader(httpReq)
+	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set("Accept", "application/json")
+
+	resp, err := c.httpClient.Do(httpReq)
+	if err != nil {
+		return "", fmt.Errorf("request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusUnauthorized {
+		return "", fmt.Errorf("unauthorized: invalid or missing API key")
+	}
+
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
+		body, _ := io.ReadAll(resp.Body)
+		return "", fmt.Errorf("unexpected status code %d: %s", resp.StatusCode, string(body))
+	}
+
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	var payment map[string]any
+	if err := decodeJSONResponse(respBody, &payment, resp.Header.Get("Content-Type")); err != nil {
+		return "", fmt.Errorf("failed to decode response: %w", err)
+	}
+
+	id, _ := payment["id"].(string)
+	paymentResp := paymentCreateResponse{ID: id}
+
+	if paymentResp.ID == "" {
+		return "", fmt.Errorf("payment API response missing id")
+	}
+
+	c.setCurrentPayment(paymentResp.ID, payment)
+	log.Printf("Device client: created payment %s", paymentResp.ID)
+	return paymentResp.ID, nil
+}
+
+func (c *Client) getPaymentStatus(paymentID string) (string, map[string]any, error) {
+	url := c.buildURL(fmt.Sprintf("/api/v1/payment/%s", paymentID))
+
+	httpReq, err := http.NewRequestWithContext(c.ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	c.setAuthHeader(httpReq)
+	httpReq.Header.Set("Accept", "application/json")
+
+	resp, err := c.httpClient.Do(httpReq)
+	if err != nil {
+		return "", nil, fmt.Errorf("request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusUnauthorized {
+		return "", nil, fmt.Errorf("unauthorized: invalid or missing API key")
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return "", nil, fmt.Errorf("unexpected status code %d: %s", resp.StatusCode, string(body))
+	}
+
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	var payment map[string]any
+	if err := decodeJSONResponse(respBody, &payment, resp.Header.Get("Content-Type")); err != nil {
+		return "", nil, fmt.Errorf("failed to decode response: %w", err)
+	}
+	status, _ := payment["status"].(string)
+
+	if status == "" {
+		return "", nil, fmt.Errorf("payment status response missing status")
+	}
+
+	return strings.ToLower(strings.TrimSpace(status)), payment, nil
+}
+
 // executeCommand executes the command using the actuator.
 // Returns an optional base64-encoded JPEG image (non-empty only for take_picture on success) and an error.
 func (c *Client) executeCommand(cmd *CommandResponse) (string, error) {
@@ -486,21 +773,16 @@ func (c *Client) executeCommand(cmd *CommandResponse) (string, error) {
 		return "", nil
 	case "ball_dispenser":
 		log.Printf("Device client: ball dispenser cycle requested")
-		paymentID := c.GetPaymentID()
-		_, err := actuator.Trigger()
-		if paymentID != "" {
-			log.Printf("Device client: ball dispenser cycle complete for payment %s", paymentID)
-			c.recordDispensedCount(paymentID, 1)
-		} else {
-			log.Printf("Device client: ball dispenser cycle complete (no active payment)")
-		}
+		_, err := c.dispenseAndWaitForBallLocked()
 		if err != nil {
 			log.Printf("Device client: ball dispenser failed: %v", err)
 			return "", err
 		}
-		// After retract, wait for the next ball to be ready before resuming.
-		if ballErr := c.waitForBallReady(true, true); ballErr != nil {
-			return "", ballErr
+		paymentID := c.GetPaymentID()
+		if paymentID != "" {
+			log.Printf("Device client: ball dispenser cycle complete for payment %s", paymentID)
+		} else {
+			log.Printf("Device client: ball dispenser cycle complete (no active payment)")
 		}
 		return "", nil
 	case "load_test":
@@ -661,6 +943,7 @@ func decodeJSONResponse(body []byte, target interface{}, contentType string) err
 // When allowVibration is false, scanning is passive and never triggers vibrator bursts.
 func (c *Client) waitForBallReady(showWaitingMessage bool, allowVibration bool) error {
 	if showWaitingMessage {
+		c.setRuntimeState(StateDetectingBall, "Warte auf Ball")
 		c.setExecutingCommand(&CommandResponse{
 			Command: "message",
 			Message: "Waiting for Ball Release",
@@ -683,6 +966,7 @@ func (c *Client) waitForBallReady(showWaitingMessage bool, allowVibration bool) 
 	if err != nil {
 		log.Printf("Device client: ball not detected — showing jam message")
 		c.jammed.Store(true)
+		c.setRuntimeState(StateJam, "Stau detektiert")
 		c.setExecutingCommand(&CommandResponse{
 			Command: "message",
 			Message: "Stau detektiert. Rufe eine Techniker*in.",
@@ -691,6 +975,7 @@ func (c *Client) waitForBallReady(showWaitingMessage bool, allowVibration bool) 
 	}
 
 	c.jammed.Store(false)
+	c.setRuntimeState(StateBallDetected, "Ball erkannt")
 	c.setExecutingCommand(&CommandResponse{
 		Command: "message",
 		Message: "Ball erkannt",
@@ -698,6 +983,68 @@ func (c *Client) waitForBallReady(showWaitingMessage bool, allowVibration bool) 
 	time.Sleep(700 * time.Millisecond)
 	c.clearExecutingCommand()
 	return nil
+}
+
+func (c *Client) runStartupExtractorCycle() error {
+	c.setRuntimeState(StateStartupCycle, "Initialzyklus laeuft")
+	c.setExecutingCommand(&CommandResponse{
+		Command: "message",
+		Message: "Starte Initialzyklus",
+	})
+
+	if _, err := actuator.Trigger(); err != nil {
+		c.clearExecutingCommand()
+		return err
+	}
+
+	c.clearExecutingCommand()
+	return nil
+}
+
+// DispenseAndWaitForBall runs one dispense cycle and then waits until the next ball is detected.
+func (c *Client) DispenseAndWaitForBall() (int, error) {
+	c.actuatorMutex.Lock()
+	defer c.actuatorMutex.Unlock()
+
+	return c.dispenseAndWaitForBallLocked()
+}
+
+func (c *Client) dispenseAndWaitForBallLocked() (int, error) {
+
+	paymentID := c.GetPaymentID()
+	totalMs, err := actuator.Trigger()
+	if err != nil {
+		return 0, err
+	}
+
+	if paymentID != "" {
+		c.recordDispensedCount(paymentID, 1)
+	}
+
+	if err := c.waitForBallReady(true, true); err != nil {
+		return totalMs, err
+	}
+
+	return totalMs, nil
+}
+
+func cloneMap(input map[string]any) map[string]any {
+	if input == nil {
+		return nil
+	}
+	cloned := make(map[string]any, len(input))
+	for key, value := range input {
+		cloned[key] = value
+	}
+	return cloned
+}
+
+func paymentPhase(payment map[string]any) string {
+	if payment == nil {
+		return ""
+	}
+	phase, _ := payment["payment_phase"].(string)
+	return strings.ToLower(strings.TrimSpace(phase))
 }
 
 type vibratorAdapter struct{}

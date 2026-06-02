@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -110,8 +111,8 @@ func main() {
 
 	// Start HTTP server in a goroutine
 	go func() {
-		addr := ":8000"
-		log.Printf("Starting server on %s", addr)
+		addr := "0.0.0.0:8000"
+		log.Printf("Starting server on %s", buildServerURL(addr))
 		if err := http.ListenAndServe(addr, srv.Router()); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("Server error: %v", err)
 		}
@@ -126,6 +127,47 @@ func main() {
 
 	// Stop device client gracefully
 	deviceClient.Stop()
+}
+
+func buildServerURL(addr string) string {
+	host, port, err := net.SplitHostPort(addr)
+	if err != nil {
+		if strings.HasPrefix(addr, ":") {
+			port = strings.TrimPrefix(addr, ":")
+			host = ""
+		} else {
+			return "http://" + addr
+		}
+	}
+
+	if host == "0.0.0.0" || host == "::" {
+		return fmt.Sprintf("http://%s:%s", host, port)
+	}
+
+	if host == "" {
+		host = resolvePrimaryOutboundIP()
+	}
+
+	if host == "" {
+		host = "localhost"
+	}
+
+	return fmt.Sprintf("http://%s:%s", host, port)
+}
+
+func resolvePrimaryOutboundIP() string {
+	conn, err := net.Dial("udp", "8.8.8.8:80")
+	if err != nil {
+		return ""
+	}
+	defer conn.Close()
+
+	localAddr, ok := conn.LocalAddr().(*net.UDPAddr)
+	if !ok || localAddr.IP == nil {
+		return ""
+	}
+
+	return localAddr.IP.String()
 }
 
 // printUsage displays help information
