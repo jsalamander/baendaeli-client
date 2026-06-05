@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"io"
 	"log"
+	"math"
 	"strings"
 	"testing"
 	"time"
@@ -12,11 +13,13 @@ import (
 )
 
 type stubBuzzer struct {
-	count int
+	count       int
+	intensities []float64
 }
 
-func (b *stubBuzzer) Buzz(_ float64, _ time.Duration) error {
+func (b *stubBuzzer) Buzz(intensity float64, _ time.Duration) error {
 	b.count++
+	b.intensities = append(b.intensities, intensity)
 	return nil
 }
 
@@ -65,8 +68,8 @@ func TestWaitForBallReturnsErrNoBallDetectedAfterMaxAttempts(t *testing.T) {
 	if err != ErrNoBallDetected {
 		t.Fatalf("expected ErrNoBallDetected, got %v", err)
 	}
-	if b.count != 0 {
-		t.Fatalf("expected no vibration on the final failed attempt, got %d", b.count)
+	if b.count != 1 {
+		t.Fatalf("expected vibration on the failed attempt, got %d", b.count)
 	}
 }
 
@@ -87,8 +90,8 @@ func TestWaitForBallVibratesBetweenMovementOnlyRetries(t *testing.T) {
 	if err != ErrNoBallDetected {
 		t.Fatalf("expected ErrNoBallDetected, got %v", err)
 	}
-	if b.count != 2 {
-		t.Fatalf("expected 2 vibration bursts between retries, got %d", b.count)
+	if b.count != 3 {
+		t.Fatalf("expected 3 vibration bursts (one per failed attempt), got %d", b.count)
 	}
 }
 
@@ -227,8 +230,37 @@ func TestWaitForBallWithReferenceBaselineDelaysVibrationUntilLateRetry(t *testin
 	if err != ErrNoBallDetected {
 		t.Fatalf("expected ErrNoBallDetected, got %v", err)
 	}
-	if b.count != 1 {
-		t.Fatalf("expected a single late vibration burst in hybrid mode, got %d", b.count)
+	if b.count != 5 {
+		t.Fatalf("expected vibration on every failed hybrid attempt, got %d", b.count)
+	}
+}
+
+func TestWaitForBallIncreasesVibrationIntensityAcrossBursts(t *testing.T) {
+	s := &Sensor{enabled: true, sim: true}
+	b := &stubBuzzer{}
+	cfg := &config.Config{
+		ColorSensorEnabled:           true,
+		ColorSensorMovementThreshold: 10000,
+		ColorSensorCheckDurationMs:   1,
+		ColorSensorVibrateIntensity:  0.8,
+		ColorSensorVibrateDurationMs: 1,
+		ColorSensorVibrateBursts:     2,
+		ColorSensorMaxAttempts:       2,
+	}
+
+	err := WaitForBall(s, b, cfg, silentLogger(), nil)
+	if err != ErrNoBallDetected {
+		t.Fatalf("expected ErrNoBallDetected, got %v", err)
+	}
+	if len(b.intensities) != 4 {
+		t.Fatalf("expected 4 vibration bursts, got %d", len(b.intensities))
+	}
+
+	expected := []float64{0.8, 0.85, 0.9, 0.95}
+	for i := range expected {
+		if math.Abs(b.intensities[i]-expected[i]) > 0.0001 {
+			t.Fatalf("expected intensity %.2f at burst %d, got %.2f", expected[i], i+1, b.intensities[i])
+		}
 	}
 }
 

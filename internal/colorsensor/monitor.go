@@ -3,6 +3,7 @@ package colorsensor
 import (
 	"errors"
 	"log"
+	"math"
 	"time"
 
 	"github.com/jsalamander/baendaeli-client/internal/config"
@@ -92,6 +93,7 @@ func waitForBallWithOptions(s *Sensor, vib vibratorBuzzer, cfg *config.Config, l
 	activeReference := opts.referenceBaseline
 	failedReferenceAttempts := 0
 	forceMovementOnly := false
+	vibrationCount := 0
 
 	for attempt := 1; attempt <= cfg.ColorSensorMaxAttempts; attempt++ {
 		if observer != nil {
@@ -159,16 +161,16 @@ func waitForBallWithOptions(s *Sensor, vib vibratorBuzzer, cfg *config.Config, l
 			}
 		}
 
-		if shouldVibrateAfterFailedAttempt(attempt, cfg.ColorSensorMaxAttempts, opts.detectMode) {
-			logger.Printf("Color sensor: no ball detected in window (attempt %d/%d), vibrating %d bursts", attempt, cfg.ColorSensorMaxAttempts, cfg.ColorSensorVibrateBursts)
-		} else {
-			logger.Printf("Color sensor: no ball detected in window (attempt %d/%d), skipping vibration and retrying with fresh samples", attempt, cfg.ColorSensorMaxAttempts)
-		}
-		if vib != nil && shouldVibrateAfterFailedAttempt(attempt, cfg.ColorSensorMaxAttempts, opts.detectMode) {
+		logger.Printf("Color sensor: no ball detected in window (attempt %d/%d), vibrating %d bursts", attempt, cfg.ColorSensorMaxAttempts, cfg.ColorSensorVibrateBursts)
+		if vib != nil {
 			for burst := 0; burst < cfg.ColorSensorVibrateBursts; burst++ {
-				if err := vib.Buzz(cfg.ColorSensorVibrateIntensity, vibrateDuration); err != nil {
+				intensity := scaledVibrationIntensity(cfg.ColorSensorVibrateIntensity, vibrationCount)
+				if err := vib.Buzz(intensity, vibrateDuration); err != nil {
 					logger.Printf("Color sensor: vibration burst %d failed: %v", burst+1, err)
+				} else if cfg.ColorSensorDebugLogging {
+					logger.Printf("Color sensor: vibration burst %d intensity=%.2f", burst+1, intensity)
 				}
+				vibrationCount++
 				time.Sleep(pauseBetweenBursts)
 			}
 		}
@@ -184,16 +186,12 @@ func absInt(v int) int {
 	return v
 }
 
-func shouldVibrateAfterFailedAttempt(attempt int, maxAttempts int, mode detectMode) bool {
-	if attempt >= maxAttempts {
-		return false
+func scaledVibrationIntensity(base float64, vibrationCount int) float64 {
+	const step = 0.05
+	if base <= 0 {
+		return 0
 	}
-
-	if mode == detectModeHybridReference || mode == detectModePresenceReference {
-		return attempt >= maxAttempts-1
-	}
-
-	return true
+	return math.Min(1.0, base+step*float64(vibrationCount))
 }
 
 // SampleBaseline returns the average clear-channel reading over 3 samples.

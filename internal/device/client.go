@@ -1040,7 +1040,6 @@ func (c *Client) waitForBallReady(showWaitingMessage bool, allowVibration bool, 
 		})
 	}
 
-	var err error
 	var observer colorsensor.AttemptObserver
 	if showWaitingMessage {
 		observer = func(attempt int, maxAttempts int) {
@@ -1048,19 +1047,7 @@ func (c *Client) waitForBallReady(showWaitingMessage bool, allowVibration bool, 
 		}
 	}
 
-	if allowVibration {
-		if referenceBaseline != nil {
-			err = colorsensor.WaitForBallWithReferenceBaseline(c.colorSensor, vibratorAdapter{}, c.config, log.Default(), observer, *referenceBaseline)
-		} else {
-			err = colorsensor.WaitForBall(c.colorSensor, vibratorAdapter{}, c.config, log.Default(), observer)
-		}
-	} else {
-		if referenceBaseline != nil {
-			err = colorsensor.WaitForBallWithReferenceBaseline(c.colorSensor, nil, c.config, log.Default(), observer, *referenceBaseline)
-		} else {
-			err = colorsensor.WaitForBall(c.colorSensor, nil, c.config, log.Default(), observer)
-		}
-	}
+	err := c.waitForBallReadyAttempt(allowVibration, referenceBaseline, observer)
 	if err != nil {
 		log.Printf("Device client: ball not detected — showing jam message")
 		c.jammed.Store(true)
@@ -1087,6 +1074,20 @@ func (c *Client) waitForBallReady(showWaitingMessage bool, allowVibration bool, 
 	time.Sleep(700 * time.Millisecond)
 	c.clearExecutingCommand()
 	return nil
+}
+
+func (c *Client) waitForBallReadyAttempt(allowVibration bool, referenceBaseline *uint16, observer colorsensor.AttemptObserver) error {
+	if allowVibration {
+		if referenceBaseline != nil {
+			return colorsensor.WaitForBallWithReferenceBaseline(c.colorSensor, vibratorAdapter{}, c.config, log.Default(), observer, *referenceBaseline)
+		}
+		return colorsensor.WaitForBall(c.colorSensor, vibratorAdapter{}, c.config, log.Default(), observer)
+	}
+
+	if referenceBaseline != nil {
+		return colorsensor.WaitForBallWithReferenceBaseline(c.colorSensor, nil, c.config, log.Default(), observer, *referenceBaseline)
+	}
+	return colorsensor.WaitForBall(c.colorSensor, nil, c.config, log.Default(), observer)
 }
 
 func (c *Client) runStartupExtractorCycle() error {

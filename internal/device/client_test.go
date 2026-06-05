@@ -1022,7 +1022,7 @@ func TestCommandCancelClearsPayment(t *testing.T) {
 	}
 }
 
-func TestWaitForBallReadySetsJamStateAndMessage(t *testing.T) {
+func TestWaitForBallReadyPassiveScanSetsJamStateAndMessage(t *testing.T) {
 	cfg := &config.Config{}
 	cfg.SetDefaults()
 	// Force failure quickly so we can assert stuck-funnel behavior deterministically.
@@ -1037,7 +1037,7 @@ func TestWaitForBallReadySetsJamStateAndMessage(t *testing.T) {
 	}
 	defer client.colorSensor.Close()
 
-	err := client.waitForBallReady(true, true, nil)
+	err := client.waitForBallReady(true, false, nil)
 	if err == nil {
 		t.Fatal("expected waitForBallReady to fail")
 	}
@@ -1062,6 +1062,29 @@ func TestWaitForBallReadySetsJamStateAndMessage(t *testing.T) {
 	}
 	if exec.Message != "Ball steckt im Trichter. Rufe eine Techniker*in." {
 		t.Fatalf("unexpected stuck-funnel message: %q", exec.Message)
+	}
+}
+
+func TestWaitForBallReadyActiveScanSetsJamAfterMaxAttempts(t *testing.T) {
+	cfg := &config.Config{}
+	cfg.SetDefaults()
+	cfg.ColorSensorMovementThreshold = 10000
+	cfg.ColorSensorCheckDurationMs = 1
+	cfg.ColorSensorVibrateBursts = 0
+	cfg.ColorSensorMaxAttempts = 1
+
+	client := New(cfg)
+	if err := client.colorSensor.Init(cfg); err != nil {
+		t.Fatalf("failed to init color sensor in test: %v", err)
+	}
+	defer client.colorSensor.Close()
+
+	err := client.waitForBallReady(true, true, nil)
+	if err != colorsensor.ErrNoBallDetected {
+		t.Fatalf("expected ErrNoBallDetected after max attempts, got %v", err)
+	}
+	if !client.jammed.Load() {
+		t.Fatal("expected jam state after active scan exhausted max attempts")
 	}
 }
 
