@@ -41,7 +41,7 @@ const (
 //  1. Establishes a baseline C value (average of 3 readings).
 //  2. Polls the sensor every 200 ms for up to CheckDurationMs.
 //  3. If any reading exceeds baseline + MovementThreshold → ball detected, return nil.
-//  4. If the window expires → fires VibrateBursts vibration bursts to dislodge a jam.
+//  4. If the window expires → optionally fires vibration bursts before a later retry.
 //  5. Repeats up to MaxAttempts total.
 //
 // Returns ErrNoBallDetected if no ball is detected after all attempts.
@@ -108,10 +108,12 @@ func waitForBallWithOptions(s *Sensor, vib vibratorBuzzer, cfg *config.Config, l
 		}
 
 		referenceForAttempt := activeReference
+		driftedReference := false
 		if referenceForAttempt != nil && opts.detectMode == detectModeHybridReference {
 			if absInt(int(baselineValue)-int(*referenceForAttempt)) > referenceMaxDrift {
 				logger.Printf("Color sensor: attempt %d/%d reference drift too high (baseline=%d reference=%d max_drift=%d), temporarily ignoring reference", attempt, cfg.ColorSensorMaxAttempts, baselineValue, *referenceForAttempt, referenceMaxDrift)
 				referenceForAttempt = nil
+				driftedReference = true
 			}
 		}
 
@@ -134,6 +136,9 @@ func waitForBallWithOptions(s *Sensor, vib vibratorBuzzer, cfg *config.Config, l
 		}
 
 		if activeReference != nil && opts.detectMode == detectModeHybridReference {
+			if driftedReference && failedReferenceAttempts < referenceResampleAfterAttempts-1 {
+				failedReferenceAttempts = referenceResampleAfterAttempts - 1
+			}
 			failedReferenceAttempts++
 			if failedReferenceAttempts >= referenceResampleAfterAttempts {
 				resampledReference, resampleErr := baseline(s, logger)
@@ -147,8 +152,12 @@ func waitForBallWithOptions(s *Sensor, vib vibratorBuzzer, cfg *config.Config, l
 			}
 		}
 
-		logger.Printf("Color sensor: no ball detected in window (attempt %d/%d), vibrating %d bursts", attempt, cfg.ColorSensorMaxAttempts, cfg.ColorSensorVibrateBursts)
-		if vib != nil {
+		if shouldVibrateAfterFailedAttempt(attempt, cfg.ColorSensorMaxAttempts, opts.detectMode) {
+			logger.Printf("Color sensor: no ball detected in window (attempt %d/%d), vibrating %d bursts", attempt, cfg.ColorSensorMaxAttempts, cfg.ColorSensorVibrateBursts)
+		} else {
+			logger.Printf("Color sensor: no ball detected in window (attempt %d/%d), skipping vibration and retrying with fresh samples", attempt, cfg.ColorSensorMaxAttempts)
+		}
+		if vib != nil && shouldVibrateAfterFailedAttempt(attempt, cfg.ColorSensorMaxAttempts, opts.detectMode) {
 			for burst := 0; burst < cfg.ColorSensorVibrateBursts; burst++ {
 				if err := vib.Buzz(cfg.ColorSensorVibrateIntensity, vibrateDuration); err != nil {
 					logger.Printf("Color sensor: vibration burst %d failed: %v", burst+1, err)
@@ -166,6 +175,18 @@ func absInt(v int) int {
 		return -v
 	}
 	return v
+}
+
+func shouldVibrateAfterFailedAttempt(attempt int, maxAttempts int, mode detectMode) bool {
+	if attempt >= maxAttempts {
+		return false
+	}
+
+	if mode == detectModeHybridReference || mode == detectModePresenceReference {
+		return attempt >= maxAttempts-1
+	}
+
+	return true
 }
 
 // SampleBaseline returns the average clear-channel reading over 3 samples.

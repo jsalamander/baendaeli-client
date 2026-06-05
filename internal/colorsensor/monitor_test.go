@@ -1,8 +1,10 @@
 package colorsensor
 
 import (
+	"bytes"
 	"io"
 	"log"
+	"strings"
 	"testing"
 	"time"
 
@@ -20,6 +22,11 @@ func (b *stubBuzzer) Buzz(_ float64, _ time.Duration) error {
 
 func silentLogger() *log.Logger {
 	return log.New(io.Discard, "", 0)
+}
+
+func bufferLogger() (*log.Logger, *bytes.Buffer) {
+	buf := &bytes.Buffer{}
+	return log.New(buf, "", 0), buf
 }
 
 func TestWaitForBallDetectsMovementInSimMode(t *testing.T) {
@@ -58,8 +65,30 @@ func TestWaitForBallReturnsErrNoBallDetectedAfterMaxAttempts(t *testing.T) {
 	if err != ErrNoBallDetected {
 		t.Fatalf("expected ErrNoBallDetected, got %v", err)
 	}
-	if b.count != 1 {
-		t.Fatalf("expected 1 vibration burst, got %d", b.count)
+	if b.count != 0 {
+		t.Fatalf("expected no vibration on the final failed attempt, got %d", b.count)
+	}
+}
+
+func TestWaitForBallVibratesBetweenMovementOnlyRetries(t *testing.T) {
+	s := &Sensor{enabled: true, sim: true}
+	b := &stubBuzzer{}
+	cfg := &config.Config{
+		ColorSensorEnabled:           true,
+		ColorSensorMovementThreshold: 10000,
+		ColorSensorCheckDurationMs:   1,
+		ColorSensorVibrateIntensity:  0.8,
+		ColorSensorVibrateDurationMs: 1,
+		ColorSensorVibrateBursts:     1,
+		ColorSensorMaxAttempts:       3,
+	}
+
+	err := WaitForBall(s, b, cfg, silentLogger(), nil)
+	if err != ErrNoBallDetected {
+		t.Fatalf("expected ErrNoBallDetected, got %v", err)
+	}
+	if b.count != 2 {
+		t.Fatalf("expected 2 vibration bursts between retries, got %d", b.count)
 	}
 }
 
@@ -172,5 +201,73 @@ func TestWaitForBallWithReferenceBaselineFallsBackToMovement(t *testing.T) {
 	err := WaitForBallWithReferenceBaseline(s, nil, cfg, logger, nil, reference)
 	if err != nil {
 		t.Fatalf("expected detection from movement fallback in hybrid mode, got error: %v", err)
+	}
+}
+
+func TestWaitForBallWithReferenceBaselineDelaysVibrationUntilLateRetry(t *testing.T) {
+	s := &Sensor{enabled: true, sim: true}
+	b := &stubBuzzer{}
+	logger := silentLogger()
+
+	cfg := &config.Config{
+		ColorSensorEnabled:           true,
+		ColorSensorMovementThreshold: 10000,
+		ColorSensorPresenceTolerance: 1,
+		ColorSensorPollIntervalMs:    1,
+		ColorSensorCheckDurationMs:   1,
+		ColorSensorStableSamples:     1,
+		ColorSensorVibrateIntensity:  0.8,
+		ColorSensorVibrateDurationMs: 1,
+		ColorSensorVibrateBursts:     1,
+		ColorSensorMaxAttempts:       5,
+	}
+
+	reference := uint16(500)
+	err := WaitForBallWithReferenceBaseline(s, b, cfg, logger, nil, reference)
+	if err != ErrNoBallDetected {
+		t.Fatalf("expected ErrNoBallDetected, got %v", err)
+	}
+	if b.count != 1 {
+		t.Fatalf("expected a single late vibration burst in hybrid mode, got %d", b.count)
+	}
+}
+
+func TestWaitForBallWithReferenceBaselineResamplesImmediatelyAfterDriftedMiss(t *testing.T) {
+	s := &Sensor{enabled: true, sim: true}
+	logger, buf := bufferLogger()
+
+	cfg := &config.Config{
+		ColorSensorEnabled:                        true,
+		ColorSensorMovementThreshold:              10000,
+		ColorSensorPresenceTolerance:              1,
+		ColorSensorReferenceMaxDrift:              10,
+		ColorSensorReferenceResampleAfterAttempts: 2,
+		ColorSensorPollIntervalMs:                 1,
+		ColorSensorCheckDurationMs:                1,
+		ColorSensorStableSamples:                  1,
+		ColorSensorVibrateBursts:                  0,
+		ColorSensorMaxAttempts:                    2,
+	}
+
+	reference := uint16(500)
+	err := WaitForBallWithReferenceBaseline(s, nil, cfg, logger, nil, reference)
+	if err != ErrNoBallDetected {
+		t.Fatalf("expected ErrNoBallDetected, got %v", err)
+	}
+
+	logs := buf.String()
+	resampleIndex := strings.Index(logs, "resampled hybrid reference baseline")
+	attemptTwoIndex := strings.Index(logs, "attempt 2/2")
+	if resampleIndex == -1 {
+		t.Fatal("expected resample log entry after drifted miss")
+	}
+	if attemptTwoIndex == -1 {
+		t.Fatal("expected attempt 2 log entry")
+	}
+	if resampleIndex > attemptTwoIndex {
+		t.Fatalf("expected resample before second attempt, logs were:\n%s", logs)
+	}
+	if !strings.Contains(logs, "reference drift too high") {
+		t.Fatalf("expected drift log entry, logs were:\n%s", logs)
 	}
 }
