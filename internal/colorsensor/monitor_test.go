@@ -316,6 +316,38 @@ func TestWaitForBallWithReferenceBaselineResamplesImmediatelyAfterDriftedMiss(t 
 	}
 }
 
+func TestWaitForBallWithReferenceBaselineForcesImmediateResampleOnLargeDelta(t *testing.T) {
+	s := &Sensor{enabled: true, sim: true}
+	logger, buf := bufferLogger()
+
+	cfg := &config.Config{
+		ColorSensorEnabled:                        true,
+		ColorSensorMovementThreshold:              10000,
+		ColorSensorPresenceTolerance:              5,
+		ColorSensorReferenceMaxDrift:              200,
+		ColorSensorReferenceResampleAfterAttempts: 99,
+		ColorSensorPollIntervalMs:                 1,
+		ColorSensorCheckDurationMs:                1,
+		ColorSensorStableSamples:                  1,
+		ColorSensorVibrateBursts:                  0,
+		ColorSensorMaxAttempts:                    1,
+	}
+
+	reference := uint16(500)
+	err := WaitForBallWithReferenceBaseline(s, nil, cfg, logger, nil, reference)
+	if err != ErrNoBallDetected {
+		t.Fatalf("expected ErrNoBallDetected, got %v", err)
+	}
+
+	logs := buf.String()
+	if !strings.Contains(logs, "forcing immediate reference resample after hybrid miss") {
+		t.Fatalf("expected immediate resample trigger log, logs were:\n%s", logs)
+	}
+	if !strings.Contains(logs, "resampled hybrid reference baseline") {
+		t.Fatalf("expected resample log entry despite high resample-after-attempts threshold, logs were:\n%s", logs)
+	}
+}
+
 func TestWaitForBallWithReferenceBaselineReturnsToHybridAfterResample(t *testing.T) {
 	s := &Sensor{enabled: true, sim: true}
 	logger, buf := bufferLogger()

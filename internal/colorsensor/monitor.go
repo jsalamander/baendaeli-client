@@ -141,11 +141,16 @@ func waitForBallWithOptions(s *Sensor, vib vibratorBuzzer, cfg *config.Config, l
 		}
 
 		if activeReference != nil && opts.detectMode == detectModeHybridReference {
+			baselineReferenceDelta := absInt(int(baselineValue) - int(*activeReference))
+			forceImmediateResample := baselineReferenceDelta > cfg.ColorSensorPresenceTolerance
+			if forceImmediateResample {
+				logger.Printf("Color sensor: forcing immediate reference resample after hybrid miss (baseline=%d reference=%d delta=%d presence_tolerance=%d)", baselineValue, *activeReference, baselineReferenceDelta, cfg.ColorSensorPresenceTolerance)
+			}
 			if driftedReference && failedReferenceAttempts < referenceResampleAfterAttempts-1 {
 				failedReferenceAttempts = referenceResampleAfterAttempts - 1
 			}
 			failedReferenceAttempts++
-			if failedReferenceAttempts >= referenceResampleAfterAttempts {
+			if forceImmediateResample || failedReferenceAttempts >= referenceResampleAfterAttempts {
 				resampledReference, resampleErr := baseline(s, logger)
 				if resampleErr != nil {
 					logger.Printf("Color sensor: failed to resample reference baseline after %d failed attempts: %v", failedReferenceAttempts, resampleErr)
