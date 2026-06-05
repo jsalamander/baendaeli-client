@@ -381,20 +381,19 @@ func (c *Client) poll() {
 	// If a jam was detected, keep showing the message and skip command execution.
 	if c.jammed.Load() {
 		if err := c.waitForBallReady(false, false, nil); err != nil {
-			return
+			c.setRuntimeState(StateJam, "Stau detektiert")
+		} else {
+			// Jam cleared, continue normal polling and command handling.
+			c.setRuntimeState(StateDetectingBall, "Stau behoben")
+			log.Printf("Device client: jam cleared by passive ball detection")
 		}
-		// Jam cleared, continue normal polling and command handling.
-		c.setRuntimeState(StateDetectingBall, "Stau behoben")
-		log.Printf("Device client: jam cleared by passive ball detection")
 	}
 
-	// If a jam is still active after passive scan attempt, skip command execution.
-	if c.jammed.Load() {
-		c.setRuntimeState(StateJam, "Stau detektiert")
-		return
+	// While jam is active we still allow command polling (e.g. restart), but skip
+	// autonomous state-machine actions until jam is cleared.
+	if !c.jammed.Load() {
+		c.runStateMachineCycle()
 	}
-
-	c.runStateMachineCycle()
 
 	// 2. Get next command (or keep a previously deferred command)
 	cmd := c.getPendingCommand()
@@ -427,11 +426,13 @@ func (c *Client) poll() {
 			log.Printf("Device client: failed to acknowledge command %d: %v", cmd.ID, err)
 		}
 
-		if !c.jammed.Load() {
-			c.clearExecutingCommand()
-			if c.GetPaymentID() == "" {
-				c.setRuntimeState(StateDetectingBall, "Warte auf Ball")
-			}
+		c.clearExecutingCommand()
+		if c.jammed.Load() {
+			c.setRuntimeState(StateJam, "Stau detektiert")
+			return
+		}
+		if c.GetPaymentID() == "" {
+			c.setRuntimeState(StateDetectingBall, "Warte auf Ball")
 		}
 	}
 }
@@ -839,6 +840,13 @@ func (c *Client) executeCommand(cmd *CommandResponse) (string, error) {
 		// Keep the command visible to the UI briefly.
 		time.Sleep(cancelHoldDuration)
 		return "", nil
+	case "restart":
+		log.Printf("Device client: restart command received, resetting state machine")
+		if err := c.restartStateMachine(); err != nil {
+			log.Printf("Device client: restart command failed: %v", err)
+			return "", err
+		}
+		return "", nil
 	case "ball_dispenser":
 		log.Printf("Device client: ball dispenser cycle requested")
 		_, err := c.dispenseAndWaitForBallLocked()
@@ -1111,6 +1119,27 @@ func (c *Client) runStartupExtractorCycle() error {
 	return nil
 }
 
+func (c *Client) restartStateMachine() error {
+	// Clear runtime/session state before running startup steps again.
+	c.SetPaymentID("")
+	c.clearPendingCommand()
+	c.setPendingBallReference(nil)
+	c.jammed.Store(false)
+
+	if c.config.ActuatorEnabled {
+		c.setRuntimeState(StateStarting, "Homing actuator")
+		actuator.Home()
+
+		if err := c.runStartupExtractorCycle(); err != nil {
+			c.setRuntimeState(StateError, "Startup cycle failed")
+			return err
+		}
+	}
+
+	c.setRuntimeState(StateDetectingBall, "Warte auf Ball")
+	return nil
+}
+
 func (c *Client) captureStartupBallReferenceBaseline() {
 	if c.colorSensor == nil || !c.colorSensor.IsEnabled() {
 		c.setPendingBallReference(nil)
@@ -1203,7 +1232,7 @@ func (c *Client) canExecuteCommandNow(cmd *CommandResponse) bool {
 
 	// These commands are always safe to execute immediately.
 	switch command {
-	case "message", "take_picture", "cancel":
+	case "message", "take_picture", "cancel", "restart":
 		return true
 	}
 

@@ -15,11 +15,13 @@ import (
 type stubBuzzer struct {
 	count       int
 	intensities []float64
+	durations   []time.Duration
 }
 
-func (b *stubBuzzer) Buzz(intensity float64, _ time.Duration) error {
+func (b *stubBuzzer) Buzz(intensity float64, duration time.Duration) error {
 	b.count++
 	b.intensities = append(b.intensities, intensity)
+	b.durations = append(b.durations, duration)
 	return nil
 }
 
@@ -90,8 +92,8 @@ func TestWaitForBallVibratesBetweenMovementOnlyRetries(t *testing.T) {
 	if err != ErrNoBallDetected {
 		t.Fatalf("expected ErrNoBallDetected, got %v", err)
 	}
-	if b.count != 3 {
-		t.Fatalf("expected 3 vibration bursts (one per failed attempt), got %d", b.count)
+	if b.count != 4 {
+		t.Fatalf("expected 4 vibration bursts (1+1+2 escalation), got %d", b.count)
 	}
 }
 
@@ -230,8 +232,8 @@ func TestWaitForBallWithReferenceBaselineDelaysVibrationUntilLateRetry(t *testin
 	if err != ErrNoBallDetected {
 		t.Fatalf("expected ErrNoBallDetected, got %v", err)
 	}
-	if b.count != 5 {
-		t.Fatalf("expected vibration on every failed hybrid attempt, got %d", b.count)
+	if b.count != 9 {
+		t.Fatalf("expected escalating vibration bursts across 5 attempts (1+1+2+2+3), got %d", b.count)
 	}
 }
 
@@ -256,10 +258,20 @@ func TestWaitForBallIncreasesVibrationIntensityAcrossBursts(t *testing.T) {
 		t.Fatalf("expected 4 vibration bursts, got %d", len(b.intensities))
 	}
 
-	expected := []float64{0.8, 0.85, 0.9, 0.95}
+	expected := []float64{0.8, 0.83, 0.88, 0.91}
 	for i := range expected {
 		if math.Abs(b.intensities[i]-expected[i]) > 0.0001 {
 			t.Fatalf("expected intensity %.2f at burst %d, got %.2f", expected[i], i+1, b.intensities[i])
+		}
+	}
+
+	if len(b.durations) != 4 {
+		t.Fatalf("expected 4 vibration durations, got %d", len(b.durations))
+	}
+	expectedDurations := []time.Duration{1 * time.Millisecond, 41 * time.Millisecond, 91 * time.Millisecond, 131 * time.Millisecond}
+	for i := range expectedDurations {
+		if b.durations[i] != expectedDurations[i] {
+			t.Fatalf("expected duration %v at burst %d, got %v", expectedDurations[i], i+1, b.durations[i])
 		}
 	}
 }

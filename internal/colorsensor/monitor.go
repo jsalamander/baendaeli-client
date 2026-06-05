@@ -75,8 +75,6 @@ func waitForBallWithOptions(s *Sensor, vib vibratorBuzzer, cfg *config.Config, l
 	pollInterval := time.Duration(cfg.ColorSensorPollIntervalMs) * time.Millisecond
 	checkDuration := time.Duration(cfg.ColorSensorCheckDurationMs) * time.Millisecond
 	settleDelay := time.Duration(cfg.ColorSensorSettleDelayMs) * time.Millisecond
-	vibrateDuration := time.Duration(cfg.ColorSensorVibrateDurationMs) * time.Millisecond
-	pauseBetweenBursts := 300 * time.Millisecond
 	stableSamples := cfg.ColorSensorStableSamples
 	if stableSamples < 1 {
 		stableSamples = 1
@@ -93,8 +91,6 @@ func waitForBallWithOptions(s *Sensor, vib vibratorBuzzer, cfg *config.Config, l
 	activeReference := opts.referenceBaseline
 	failedReferenceAttempts := 0
 	forceMovementOnly := false
-	vibrationCount := 0
-
 	for attempt := 1; attempt <= cfg.ColorSensorMaxAttempts; attempt++ {
 		if observer != nil {
 			observer(attempt, cfg.ColorSensorMaxAttempts)
@@ -161,16 +157,18 @@ func waitForBallWithOptions(s *Sensor, vib vibratorBuzzer, cfg *config.Config, l
 			}
 		}
 
-		logger.Printf("Color sensor: no ball detected in window (attempt %d/%d), vibrating %d bursts", attempt, cfg.ColorSensorMaxAttempts, cfg.ColorSensorVibrateBursts)
+		bursts := vibrationBurstsForAttempt(cfg.ColorSensorVibrateBursts, attempt)
+		logger.Printf("Color sensor: no ball detected in window (attempt %d/%d), vibrating %d bursts", attempt, cfg.ColorSensorMaxAttempts, bursts)
 		if vib != nil {
-			for burst := 0; burst < cfg.ColorSensorVibrateBursts; burst++ {
-				intensity := scaledVibrationIntensity(cfg.ColorSensorVibrateIntensity, vibrationCount)
-				if err := vib.Buzz(intensity, vibrateDuration); err != nil {
+			for burst := 0; burst < bursts; burst++ {
+				intensity := scaledVibrationIntensity(cfg.ColorSensorVibrateIntensity, attempt, burst)
+				duration := scaledVibrationDuration(time.Duration(cfg.ColorSensorVibrateDurationMs)*time.Millisecond, attempt, burst)
+				pauseBetweenBursts := scaledVibrationPause(attempt)
+				if err := vib.Buzz(intensity, duration); err != nil {
 					logger.Printf("Color sensor: vibration burst %d failed: %v", burst+1, err)
 				} else if cfg.ColorSensorDebugLogging {
-					logger.Printf("Color sensor: vibration burst %d intensity=%.2f", burst+1, intensity)
+					logger.Printf("Color sensor: vibration burst %d intensity=%.2f duration_ms=%d pause_ms=%d", burst+1, intensity, duration.Milliseconds(), pauseBetweenBursts.Milliseconds())
 				}
-				vibrationCount++
 				time.Sleep(pauseBetweenBursts)
 			}
 		}
@@ -186,12 +184,42 @@ func absInt(v int) int {
 	return v
 }
 
-func scaledVibrationIntensity(base float64, vibrationCount int) float64 {
-	const step = 0.05
+func vibrationBurstsForAttempt(base int, attempt int) int {
 	if base <= 0 {
 		return 0
 	}
-	return math.Min(1.0, base+step*float64(vibrationCount))
+	bursts := base + (attempt-1)/2
+	if bursts > 5 {
+		return 5
+	}
+	return bursts
+}
+
+func scaledVibrationIntensity(base float64, attempt int, burst int) float64 {
+	if base <= 0 {
+		return 0
+	}
+	return math.Min(1.0, base+0.08*float64(attempt-1)+0.03*float64(burst))
+}
+
+func scaledVibrationDuration(base time.Duration, attempt int, burst int) time.Duration {
+	if base <= 0 {
+		base = 100 * time.Millisecond
+	}
+	duration := base + time.Duration(90*(attempt-1)+40*burst)*time.Millisecond
+	maxDuration := 700 * time.Millisecond
+	if duration > maxDuration {
+		return maxDuration
+	}
+	return duration
+}
+
+func scaledVibrationPause(attempt int) time.Duration {
+	pause := 300 - 30*(attempt-1)
+	if pause < 150 {
+		pause = 150
+	}
+	return time.Duration(pause) * time.Millisecond
 }
 
 // SampleBaseline returns the average clear-channel reading over 3 samples.

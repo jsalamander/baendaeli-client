@@ -583,7 +583,7 @@ func TestCommandExecutionPolicy(t *testing.T) {
 	client := New(&config.Config{})
 
 	// Always-allowed commands
-	for _, command := range []string{"message", "take_picture", "cancel"} {
+	for _, command := range []string{"message", "take_picture", "cancel", "restart"} {
 		if !client.canExecuteCommandNow(&CommandResponse{Command: command}) {
 			t.Fatalf("expected %q to be executable immediately", command)
 		}
@@ -1022,6 +1022,42 @@ func TestCommandCancelClearsPayment(t *testing.T) {
 	}
 }
 
+func TestCommandRestartResetsStateMachineToDetectingBall(t *testing.T) {
+	cfg := &config.Config{}
+	cfg.SetDefaults()
+	cfg.ActuatorEnabled = false
+
+	client := New(cfg)
+	client.SetPaymentID("payment-xyz")
+	client.jammed.Store(true)
+	baseline := uint16(777)
+	client.setPendingBallReference(&baseline)
+	client.setRuntimeState(StateAwaitingPayment, "Warten auf Zahlung")
+
+	_, err := client.executeCommand(&CommandResponse{
+		ID:      99,
+		Command: "restart",
+	})
+	if err != nil {
+		t.Fatalf("expected no error executing restart command, got %v", err)
+	}
+
+	if client.GetPaymentID() != "" {
+		t.Fatalf("expected payment to be cleared, got %q", client.GetPaymentID())
+	}
+	if client.jammed.Load() {
+		t.Fatal("expected jam flag to be cleared")
+	}
+	if ref := client.consumePendingBallReference(); ref != nil {
+		t.Fatalf("expected pending reference to be cleared, got %d", *ref)
+	}
+
+	snapshot := client.GetStateSnapshot()
+	if snapshot.State != string(StateDetectingBall) {
+		t.Fatalf("expected state %q after restart, got %q", StateDetectingBall, snapshot.State)
+	}
+}
+
 func TestWaitForBallReadyPassiveScanSetsJamStateAndMessage(t *testing.T) {
 	cfg := &config.Config{}
 	cfg.SetDefaults()
@@ -1117,7 +1153,7 @@ func TestWaitForBallReadyStoresReferenceBaselineForNextCycle(t *testing.T) {
 	}
 }
 
-func TestPollSkipsCommandFetchWhenJammed(t *testing.T) {
+func TestPollFetchesButDefersActuationCommandWhenJammed(t *testing.T) {
 	statusCalled := false
 	commandCalled := false
 
@@ -1156,8 +1192,132 @@ func TestPollSkipsCommandFetchWhenJammed(t *testing.T) {
 	if !statusCalled {
 		t.Fatal("expected status endpoint to be called")
 	}
-	if commandCalled {
-		t.Fatal("expected command endpoint to be skipped while jammed")
+	if !commandCalled {
+		t.Fatal("expected command endpoint to be called while jammed")
+	}
+	pending := client.getPendingCommand()
+	if pending == nil || pending.Command != "extend" {
+		t.Fatalf("expected extend command to be deferred while jammed, got %+v", pending)
+	}
+}
+
+func TestPollJammedCanExecuteRestartCommand(t *testing.T) {
+	statusCalled := false
+	commandCalled := false
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.Contains(r.URL.Path, "/status") {
+			statusCalled = true
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`{"success": true}`))
+			return
+		}
+		if strings.Contains(r.URL.Path, "/commands") {
+			commandCalled = true
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`{"command":"restart","id":101}`))
+			return
+		}
+		if strings.Contains(r.URL.Path, "/ack") {
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`{"success": true}`))
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	cfg := &config.Config{BaendaeliURL: server.URL, BaendaeliAPIKey: "test-key"}
+	cfg.SetDefaults()
+	cfg.ActuatorEnabled = false
+	cfg.ColorSensorMovementThreshold = 10000
+	cfg.ColorSensorCheckDurationMs = 1
+	cfg.ColorSensorVibrateBursts = 0
+	cfg.ColorSensorMaxAttempts = 1
+
+	client := New(cfg)
+	if err := client.colorSensor.Init(cfg); err != nil {
+		t.Fatalf("failed to init color sensor in test: %v", err)
+	}
+	defer client.colorSensor.Close()
+	client.jammed.Store(true)
+	client.SetPaymentID("payment-recover")
+
+	client.poll()
+
+	if !statusCalled {
+		t.Fatal("expected status endpoint to be called")
+	}
+	if !commandCalled {
+		t.Fatal("expected command endpoint to be called")
+	}
+	if client.jammed.Load() {
+		t.Fatal("expected restart command to clear jam")
+	}
+	if got := client.GetPaymentID(); got != "" {
+		t.Fatalf("expected restart command to clear payment id, got %q", got)
+	}
+	snapshot := client.GetStateSnapshot()
+	if snapshot.State != string(StateDetectingBall) {
+		t.Fatalf("expected state %q after restart recovery, got %q", StateDetectingBall, snapshot.State)
+	}
+}
+
+func TestPollJammedCancelClearsExecutingCommand(t *testing.T) {
+	statusCalled := false
+	commandCalled := false
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.Contains(r.URL.Path, "/status") {
+			statusCalled = true
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`{"success": true}`))
+			return
+		}
+		if strings.Contains(r.URL.Path, "/commands") {
+			commandCalled = true
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`{"command":"cancel","id":102}`))
+			return
+		}
+		if strings.Contains(r.URL.Path, "/ack") {
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`{"success": true}`))
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	cfg := &config.Config{BaendaeliURL: server.URL, BaendaeliAPIKey: "test-key"}
+	cfg.SetDefaults()
+	cfg.ColorSensorMovementThreshold = 10000
+	cfg.ColorSensorCheckDurationMs = 1
+	cfg.ColorSensorVibrateBursts = 0
+	cfg.ColorSensorMaxAttempts = 1
+
+	client := New(cfg)
+	if err := client.colorSensor.Init(cfg); err != nil {
+		t.Fatalf("failed to init color sensor in test: %v", err)
+	}
+	defer client.colorSensor.Close()
+	client.jammed.Store(true)
+	client.SetPaymentID("payment-cancel")
+
+	client.poll()
+
+	if !statusCalled {
+		t.Fatal("expected status endpoint to be called")
+	}
+	if !commandCalled {
+		t.Fatal("expected command endpoint to be called")
+	}
+	if exec := client.GetExecutingCommand(); exec != nil {
+		t.Fatalf("expected executing command to be cleared, got %+v", exec)
+	}
+	snapshot := client.GetStateSnapshot()
+	if snapshot.State != string(StateJam) {
+		t.Fatalf("expected state %q after jammed cancel handling, got %q", StateJam, snapshot.State)
 	}
 }
 
