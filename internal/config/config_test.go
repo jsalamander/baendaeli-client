@@ -30,6 +30,12 @@ func TestSetDefaultsAppliesValues(t *testing.T) {
 	if cfg.ColorSensorPresenceTolerance != 18 {
 		t.Fatalf("ColorSensorPresenceTolerance default not set, got %d", cfg.ColorSensorPresenceTolerance)
 	}
+	if cfg.ColorSensorReferenceMaxDrift != 35 {
+		t.Fatalf("ColorSensorReferenceMaxDrift default not set, got %d", cfg.ColorSensorReferenceMaxDrift)
+	}
+	if cfg.ColorSensorReferenceResampleAfterAttempts != 2 {
+		t.Fatalf("ColorSensorReferenceResampleAfterAttempts default not set, got %d", cfg.ColorSensorReferenceResampleAfterAttempts)
+	}
 	if cfg.ColorSensorPollIntervalMs != 100 {
 		t.Fatalf("ColorSensorPollIntervalMs default not set, got %d", cfg.ColorSensorPollIntervalMs)
 	}
@@ -52,6 +58,8 @@ func TestSetDefaultsPreservesValues(t *testing.T) {
 		ColorSensorI2CAddress:        "0x30",
 		ColorSensorMovementThreshold: 1000,
 		ColorSensorPresenceTolerance: 7,
+		ColorSensorReferenceMaxDrift: 44,
+		ColorSensorReferenceResampleAfterAttempts: 3,
 		ColorSensorPollIntervalMs:    250,
 		ColorSensorStableSamples:     3,
 		ColorSensorSettleDelayMs:     350,
@@ -59,7 +67,7 @@ func TestSetDefaultsPreservesValues(t *testing.T) {
 	}
 	cfg.SetDefaults()
 
-	if cfg.DefaultAmount != 123 || cfg.SuccessOverlayMs != 5000 || cfg.ActuatorMovement != 3 || cfg.ActuatorPause != 5 || !cfg.ColorSensorEnabled || cfg.ColorSensorI2CBus != 3 || cfg.ColorSensorI2CAddress != "0x30" || cfg.ColorSensorMovementThreshold != 1000 || cfg.ColorSensorPresenceTolerance != 7 || cfg.ColorSensorPollIntervalMs != 250 || cfg.ColorSensorStableSamples != 3 || cfg.ColorSensorSettleDelayMs != 350 || !cfg.ColorSensorDebugLogging {
+	if cfg.DefaultAmount != 123 || cfg.SuccessOverlayMs != 5000 || cfg.ActuatorMovement != 3 || cfg.ActuatorPause != 5 || !cfg.ColorSensorEnabled || cfg.ColorSensorI2CBus != 3 || cfg.ColorSensorI2CAddress != "0x30" || cfg.ColorSensorMovementThreshold != 1000 || cfg.ColorSensorPresenceTolerance != 7 || cfg.ColorSensorReferenceMaxDrift != 44 || cfg.ColorSensorReferenceResampleAfterAttempts != 3 || cfg.ColorSensorPollIntervalMs != 250 || cfg.ColorSensorStableSamples != 3 || cfg.ColorSensorSettleDelayMs != 350 || !cfg.ColorSensorDebugLogging {
 		t.Fatalf("values should be preserved: %+v", cfg)
 	}
 }

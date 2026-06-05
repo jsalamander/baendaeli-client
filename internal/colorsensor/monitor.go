@@ -80,13 +80,24 @@ func waitForBallWithOptions(s *Sensor, vib vibratorBuzzer, cfg *config.Config, l
 	if stableSamples < 1 {
 		stableSamples = 1
 	}
+	referenceMaxDrift := cfg.ColorSensorReferenceMaxDrift
+	if referenceMaxDrift <= 0 {
+		referenceMaxDrift = 35
+	}
+	referenceResampleAfterAttempts := cfg.ColorSensorReferenceResampleAfterAttempts
+	if referenceResampleAfterAttempts <= 0 {
+		referenceResampleAfterAttempts = 2
+	}
+
+	activeReference := opts.referenceBaseline
+	failedReferenceAttempts := 0
 
 	for attempt := 1; attempt <= cfg.ColorSensorMaxAttempts; attempt++ {
 		if observer != nil {
 			observer(attempt, cfg.ColorSensorMaxAttempts)
 		}
 
-		baseline, err := baseline(s, logger)
+		baselineValue, err := baseline(s, logger)
 		if err != nil {
 			logger.Printf("Color sensor: could not read baseline (attempt %d/%d): %v", attempt, cfg.ColorSensorMaxAttempts, err)
 			// treat as no detection on read error and carry on
@@ -96,22 +107,44 @@ func waitForBallWithOptions(s *Sensor, vib vibratorBuzzer, cfg *config.Config, l
 			time.Sleep(settleDelay)
 		}
 
-		if opts.referenceBaseline != nil {
-			switch opts.detectMode {
-			case detectModePresenceReference:
-				logger.Printf("Color sensor: attempt %d/%d, baseline C=%d, reference C=%d, match_mode=near_reference, movement_threshold=%d, presence_tolerance=%d, stable_samples=%d", attempt, cfg.ColorSensorMaxAttempts, baseline, *opts.referenceBaseline, cfg.ColorSensorMovementThreshold, cfg.ColorSensorPresenceTolerance, stableSamples)
-			case detectModeHybridReference:
-				logger.Printf("Color sensor: attempt %d/%d, baseline C=%d, reference C=%d, match_mode=hybrid, movement_threshold=%d, presence_tolerance=%d, stable_samples=%d", attempt, cfg.ColorSensorMaxAttempts, baseline, *opts.referenceBaseline, cfg.ColorSensorMovementThreshold, cfg.ColorSensorPresenceTolerance, stableSamples)
-			default:
-				logger.Printf("Color sensor: attempt %d/%d, baseline C=%d, reference C=%d, match_mode=movement_only, movement_threshold=%d, stable_samples=%d", attempt, cfg.ColorSensorMaxAttempts, baseline, *opts.referenceBaseline, cfg.ColorSensorMovementThreshold, stableSamples)
+		referenceForAttempt := activeReference
+		if referenceForAttempt != nil && opts.detectMode == detectModeHybridReference {
+			if absInt(int(baselineValue)-int(*referenceForAttempt)) > referenceMaxDrift {
+				logger.Printf("Color sensor: attempt %d/%d reference drift too high (baseline=%d reference=%d max_drift=%d), temporarily ignoring reference", attempt, cfg.ColorSensorMaxAttempts, baselineValue, *referenceForAttempt, referenceMaxDrift)
+				referenceForAttempt = nil
 			}
-		} else {
-			logger.Printf("Color sensor: attempt %d/%d, baseline C=%d, threshold=%d, stable_samples=%d", attempt, cfg.ColorSensorMaxAttempts, baseline, cfg.ColorSensorMovementThreshold, stableSamples)
 		}
 
-		if detected := pollForMovement(s, baseline, opts.referenceBaseline, opts.detectMode, cfg.ColorSensorMovementThreshold, cfg.ColorSensorPresenceTolerance, stableSamples, checkDuration, pollInterval, cfg.ColorSensorDebugLogging, logger); detected {
+		if referenceForAttempt != nil {
+			switch opts.detectMode {
+			case detectModePresenceReference:
+				logger.Printf("Color sensor: attempt %d/%d, baseline C=%d, reference C=%d, match_mode=near_reference, movement_threshold=%d, presence_tolerance=%d, stable_samples=%d", attempt, cfg.ColorSensorMaxAttempts, baselineValue, *referenceForAttempt, cfg.ColorSensorMovementThreshold, cfg.ColorSensorPresenceTolerance, stableSamples)
+			case detectModeHybridReference:
+				logger.Printf("Color sensor: attempt %d/%d, baseline C=%d, reference C=%d, match_mode=hybrid, movement_threshold=%d, presence_tolerance=%d, stable_samples=%d", attempt, cfg.ColorSensorMaxAttempts, baselineValue, *referenceForAttempt, cfg.ColorSensorMovementThreshold, cfg.ColorSensorPresenceTolerance, stableSamples)
+			default:
+				logger.Printf("Color sensor: attempt %d/%d, baseline C=%d, reference C=%d, match_mode=movement_only, movement_threshold=%d, stable_samples=%d", attempt, cfg.ColorSensorMaxAttempts, baselineValue, *referenceForAttempt, cfg.ColorSensorMovementThreshold, stableSamples)
+			}
+		} else {
+			logger.Printf("Color sensor: attempt %d/%d, baseline C=%d, threshold=%d, stable_samples=%d", attempt, cfg.ColorSensorMaxAttempts, baselineValue, cfg.ColorSensorMovementThreshold, stableSamples)
+		}
+
+		if detected := pollForMovement(s, baselineValue, referenceForAttempt, opts.detectMode, cfg.ColorSensorMovementThreshold, cfg.ColorSensorPresenceTolerance, stableSamples, checkDuration, pollInterval, cfg.ColorSensorDebugLogging, logger); detected {
 			logger.Printf("Color sensor: ball detected on attempt %d", attempt)
 			return nil
+		}
+
+		if activeReference != nil && opts.detectMode == detectModeHybridReference {
+			failedReferenceAttempts++
+			if failedReferenceAttempts >= referenceResampleAfterAttempts {
+				resampledReference, resampleErr := baseline(s, logger)
+				if resampleErr != nil {
+					logger.Printf("Color sensor: failed to resample reference baseline after %d failed attempts: %v", failedReferenceAttempts, resampleErr)
+				} else {
+					activeReference = &resampledReference
+					failedReferenceAttempts = 0
+					logger.Printf("Color sensor: resampled hybrid reference baseline C=%d", resampledReference)
+				}
+			}
 		}
 
 		logger.Printf("Color sensor: no ball detected in window (attempt %d/%d), vibrating %d bursts", attempt, cfg.ColorSensorMaxAttempts, cfg.ColorSensorVibrateBursts)
@@ -126,6 +159,13 @@ func waitForBallWithOptions(s *Sensor, vib vibratorBuzzer, cfg *config.Config, l
 	}
 
 	return ErrNoBallDetected
+}
+
+func absInt(v int) int {
+	if v < 0 {
+		return -v
+	}
+	return v
 }
 
 // SampleBaseline returns the average clear-channel reading over 3 samples.

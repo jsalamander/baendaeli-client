@@ -20,9 +20,6 @@ const settlingDelay = 100 * time.Millisecond
 // Retract extra time to counter drift in repeated cycles.
 const retractExtra = 1 * time.Second
 
-// Cooldown after a full cycle to reduce drift in back-to-back operations.
-const cycleCooldown = 1 * time.Second
-
 type Config struct {
 	Enabled      bool
 	ENAPin       string // e.g., "GPIO25"
@@ -230,8 +227,8 @@ func Home() {
 func (a *Actuator) Trigger() (int, error) {
 	start := time.Now()
 	if !a.enabled {
-		// Mock: wait for the configured time (extend + retract + pause + settling + cooldown)
-		mockDuration := a.movementTime + (a.movementTime + retractExtra) + a.pause + 2*settlingDelay + cycleCooldown
+		// Mock: wait for the configured time (extend + retract + pause + settling)
+		mockDuration := a.movementTime + (a.movementTime + retractExtra) + a.pause + 2*settlingDelay
 		time.Sleep(mockDuration)
 		return int(mockDuration.Milliseconds()), nil
 	}
@@ -250,7 +247,6 @@ func (a *Actuator) Trigger() (int, error) {
 		preciseDelay(a.movementTime + retractExtra)
 		preciseDelay(settlingDelay)
 		a.isHome = true
-		preciseDelay(cycleCooldown)
 
 		totalMs := int(time.Since(start).Milliseconds())
 		log.Printf("Actuator (SIMULATION) cycle complete: extend=%v, retract=%v, total=%dms", 
@@ -300,7 +296,6 @@ func (a *Actuator) Trigger() (int, error) {
 		return 0, fmt.Errorf("failed to stop after retract: %w", err)
 	}
 	a.isHome = true
-	preciseDelay(cycleCooldown)
 
 	totalMs := int(time.Since(start).Milliseconds())
 	log.Printf("Actuator cycle complete: extend=%v, retract=%v, total=%dms", 

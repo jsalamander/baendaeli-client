@@ -38,11 +38,11 @@ func TestTriggerWithDisabledActuatorUsesConfiguredDurations(t *testing.T) {
         t.Fatalf("Trigger returned error: %v", err)
     }
 
-    // expected ~2225ms (10ms extend + 1010ms retract + 5ms pause + 2x 100ms settling + 1000ms cooldown); allow buffer for scheduling
-    if totalMs < 2100 || totalMs > 2500 {
+    // expected ~1225ms (10ms extend + 1010ms retract + 5ms pause + 2x 100ms settling); allow buffer for scheduling
+    if totalMs < 1100 || totalMs > 1500 {
         t.Fatalf("unexpected reported duration: %dms", totalMs)
     }
-    if elapsed < 2100*time.Millisecond || elapsed > 2800*time.Millisecond {
+    if elapsed < 1100*time.Millisecond || elapsed > 1800*time.Millisecond {
         t.Fatalf("unexpected elapsed wall time: %v", elapsed)
     }
 }
