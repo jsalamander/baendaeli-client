@@ -22,6 +22,7 @@ type Config struct {
 	ColorSensorI2CBus            int     `yaml:"COLOR_SENSOR_I2C_BUS"`
 	ColorSensorI2CAddress        string  `yaml:"COLOR_SENSOR_I2C_ADDRESS"`
 	ColorSensorMovementThreshold int     `yaml:"COLOR_SENSOR_MOVEMENT_THRESHOLD"`
+	ColorSensorPresenceTolerance int     `yaml:"COLOR_SENSOR_PRESENCE_TOLERANCE"`
 	ColorSensorPollIntervalMs    int     `yaml:"COLOR_SENSOR_POLL_INTERVAL_MS"`
 	ColorSensorCheckDurationMs   int     `yaml:"COLOR_SENSOR_CHECK_DURATION_MS"`
 	ColorSensorStableSamples     int     `yaml:"COLOR_SENSOR_STABLE_SAMPLES"`
@@ -76,6 +77,9 @@ func (c *Config) SetDefaults() {
 	}
 	if c.ColorSensorMovementThreshold == 0 {
 		c.ColorSensorMovementThreshold = 500
+	}
+	if c.ColorSensorPresenceTolerance == 0 {
+		c.ColorSensorPresenceTolerance = 12
 	}
 	if c.ColorSensorPollIntervalMs == 0 {
 		c.ColorSensorPollIntervalMs = 100

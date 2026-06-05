@@ -22,8 +22,16 @@ type AttemptObserver func(attempt int, maxAttempts int)
 
 type detectOptions struct {
 	referenceBaseline *uint16
-	matchReference    bool
+	detectMode        detectMode
 }
+
+type detectMode int
+
+const (
+	detectModeMovementOnly detectMode = iota
+	detectModeHybridReference
+	detectModePresenceReference
+)
 
 // WaitForBall monitors the colour sensor and waits until a ball drop is detected.
 // It uses the clear channel (C) to detect movement: a ball passing the sensor causes
@@ -43,14 +51,18 @@ func WaitForBall(s *Sensor, vib vibratorBuzzer, cfg *config.Config, logger *log.
 
 // WaitForBallWithReferenceBaseline uses a pre-dispense baseline to detect balls that have
 // already come to rest by the time polling starts.
+//
+// Detection is hybrid when a reference is provided:
+// - movement hit: absolute delta to current baseline >= movement threshold
+// - presence hit: absolute delta to reference baseline <= presence tolerance
 func WaitForBallWithReferenceBaseline(s *Sensor, vib vibratorBuzzer, cfg *config.Config, logger *log.Logger, observer AttemptObserver, referenceBaseline uint16) error {
-	return waitForBallWithOptions(s, vib, cfg, logger, observer, detectOptions{referenceBaseline: &referenceBaseline})
+	return waitForBallWithOptions(s, vib, cfg, logger, observer, detectOptions{referenceBaseline: &referenceBaseline, detectMode: detectModeHybridReference})
 }
 
 // WaitForBallWithPresenceReferenceBaseline detects a settled ball by checking
 // that sensor readings stay close to a known ball-present reference baseline.
 func WaitForBallWithPresenceReferenceBaseline(s *Sensor, vib vibratorBuzzer, cfg *config.Config, logger *log.Logger, observer AttemptObserver, referenceBaseline uint16) error {
-	return waitForBallWithOptions(s, vib, cfg, logger, observer, detectOptions{referenceBaseline: &referenceBaseline, matchReference: true})
+	return waitForBallWithOptions(s, vib, cfg, logger, observer, detectOptions{referenceBaseline: &referenceBaseline, detectMode: detectModePresenceReference})
 }
 
 func waitForBallWithOptions(s *Sensor, vib vibratorBuzzer, cfg *config.Config, logger *log.Logger, observer AttemptObserver, opts detectOptions) error {
@@ -85,16 +97,19 @@ func waitForBallWithOptions(s *Sensor, vib vibratorBuzzer, cfg *config.Config, l
 		}
 
 		if opts.referenceBaseline != nil {
-			if opts.matchReference {
-				logger.Printf("Color sensor: attempt %d/%d, baseline C=%d, reference C=%d, match_mode=near_reference, threshold=%d, stable_samples=%d", attempt, cfg.ColorSensorMaxAttempts, baseline, *opts.referenceBaseline, cfg.ColorSensorMovementThreshold, stableSamples)
-			} else {
-				logger.Printf("Color sensor: attempt %d/%d, baseline C=%d, reference C=%d, match_mode=difference, threshold=%d, stable_samples=%d", attempt, cfg.ColorSensorMaxAttempts, baseline, *opts.referenceBaseline, cfg.ColorSensorMovementThreshold, stableSamples)
+			switch opts.detectMode {
+			case detectModePresenceReference:
+				logger.Printf("Color sensor: attempt %d/%d, baseline C=%d, reference C=%d, match_mode=near_reference, movement_threshold=%d, presence_tolerance=%d, stable_samples=%d", attempt, cfg.ColorSensorMaxAttempts, baseline, *opts.referenceBaseline, cfg.ColorSensorMovementThreshold, cfg.ColorSensorPresenceTolerance, stableSamples)
+			case detectModeHybridReference:
+				logger.Printf("Color sensor: attempt %d/%d, baseline C=%d, reference C=%d, match_mode=hybrid, movement_threshold=%d, presence_tolerance=%d, stable_samples=%d", attempt, cfg.ColorSensorMaxAttempts, baseline, *opts.referenceBaseline, cfg.ColorSensorMovementThreshold, cfg.ColorSensorPresenceTolerance, stableSamples)
+			default:
+				logger.Printf("Color sensor: attempt %d/%d, baseline C=%d, reference C=%d, match_mode=movement_only, movement_threshold=%d, stable_samples=%d", attempt, cfg.ColorSensorMaxAttempts, baseline, *opts.referenceBaseline, cfg.ColorSensorMovementThreshold, stableSamples)
 			}
 		} else {
 			logger.Printf("Color sensor: attempt %d/%d, baseline C=%d, threshold=%d, stable_samples=%d", attempt, cfg.ColorSensorMaxAttempts, baseline, cfg.ColorSensorMovementThreshold, stableSamples)
 		}
 
-		if detected := pollForMovement(s, baseline, opts.referenceBaseline, opts.matchReference, cfg.ColorSensorMovementThreshold, stableSamples, checkDuration, pollInterval, cfg.ColorSensorDebugLogging, logger); detected {
+		if detected := pollForMovement(s, baseline, opts.referenceBaseline, opts.detectMode, cfg.ColorSensorMovementThreshold, cfg.ColorSensorPresenceTolerance, stableSamples, checkDuration, pollInterval, cfg.ColorSensorDebugLogging, logger); detected {
 			logger.Printf("Color sensor: ball detected on attempt %d", attempt)
 			return nil
 		}
@@ -133,11 +148,15 @@ func baseline(s *Sensor, logger *log.Logger) (uint16, error) {
 	return uint16(sum / samples), nil
 }
 
-// pollForMovement polls the sensor until movement is detected or the window expires.
-func pollForMovement(s *Sensor, baseline uint16, referenceBaseline *uint16, matchReference bool, threshold int, stableSamples int, window, interval time.Duration, debug bool, logger *log.Logger) bool {
+// pollForMovement polls the sensor until movement or presence detection is stable
+// or the window expires.
+func pollForMovement(s *Sensor, baseline uint16, referenceBaseline *uint16, mode detectMode, movementThreshold int, presenceTolerance int, stableSamples int, window, interval time.Duration, debug bool, logger *log.Logger) bool {
 	deadline := time.Now().Add(window)
 	consecutiveHits := 0
 	sampleIndex := 0
+	if presenceTolerance <= 0 {
+		presenceTolerance = movementThreshold
+	}
 	for time.Now().Before(deadline) {
 		sampleIndex++
 		c, _, _, _, err := s.Read()
@@ -153,40 +172,39 @@ func pollForMovement(s *Sensor, baseline uint16, referenceBaseline *uint16, matc
 		}
 
 		diffReference := -1
-		effectiveDiff := diffCurrent
+		movementHit := diffCurrent >= movementThreshold
+		presenceHit := false
 		if referenceBaseline != nil {
 			diffReference = int(c) - int(*referenceBaseline)
 			if diffReference < 0 {
 				diffReference = -diffReference
 			}
-			if !matchReference && diffReference > effectiveDiff {
-				effectiveDiff = diffReference
+			presenceHit = diffReference <= presenceTolerance
+		}
+
+		hit := movementHit
+		if referenceBaseline != nil {
+			switch mode {
+			case detectModePresenceReference:
+				hit = presenceHit
+			case detectModeHybridReference:
+				hit = movementHit || presenceHit
+			default:
+				hit = movementHit
 			}
 		}
 
-		if matchReference && referenceBaseline != nil {
-			if diffReference <= threshold {
-				consecutiveHits++
-			} else {
-				consecutiveHits = 0
-			}
+		if hit {
+			consecutiveHits++
 		} else {
-			if effectiveDiff >= threshold {
-				consecutiveHits++
-			} else {
-				consecutiveHits = 0
-			}
+			consecutiveHits = 0
 		}
 
 		if debug {
 			if diffReference >= 0 {
-				if matchReference {
-					logger.Printf("Color sensor debug: sample=%d C=%d baseline=%d reference=%d diff_current=%d diff_reference=%d match_mode=near_reference threshold=%d consecutive_hits=%d/%d", sampleIndex, c, baseline, *referenceBaseline, diffCurrent, diffReference, threshold, consecutiveHits, stableSamples)
-				} else {
-					logger.Printf("Color sensor debug: sample=%d C=%d baseline=%d reference=%d diff_current=%d diff_reference=%d effective_diff=%d threshold=%d consecutive_hits=%d/%d", sampleIndex, c, baseline, *referenceBaseline, diffCurrent, diffReference, effectiveDiff, threshold, consecutiveHits, stableSamples)
-				}
+				logger.Printf("Color sensor debug: sample=%d C=%d baseline=%d reference=%d diff_current=%d diff_reference=%d movement_hit=%t presence_hit=%t mode=%d movement_threshold=%d presence_tolerance=%d consecutive_hits=%d/%d", sampleIndex, c, baseline, *referenceBaseline, diffCurrent, diffReference, movementHit, presenceHit, mode, movementThreshold, presenceTolerance, consecutiveHits, stableSamples)
 			} else {
-				logger.Printf("Color sensor debug: sample=%d C=%d baseline=%d diff_current=%d threshold=%d consecutive_hits=%d/%d", sampleIndex, c, baseline, diffCurrent, threshold, consecutiveHits, stableSamples)
+				logger.Printf("Color sensor debug: sample=%d C=%d baseline=%d diff_current=%d movement_hit=%t movement_threshold=%d consecutive_hits=%d/%d", sampleIndex, c, baseline, diffCurrent, movementHit, movementThreshold, consecutiveHits, stableSamples)
 			}
 		}
 
