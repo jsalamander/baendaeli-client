@@ -1069,6 +1069,23 @@ func TestCaptureStartupBallReferenceBaselineClearsPendingWhenSensorDisabled(t *t
 	}
 }
 
+func TestWaitForBallReadyStoresReferenceBaselineForNextCycle(t *testing.T) {
+	client := New(&config.Config{})
+	reference := uint16(777)
+
+	if err := client.waitForBallReady(false, false, &reference); err != nil {
+		t.Fatalf("expected waitForBallReady to succeed, got %v", err)
+	}
+
+	next := client.consumePendingBallReference()
+	if next == nil {
+		t.Fatal("expected pending baseline to be stored")
+	}
+	if *next != reference {
+		t.Fatalf("expected pending baseline %d, got %d", reference, *next)
+	}
+}
+
 func TestPollSkipsCommandFetchWhenJammed(t *testing.T) {
 	statusCalled := false
 	commandCalled := false

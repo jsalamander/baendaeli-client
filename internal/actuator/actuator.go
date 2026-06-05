@@ -26,7 +26,7 @@ type Config struct {
 	IN1Pin       string // e.g., "GPIO8"
 	IN2Pin       string // e.g., "GPIO7"
 	MovementTime int    // seconds - MUST be identical for extend and retract
-	PauseTime    int    // seconds, pause between extend and retract
+	PauseTime    int    // seconds, deprecated: ignored (kept for config compatibility)
 }
 
 type ActuateResult struct {
@@ -58,12 +58,8 @@ func Init(config Config) error {
 	if config.MovementTime == 0 {
 		config.MovementTime = 2
 	}
-	if config.PauseTime == 0 {
-		config.PauseTime = 2
-	}
 
-	log.Printf("Actuator config: movement_time=%ds (extend=retract), pause=%ds", 
-		config.MovementTime, config.PauseTime)
+	log.Printf("Actuator config: movement_time=%ds (extend=retract), pause disabled", config.MovementTime)
 
 	// Initialize periph/x host
 	if _, err := host.Init(); err != nil {
@@ -75,7 +71,7 @@ func Init(config Config) error {
 			in1Pin:       nil,
 			in2Pin:       nil,
 			movementTime: time.Duration(config.MovementTime) * time.Second,
-			pause:        time.Duration(config.PauseTime) * time.Second,
+			pause:        0,
 			isHome:       false,
 		}
 		return nil
@@ -91,7 +87,7 @@ func Init(config Config) error {
 			in1Pin:       nil,
 			in2Pin:       nil,
 			movementTime: time.Duration(config.MovementTime) * time.Second,
-			pause:        time.Duration(config.PauseTime) * time.Second,
+			pause:        0,
 			isHome:       false,
 		}
 		return nil
@@ -106,7 +102,7 @@ func Init(config Config) error {
 			in1Pin:       nil,
 			in2Pin:       nil,
 			movementTime: time.Duration(config.MovementTime) * time.Second,
-			pause:        time.Duration(config.PauseTime) * time.Second,
+			pause:        0,
 			isHome:       false,
 		}
 		return nil
@@ -121,7 +117,7 @@ func Init(config Config) error {
 			in1Pin:       nil,
 			in2Pin:       nil,
 			movementTime: time.Duration(config.MovementTime) * time.Second,
-			pause:        time.Duration(config.PauseTime) * time.Second,
+			pause:        0,
 			isHome:       false,
 		}
 		return nil
@@ -133,7 +129,7 @@ func Init(config Config) error {
 		in1Pin:       in1Pin,
 		in2Pin:       in2Pin,
 		movementTime: time.Duration(config.MovementTime) * time.Second,
-		pause:        time.Duration(config.PauseTime) * time.Second,
+		pause:        0,
 		isHome:       false, // Will be set to true after homing completes
 	}
 
@@ -222,13 +218,13 @@ func Home() {
 	log.Println("Actuator: homing complete - now at home position")
 }
 
-// Trigger executes one extend-pause-retract cycle with precise timing
+// Trigger executes one extend-retract cycle with precise timing
 // Retract runs slightly longer to counter drift over repeated cycles.
 func (a *Actuator) Trigger() (int, error) {
 	start := time.Now()
 	if !a.enabled {
-		// Mock: wait for the configured time (extend + retract + pause + settling)
-		mockDuration := a.movementTime + (a.movementTime + retractExtra) + a.pause + 2*settlingDelay
+		// Mock: wait for the configured time (extend + retract + settling)
+		mockDuration := a.movementTime + (a.movementTime + retractExtra) + 2*settlingDelay
 		time.Sleep(mockDuration)
 		return int(mockDuration.Milliseconds()), nil
 	}
@@ -239,9 +235,6 @@ func (a *Actuator) Trigger() (int, error) {
 		preciseDelay(a.movementTime)
 		preciseDelay(settlingDelay)
 		a.isHome = false
-
-		log.Printf("Actuator (SIMULATION): pausing for %v...", a.pause)
-		preciseDelay(a.pause)
 
 		log.Printf("Actuator (SIMULATION): retracting for exactly %v...", a.movementTime+retractExtra)
 		preciseDelay(a.movementTime + retractExtra)
@@ -275,9 +268,6 @@ func (a *Actuator) Trigger() (int, error) {
 		return 0, fmt.Errorf("failed to stop after extend: %w", err)
 	}
 	a.isHome = false
-
-	log.Printf("Actuator: pausing for %v...", a.pause)
-	preciseDelay(a.pause)
 
 	log.Printf("Actuator: retracting for exactly %v...", a.movementTime+retractExtra)
 	// Retract: IN1 LOW, IN2 HIGH

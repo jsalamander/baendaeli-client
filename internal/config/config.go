@@ -65,9 +65,7 @@ func (c *Config) SetDefaults() {
 	if c.ActuatorMovement == 0 {
 		c.ActuatorMovement = 2 // 2 seconds by default (for both extend and retract)
 	}
-	if c.ActuatorPause == 0 {
-		c.ActuatorPause = 2 // 2 seconds by default
-	}
+	// ActuatorPause is intentionally left at 0 (deprecated/ignored by actuator trigger cycle).
 	if !c.ColorSensorEnabled {
 		c.ColorSensorEnabled = true
 	}

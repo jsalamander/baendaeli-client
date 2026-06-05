@@ -12,7 +12,7 @@ func TestSetDefaultsAppliesValues(t *testing.T) {
 	if cfg.SuccessOverlayMs != 10000 {
 		t.Fatalf("SuccessOverlayMs not set, got %d", cfg.SuccessOverlayMs)
 	}
-	if cfg.ActuatorMovement != 2 || cfg.ActuatorPause != 2 {
+	if cfg.ActuatorMovement != 2 || cfg.ActuatorPause != 0 {
 		t.Fatalf("Actuator defaults not set: movement=%d pause=%d", cfg.ActuatorMovement, cfg.ActuatorPause)
 	}
 	if !cfg.ColorSensorEnabled {

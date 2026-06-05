@@ -1068,6 +1068,12 @@ func (c *Client) waitForBallReady(showWaitingMessage bool, allowVibration bool, 
 		return err
 	}
 
+	if referenceBaseline != nil {
+		// Reuse the last known ball-present baseline for the next detecting cycle.
+		// This avoids dropping immediately back to movement-only matching.
+		c.setPendingBallReference(referenceBaseline)
+	}
+
 	c.jammed.Store(false)
 	c.setRuntimeState(StateBallOnSensor, "Ball auf Sensor erkannt")
 	c.setExecutingCommand(&CommandResponse{
