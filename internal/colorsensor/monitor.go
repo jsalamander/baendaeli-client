@@ -91,6 +91,7 @@ func waitForBallWithOptions(s *Sensor, vib vibratorBuzzer, cfg *config.Config, l
 
 	activeReference := opts.referenceBaseline
 	failedReferenceAttempts := 0
+	forceMovementOnly := false
 
 	for attempt := 1; attempt <= cfg.ColorSensorMaxAttempts; attempt++ {
 		if observer != nil {
@@ -108,17 +109,23 @@ func waitForBallWithOptions(s *Sensor, vib vibratorBuzzer, cfg *config.Config, l
 		}
 
 		referenceForAttempt := activeReference
+		attemptMode := opts.detectMode
+		if forceMovementOnly {
+			attemptMode = detectModeMovementOnly
+		}
 		driftedReference := false
 		if referenceForAttempt != nil && opts.detectMode == detectModeHybridReference {
 			if absInt(int(baselineValue)-int(*referenceForAttempt)) > referenceMaxDrift {
 				logger.Printf("Color sensor: attempt %d/%d reference drift too high (baseline=%d reference=%d max_drift=%d), temporarily ignoring reference", attempt, cfg.ColorSensorMaxAttempts, baselineValue, *referenceForAttempt, referenceMaxDrift)
 				referenceForAttempt = nil
 				driftedReference = true
+				attemptMode = detectModeMovementOnly
+				forceMovementOnly = true
 			}
 		}
 
 		if referenceForAttempt != nil {
-			switch opts.detectMode {
+			switch attemptMode {
 			case detectModePresenceReference:
 				logger.Printf("Color sensor: attempt %d/%d, baseline C=%d, reference C=%d, match_mode=near_reference, movement_threshold=%d, presence_tolerance=%d, stable_samples=%d", attempt, cfg.ColorSensorMaxAttempts, baselineValue, *referenceForAttempt, cfg.ColorSensorMovementThreshold, cfg.ColorSensorPresenceTolerance, stableSamples)
 			case detectModeHybridReference:
@@ -130,7 +137,7 @@ func waitForBallWithOptions(s *Sensor, vib vibratorBuzzer, cfg *config.Config, l
 			logger.Printf("Color sensor: attempt %d/%d, baseline C=%d, threshold=%d, stable_samples=%d", attempt, cfg.ColorSensorMaxAttempts, baselineValue, cfg.ColorSensorMovementThreshold, stableSamples)
 		}
 
-		if detected := pollForMovement(s, baselineValue, referenceForAttempt, opts.detectMode, cfg.ColorSensorMovementThreshold, cfg.ColorSensorPresenceTolerance, stableSamples, checkDuration, pollInterval, cfg.ColorSensorDebugLogging, logger); detected {
+		if detected := pollForMovement(s, baselineValue, referenceForAttempt, attemptMode, cfg.ColorSensorMovementThreshold, cfg.ColorSensorPresenceTolerance, stableSamples, checkDuration, pollInterval, cfg.ColorSensorDebugLogging, logger); detected {
 			logger.Printf("Color sensor: ball detected on attempt %d", attempt)
 			return nil
 		}
