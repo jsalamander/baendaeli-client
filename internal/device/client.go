@@ -853,7 +853,7 @@ func (c *Client) executeCommand(cmd *CommandResponse) (string, error) {
 		}
 		return "", nil
 	case "load_test":
-		const defaultLoadTestCycles = 30
+		const defaultLoadTestCycles = 15
 		loadTestCycles := defaultLoadTestCycles
 		if cmd.DurationMs != nil && *cmd.DurationMs > 0 {
 			loadTestCycles = *cmd.DurationMs
@@ -1129,15 +1129,6 @@ func (c *Client) DispenseAndWaitForBall() (int, error) {
 func (c *Client) dispenseAndWaitForBallLocked() (int, error) {
 
 	paymentID := c.GetPaymentID()
-	var preDispenseBaseline *uint16
-	if c.colorSensor != nil && c.colorSensor.IsEnabled() {
-		if baseline, baselineErr := colorsensor.SampleBaseline(c.colorSensor, log.Default()); baselineErr == nil {
-			preDispenseBaseline = &baseline
-			log.Printf("Device client: captured pre-dispense baseline C=%d", baseline)
-		} else {
-			log.Printf("Device client: failed to capture pre-dispense baseline: %v", baselineErr)
-		}
-	}
 
 	totalMs, err := actuator.Trigger()
 	if err != nil {
@@ -1148,7 +1139,9 @@ func (c *Client) dispenseAndWaitForBallLocked() (int, error) {
 		c.recordDispensedCount(paymentID, 1)
 	}
 
-	if err := c.waitForBallReady(true, true, preDispenseBaseline); err != nil {
+	// Use non-reference detection after dispense to avoid false positives from
+	// stale reference geometry between consecutive cycles.
+	if err := c.waitForBallReady(true, true, nil); err != nil {
 		return totalMs, err
 	}
 
