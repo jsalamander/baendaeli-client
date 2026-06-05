@@ -853,11 +853,16 @@ func (c *Client) executeCommand(cmd *CommandResponse) (string, error) {
 		}
 		return "", nil
 	case "load_test":
-		log.Printf("Device client: load test started (30 cycles)")
-		const loadTestCycles = 30
+		const defaultLoadTestCycles = 30
+		loadTestCycles := defaultLoadTestCycles
+		if cmd.DurationMs != nil && *cmd.DurationMs > 0 {
+			loadTestCycles = *cmd.DurationMs
+		}
+
+		log.Printf("Device client: load test started (%d full cycles)", loadTestCycles)
 		for i := 1; i <= loadTestCycles; i++ {
 			c.updateExecutingCommandMessage(fmt.Sprintf("%d/%d", i, loadTestCycles))
-			if _, err := actuator.Trigger(); err != nil {
+			if _, err := c.dispenseAndWaitForBallLocked(); err != nil {
 				log.Printf("Device client: load test failed on cycle %d: %v", i, err)
 				return "", err
 			}
