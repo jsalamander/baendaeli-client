@@ -859,13 +859,22 @@ func (c *Client) executeCommand(cmd *CommandResponse) (string, error) {
 			loadTestCycles = *cmd.DurationMs
 		}
 
-		log.Printf("Device client: load test started (%d full cycles)", loadTestCycles)
+		log.Printf("Device client: load test started (%d simulated successful payments)", loadTestCycles)
 		for i := 1; i <= loadTestCycles; i++ {
-			c.updateExecutingCommandMessage(fmt.Sprintf("%d/%d", i, loadTestCycles))
+			paymentID := fmt.Sprintf("load-test-payment-%d", i)
+			c.setCurrentPayment(paymentID, map[string]any{
+				"id":            paymentID,
+				"status":        "paid",
+				"payment_phase": "waiting_for_payment",
+			})
+			c.setRuntimeState(StateDispensing, fmt.Sprintf("Load test: simuliere erfolgreiche Zahlung %d/%d", i, loadTestCycles))
+			c.updateExecutingCommandMessage(fmt.Sprintf("Payment %d/%d", i, loadTestCycles))
 			if _, err := c.dispenseAndWaitForBallLocked(); err != nil {
 				log.Printf("Device client: load test failed on cycle %d: %v", i, err)
 				return "", err
 			}
+			c.SetPaymentID("")
+			c.setRuntimeState(StateDetectingBall, "Warte auf Ball")
 		}
 		return "", nil
 	case "vibrate":
