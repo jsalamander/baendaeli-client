@@ -1067,17 +1067,17 @@ func (c *Client) runStartupExtractorCycle() error {
 		Message: "Starte Initialzyklus",
 	})
 
-	// Capture reference baseline before the actuator moves: at this point the
-	// actuator is at home (retracted), the wood bar is away from the sensor,
-	// and the funnel is empty. This gives a reliable "empty funnel" reference
-	// that the first ball-detection cycle can compare against after the cycle
-	// completes and the ball may have already settled.
-	c.captureStartupBallReferenceBaseline()
-
 	if _, err := actuator.Trigger(); err != nil {
 		c.clearExecutingCommand()
 		return err
 	}
+
+	// Capture empty-funnel reference baseline after the startup cycle:
+	// at startup a ball is guaranteed to be on the sensor, so the cycle
+	// dispenses it. After retract the funnel is empty. Capturing here gives
+	// the first detection cycle a reliable "empty funnel" reference so it
+	// can immediately recognise a newly-arrived settled ball.
+	c.captureStartupBallReferenceBaseline()
 
 	c.clearExecutingCommand()
 	return nil
@@ -1089,15 +1089,21 @@ func (c *Client) captureStartupBallReferenceBaseline() {
 		return
 	}
 
+	// Brief settle to let sensor stabilise after actuator stops.
+	settleDelay := time.Duration(c.config.ColorSensorSettleDelayMs) * time.Millisecond
+	if settleDelay > 0 {
+		time.Sleep(settleDelay)
+	}
+
 	baseline, err := colorsensor.SampleBaseline(c.colorSensor, log.Default())
 	if err != nil {
-		log.Printf("Device client: failed to capture startup pre-cycle reference baseline: %v", err)
+		log.Printf("Device client: failed to capture startup post-cycle reference baseline: %v", err)
 		c.setPendingBallReference(nil)
 		return
 	}
 
 	c.setPendingBallReference(&baseline)
-	log.Printf("Device client: captured startup pre-cycle reference baseline C=%d (empty funnel)", baseline)
+	log.Printf("Device client: captured startup post-cycle reference baseline C=%d (empty funnel)", baseline)
 }
 
 // DispenseAndWaitForBall runs one dispense cycle and then waits until the next ball is detected.
