@@ -1027,13 +1027,13 @@ func (c *Client) waitForBallReady(showWaitingMessage bool, allowVibration bool, 
 
 	if allowVibration {
 		if referenceBaseline != nil {
-			err = colorsensor.WaitForBallWithPresenceReferenceBaseline(c.colorSensor, vibratorAdapter{}, c.config, log.Default(), observer, *referenceBaseline)
+			err = colorsensor.WaitForBallWithReferenceBaseline(c.colorSensor, vibratorAdapter{}, c.config, log.Default(), observer, *referenceBaseline)
 		} else {
 			err = colorsensor.WaitForBall(c.colorSensor, vibratorAdapter{}, c.config, log.Default(), observer)
 		}
 	} else {
 		if referenceBaseline != nil {
-			err = colorsensor.WaitForBallWithPresenceReferenceBaseline(c.colorSensor, nil, c.config, log.Default(), observer, *referenceBaseline)
+			err = colorsensor.WaitForBallWithReferenceBaseline(c.colorSensor, nil, c.config, log.Default(), observer, *referenceBaseline)
 		} else {
 			err = colorsensor.WaitForBall(c.colorSensor, nil, c.config, log.Default(), observer)
 		}
