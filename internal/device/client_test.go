@@ -954,7 +954,7 @@ func TestCommandLoadTest(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.Contains(r.URL.Path, "/commands") && r.Method == http.MethodGet {
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte(`{"id": 48, "command": "load_test"}`))
+			w.Write([]byte(`{"id": 48, "command": "load_test", "repeat_count": 9}`))
 		}
 	}))
 	defer server.Close()
@@ -980,6 +980,14 @@ func TestCommandLoadTest(t *testing.T) {
 
 	if cmd.Command != "load_test" {
 		t.Errorf("expected command 'load_test', got %s", cmd.Command)
+	}
+
+	if cmd.RepeatCount == nil {
+		t.Fatal("expected repeat_count to be set")
+	}
+
+	if *cmd.RepeatCount != 9 {
+		t.Errorf("expected repeat_count 9, got %d", *cmd.RepeatCount)
 	}
 }
 

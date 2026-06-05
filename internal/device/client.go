@@ -39,6 +39,7 @@ type CommandResponse struct {
 	ID         int    `json:"id"`
 	Command    string `json:"command"`
 	DurationMs *int   `json:"duration_ms,omitempty"` // Optional duration in milliseconds
+	RepeatCount *int  `json:"repeat_count,omitempty"` // Optional repeat count for load_test cycles
 	Message    string `json:"message,omitempty"`     // Message text for message command
 	Percent    *int   `json:"percent,omitempty"`     // Vibration intensity (1-100) for vibrate command
 }
@@ -855,8 +856,11 @@ func (c *Client) executeCommand(cmd *CommandResponse) (string, error) {
 	case "load_test":
 		const defaultLoadTestCycles = 15
 		loadTestCycles := defaultLoadTestCycles
-		if cmd.DurationMs != nil && *cmd.DurationMs > 0 {
-			loadTestCycles = *cmd.DurationMs
+		if cmd.RepeatCount != nil {
+			if *cmd.RepeatCount < 0 {
+				return "", fmt.Errorf("load_test command: repeat_count must be >= 0, got %d", *cmd.RepeatCount)
+			}
+			loadTestCycles = *cmd.RepeatCount
 		}
 
 		log.Printf("Device client: load test started (%d simulated successful payments)", loadTestCycles)
