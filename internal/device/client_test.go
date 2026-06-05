@@ -1153,6 +1153,35 @@ func TestWaitForBallReadyStoresReferenceBaselineForNextCycle(t *testing.T) {
 	}
 }
 
+func TestWaitForBallReadyFailureKeepsReferenceForJamRecovery(t *testing.T) {
+	cfg := &config.Config{}
+	cfg.SetDefaults()
+	cfg.ColorSensorMovementThreshold = 10000
+	cfg.ColorSensorCheckDurationMs = 1
+	cfg.ColorSensorVibrateBursts = 0
+	cfg.ColorSensorMaxAttempts = 1
+
+	client := New(cfg)
+	if err := client.colorSensor.Init(cfg); err != nil {
+		t.Fatalf("failed to init color sensor in test: %v", err)
+	}
+	defer client.colorSensor.Close()
+
+	reference := uint16(777)
+	err := client.waitForBallReady(true, true, &reference)
+	if err != colorsensor.ErrNoBallDetected {
+		t.Fatalf("expected ErrNoBallDetected, got %v", err)
+	}
+
+	next := client.consumePendingBallReference()
+	if next == nil {
+		t.Fatal("expected pending baseline to be preserved after failed detection")
+	}
+	if *next != reference {
+		t.Fatalf("expected pending baseline %d, got %d", reference, *next)
+	}
+}
+
 func TestPollFetchesButDefersActuationCommandWhenJammed(t *testing.T) {
 	statusCalled := false
 	commandCalled := false

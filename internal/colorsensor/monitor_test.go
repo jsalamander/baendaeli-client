@@ -316,7 +316,7 @@ func TestWaitForBallWithReferenceBaselineResamplesImmediatelyAfterDriftedMiss(t 
 	}
 }
 
-func TestWaitForBallWithReferenceBaselineUsesMovementOnlyAfterDrift(t *testing.T) {
+func TestWaitForBallWithReferenceBaselineReturnsToHybridAfterResample(t *testing.T) {
 	s := &Sensor{enabled: true, sim: true}
 	logger, buf := bufferLogger()
 
@@ -330,32 +330,20 @@ func TestWaitForBallWithReferenceBaselineUsesMovementOnlyAfterDrift(t *testing.T
 		ColorSensorCheckDurationMs:                1,
 		ColorSensorStableSamples:                  1,
 		ColorSensorVibrateBursts:                  0,
-		ColorSensorMaxAttempts:                    2,
+		ColorSensorMaxAttempts:                    3,
 	}
 
 	reference := uint16(500)
 	err := WaitForBallWithReferenceBaseline(s, nil, cfg, logger, nil, reference)
-	if err != ErrNoBallDetected {
-		t.Fatalf("expected ErrNoBallDetected, got %v", err)
+	if err != nil {
+		t.Fatalf("expected detection after hybrid mode resumes, got %v", err)
 	}
 
 	logs := buf.String()
 	if !strings.Contains(logs, "reference drift too high") {
 		t.Fatalf("expected drift log entry, logs were:\n%s", logs)
 	}
-	if !strings.Contains(logs, "attempt 2/2, baseline C=") || !strings.Contains(logs, "threshold=10000") {
-		t.Fatalf("expected movement-only second attempt, logs were:\n%s", logs)
-	}
-	secondAttemptFound := false
-	for _, line := range strings.Split(logs, "\n") {
-		if strings.Contains(line, "Color sensor: attempt 2/2,") {
-			secondAttemptFound = true
-			if !strings.Contains(line, "match_mode=movement_only") {
-				t.Fatalf("expected movement-only mode for second attempt after drift, got line: %s", line)
-			}
-		}
-	}
-	if !secondAttemptFound {
-		t.Fatalf("expected second attempt log line, logs were:\n%s", logs)
+	if !strings.Contains(logs, "attempt 2/3,") || !strings.Contains(logs, "match_mode=hybrid") {
+		t.Fatalf("expected hybrid mode to resume by attempt 2 after resample, logs were:\n%s", logs)
 	}
 }

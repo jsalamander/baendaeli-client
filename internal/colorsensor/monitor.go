@@ -152,6 +152,7 @@ func waitForBallWithOptions(s *Sensor, vib vibratorBuzzer, cfg *config.Config, l
 				} else {
 					activeReference = &resampledReference
 					failedReferenceAttempts = 0
+					forceMovementOnly = false
 					logger.Printf("Color sensor: resampled hybrid reference baseline C=%d", resampledReference)
 				}
 			}

@@ -380,7 +380,8 @@ func (c *Client) poll() {
 
 	// If a jam was detected, keep showing the message and skip command execution.
 	if c.jammed.Load() {
-		if err := c.waitForBallReady(false, false, nil); err != nil {
+		referenceBaseline := c.consumePendingBallReference()
+		if err := c.waitForBallReady(false, false, referenceBaseline); err != nil {
 			c.setRuntimeState(StateJam, "Stau detektiert")
 		} else {
 			// Jam cleared, continue normal polling and command handling.
@@ -1057,6 +1058,10 @@ func (c *Client) waitForBallReady(showWaitingMessage bool, allowVibration bool, 
 
 	err := c.waitForBallReadyAttempt(allowVibration, referenceBaseline, observer)
 	if err != nil {
+		if referenceBaseline != nil {
+			// Keep a viable reference around for jam recovery scans.
+			c.setPendingBallReference(referenceBaseline)
+		}
 		log.Printf("Device client: ball not detected — showing jam message")
 		c.jammed.Store(true)
 		c.setRuntimeState(StateBallStuckFunnel, "Ball steckt im Trichter")
