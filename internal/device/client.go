@@ -869,13 +869,12 @@ func (c *Client) executeCommand(cmd *CommandResponse) (string, error) {
 			})
 			c.setRuntimeState(StateDispensing, fmt.Sprintf("Load test: simuliere erfolgreiche Zahlung %d/%d", i, loadTestCycles))
 			c.updateExecutingCommandMessage(fmt.Sprintf("Payment %d/%d", i, loadTestCycles))
+			referenceBaseline := c.sampleBallReferenceBaseline("load_test")
 			if _, err := actuator.Trigger(); err != nil {
 				log.Printf("Device client: load test failed on cycle %d during dispense: %v", i, err)
 				return "", err
 			}
-			// For load tests, avoid reference-baseline matching to prevent false positives
-			// from stale geometry shifts between cycles.
-			if err := c.waitForBallReady(true, true, nil); err != nil {
+			if err := c.waitForBallReady(true, true, referenceBaseline); err != nil {
 				log.Printf("Device client: load test failed on cycle %d: %v", i, err)
 				return "", err
 			}
@@ -1118,6 +1117,21 @@ func (c *Client) captureStartupBallReferenceBaseline() {
 	log.Printf("Device client: captured startup ball-present reference baseline C=%d", baseline)
 }
 
+func (c *Client) sampleBallReferenceBaseline(context string) *uint16 {
+	if c.colorSensor == nil || !c.colorSensor.IsEnabled() {
+		return nil
+	}
+
+	baseline, err := colorsensor.SampleBaseline(c.colorSensor, log.Default())
+	if err != nil {
+		log.Printf("Device client: failed to capture %s reference baseline: %v", context, err)
+		return nil
+	}
+
+	log.Printf("Device client: captured %s reference baseline C=%d", context, baseline)
+	return &baseline
+}
+
 // DispenseAndWaitForBall runs one dispense cycle and then waits until the next ball is detected.
 func (c *Client) DispenseAndWaitForBall() (int, error) {
 	c.actuatorMutex.Lock()
@@ -1129,6 +1143,7 @@ func (c *Client) DispenseAndWaitForBall() (int, error) {
 func (c *Client) dispenseAndWaitForBallLocked() (int, error) {
 
 	paymentID := c.GetPaymentID()
+	referenceBaseline := c.sampleBallReferenceBaseline("post-dispense")
 
 	totalMs, err := actuator.Trigger()
 	if err != nil {
@@ -1139,9 +1154,7 @@ func (c *Client) dispenseAndWaitForBallLocked() (int, error) {
 		c.recordDispensedCount(paymentID, 1)
 	}
 
-	// Use non-reference detection after dispense to avoid false positives from
-	// stale reference geometry between consecutive cycles.
-	if err := c.waitForBallReady(true, true, nil); err != nil {
+	if err := c.waitForBallReady(true, true, referenceBaseline); err != nil {
 		return totalMs, err
 	}
 
