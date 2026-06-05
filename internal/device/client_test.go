@@ -1029,7 +1029,7 @@ func TestWaitForBallReadySetsJamStateAndMessage(t *testing.T) {
 	}
 	defer client.colorSensor.Close()
 
-	err := client.waitForBallReady(true, true)
+	err := client.waitForBallReady(true, true, nil)
 	if err == nil {
 		t.Fatal("expected waitForBallReady to fail")
 	}

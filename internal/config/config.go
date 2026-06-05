@@ -24,6 +24,9 @@ type Config struct {
 	ColorSensorMovementThreshold int     `yaml:"COLOR_SENSOR_MOVEMENT_THRESHOLD"`
 	ColorSensorPollIntervalMs    int     `yaml:"COLOR_SENSOR_POLL_INTERVAL_MS"`
 	ColorSensorCheckDurationMs   int     `yaml:"COLOR_SENSOR_CHECK_DURATION_MS"`
+	ColorSensorStableSamples     int     `yaml:"COLOR_SENSOR_STABLE_SAMPLES"`
+	ColorSensorSettleDelayMs     int     `yaml:"COLOR_SENSOR_SETTLE_DELAY_MS"`
+	ColorSensorDebugLogging      bool    `yaml:"COLOR_SENSOR_DEBUG_LOGGING"`
 	ColorSensorVibrateIntensity  float64 `yaml:"COLOR_SENSOR_VIBRATE_INTENSITY"`
 	ColorSensorVibrateDurationMs int     `yaml:"COLOR_SENSOR_VIBRATE_DURATION_MS"`
 	ColorSensorVibrateBursts     int     `yaml:"COLOR_SENSOR_VIBRATE_BURSTS"`
@@ -79,6 +82,12 @@ func (c *Config) SetDefaults() {
 	}
 	if c.ColorSensorCheckDurationMs == 0 {
 		c.ColorSensorCheckDurationMs = 5000
+	}
+	if c.ColorSensorStableSamples == 0 {
+		c.ColorSensorStableSamples = 2
+	}
+	if c.ColorSensorSettleDelayMs == 0 {
+		c.ColorSensorSettleDelayMs = 200
 	}
 	if c.ColorSensorVibrateIntensity == 0 {
 		c.ColorSensorVibrateIntensity = 0.8

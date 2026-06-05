@@ -89,3 +89,38 @@ func TestWaitForBallCallsAttemptObserver(t *testing.T) {
 		}
 	}
 }
+
+func TestWaitForBallWithReferenceBaselineDetectsSettledBall(t *testing.T) {
+	s := &Sensor{enabled: true, sim: true}
+	logger := silentLogger()
+
+	withoutRefCfg := &config.Config{
+		ColorSensorEnabled:           true,
+		ColorSensorMovementThreshold: 4,
+		ColorSensorPollIntervalMs:    1,
+		ColorSensorCheckDurationMs:   1,
+		ColorSensorStableSamples:     1,
+		ColorSensorMaxAttempts:       1,
+	}
+
+	if err := WaitForBall(s, nil, withoutRefCfg, logger, nil); err == nil {
+		t.Fatal("expected no detection without reference baseline in short window")
+	}
+
+	// Reset simulation counter and retry with a pre-dispense reference baseline.
+	s.simCount.Store(0)
+	withRefCfg := &config.Config{
+		ColorSensorEnabled:           true,
+		ColorSensorMovementThreshold: 4,
+		ColorSensorPollIntervalMs:    1,
+		ColorSensorCheckDurationMs:   5,
+		ColorSensorStableSamples:     1,
+		ColorSensorMaxAttempts:       1,
+	}
+	reference := uint16(0)
+
+	err := WaitForBallWithReferenceBaseline(s, nil, withRefCfg, logger, nil, reference)
+	if err != nil {
+		t.Fatalf("expected detection with reference baseline, got error: %v", err)
+	}
+}

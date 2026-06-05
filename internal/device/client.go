@@ -354,7 +354,7 @@ func (c *Client) poll() {
 
 	// If a jam was detected, keep showing the message and skip command execution.
 	if c.jammed.Load() {
-		if err := c.waitForBallReady(false, false); err != nil {
+		if err := c.waitForBallReady(false, false, nil); err != nil {
 			c.setRuntimeState(StateJam, "Stau detektiert")
 			return
 		}
@@ -416,7 +416,7 @@ func (c *Client) runStateMachineCycle() bool {
 	paymentID := c.GetPaymentID()
 	if paymentID == "" {
 		c.setRuntimeState(StateDetectingBall, "Warte auf Ball")
-		if err := c.waitForBallReady(true, true); err != nil {
+		if err := c.waitForBallReady(true, true, nil); err != nil {
 			c.setRuntimeState(StateJam, "Stau detektiert")
 			log.Printf("Device client: ball detection failed: %v", err)
 			return true
@@ -984,7 +984,7 @@ func decodeJSONResponse(body []byte, target interface{}, contentType string) err
 // waitForBallReady calls the colour sensor monitor to confirm a ball is in position.
 // When showWaitingMessage is true, it displays a waiting overlay while scanning.
 // When allowVibration is false, scanning is passive and never triggers vibrator bursts.
-func (c *Client) waitForBallReady(showWaitingMessage bool, allowVibration bool) error {
+func (c *Client) waitForBallReady(showWaitingMessage bool, allowVibration bool, referenceBaseline *uint16) error {
 	if showWaitingMessage {
 		c.setRuntimeState(StateDetectingBall, "Warte auf Ball")
 		c.setExecutingCommand(&CommandResponse{
@@ -1002,9 +1002,17 @@ func (c *Client) waitForBallReady(showWaitingMessage bool, allowVibration bool) 
 	}
 
 	if allowVibration {
-		err = colorsensor.WaitForBall(c.colorSensor, vibratorAdapter{}, c.config, log.Default(), observer)
+		if referenceBaseline != nil {
+			err = colorsensor.WaitForBallWithReferenceBaseline(c.colorSensor, vibratorAdapter{}, c.config, log.Default(), observer, *referenceBaseline)
+		} else {
+			err = colorsensor.WaitForBall(c.colorSensor, vibratorAdapter{}, c.config, log.Default(), observer)
+		}
 	} else {
-		err = colorsensor.WaitForBall(c.colorSensor, nil, c.config, log.Default(), observer)
+		if referenceBaseline != nil {
+			err = colorsensor.WaitForBallWithReferenceBaseline(c.colorSensor, nil, c.config, log.Default(), observer, *referenceBaseline)
+		} else {
+			err = colorsensor.WaitForBall(c.colorSensor, nil, c.config, log.Default(), observer)
+		}
 	}
 	if err != nil {
 		log.Printf("Device client: ball not detected — showing jam message")
@@ -1055,6 +1063,16 @@ func (c *Client) DispenseAndWaitForBall() (int, error) {
 func (c *Client) dispenseAndWaitForBallLocked() (int, error) {
 
 	paymentID := c.GetPaymentID()
+	var preDispenseBaseline *uint16
+	if c.colorSensor != nil && c.colorSensor.IsEnabled() {
+		if baseline, baselineErr := colorsensor.SampleBaseline(c.colorSensor, log.Default()); baselineErr == nil {
+			preDispenseBaseline = &baseline
+			log.Printf("Device client: captured pre-dispense baseline C=%d", baseline)
+		} else {
+			log.Printf("Device client: failed to capture pre-dispense baseline: %v", baselineErr)
+		}
+	}
+
 	totalMs, err := actuator.Trigger()
 	if err != nil {
 		return 0, err
@@ -1064,7 +1082,7 @@ func (c *Client) dispenseAndWaitForBallLocked() (int, error) {
 		c.recordDispensedCount(paymentID, 1)
 	}
 
-	if err := c.waitForBallReady(true, true); err != nil {
+	if err := c.waitForBallReady(true, true, preDispenseBaseline); err != nil {
 		return totalMs, err
 	}
 

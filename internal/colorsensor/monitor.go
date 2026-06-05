@@ -20,6 +20,10 @@ type vibratorBuzzer interface {
 // attempt is 1-based and maxAttempts is the configured total.
 type AttemptObserver func(attempt int, maxAttempts int)
 
+type detectOptions struct {
+	referenceBaseline *uint16
+}
+
 // WaitForBall monitors the colour sensor and waits until a ball drop is detected.
 // It uses the clear channel (C) to detect movement: a ball passing the sensor causes
 // a significant change in the ambient light reading.
@@ -33,6 +37,16 @@ type AttemptObserver func(attempt int, maxAttempts int)
 //
 // Returns ErrNoBallDetected if no ball is detected after all attempts.
 func WaitForBall(s *Sensor, vib vibratorBuzzer, cfg *config.Config, logger *log.Logger, observer AttemptObserver) error {
+	return waitForBallWithOptions(s, vib, cfg, logger, observer, detectOptions{})
+}
+
+// WaitForBallWithReferenceBaseline uses a pre-dispense baseline to detect balls that have
+// already come to rest by the time polling starts.
+func WaitForBallWithReferenceBaseline(s *Sensor, vib vibratorBuzzer, cfg *config.Config, logger *log.Logger, observer AttemptObserver, referenceBaseline uint16) error {
+	return waitForBallWithOptions(s, vib, cfg, logger, observer, detectOptions{referenceBaseline: &referenceBaseline})
+}
+
+func waitForBallWithOptions(s *Sensor, vib vibratorBuzzer, cfg *config.Config, logger *log.Logger, observer AttemptObserver, opts detectOptions) error {
 	if !s.IsEnabled() {
 		logger.Println("Color sensor disabled, skipping ball detection")
 		return nil
@@ -40,8 +54,13 @@ func WaitForBall(s *Sensor, vib vibratorBuzzer, cfg *config.Config, logger *log.
 
 	pollInterval := time.Duration(cfg.ColorSensorPollIntervalMs) * time.Millisecond
 	checkDuration := time.Duration(cfg.ColorSensorCheckDurationMs) * time.Millisecond
+	settleDelay := time.Duration(cfg.ColorSensorSettleDelayMs) * time.Millisecond
 	vibrateDuration := time.Duration(cfg.ColorSensorVibrateDurationMs) * time.Millisecond
 	pauseBetweenBursts := 300 * time.Millisecond
+	stableSamples := cfg.ColorSensorStableSamples
+	if stableSamples < 1 {
+		stableSamples = 1
+	}
 
 	for attempt := 1; attempt <= cfg.ColorSensorMaxAttempts; attempt++ {
 		if observer != nil {
@@ -54,9 +73,17 @@ func WaitForBall(s *Sensor, vib vibratorBuzzer, cfg *config.Config, logger *log.
 			// treat as no detection on read error and carry on
 		}
 
-		logger.Printf("Color sensor: attempt %d/%d, baseline C=%d, threshold=%d", attempt, cfg.ColorSensorMaxAttempts, baseline, cfg.ColorSensorMovementThreshold)
+		if settleDelay > 0 {
+			time.Sleep(settleDelay)
+		}
 
-		if detected := pollForMovement(s, baseline, cfg.ColorSensorMovementThreshold, checkDuration, pollInterval, logger); detected {
+		if opts.referenceBaseline != nil {
+			logger.Printf("Color sensor: attempt %d/%d, baseline C=%d, reference C=%d, threshold=%d, stable_samples=%d", attempt, cfg.ColorSensorMaxAttempts, baseline, *opts.referenceBaseline, cfg.ColorSensorMovementThreshold, stableSamples)
+		} else {
+			logger.Printf("Color sensor: attempt %d/%d, baseline C=%d, threshold=%d, stable_samples=%d", attempt, cfg.ColorSensorMaxAttempts, baseline, cfg.ColorSensorMovementThreshold, stableSamples)
+		}
+
+		if detected := pollForMovement(s, baseline, opts.referenceBaseline, cfg.ColorSensorMovementThreshold, stableSamples, checkDuration, pollInterval, cfg.ColorSensorDebugLogging, logger); detected {
 			logger.Printf("Color sensor: ball detected on attempt %d", attempt)
 			return nil
 		}
@@ -75,6 +102,11 @@ func WaitForBall(s *Sensor, vib vibratorBuzzer, cfg *config.Config, logger *log.
 	return ErrNoBallDetected
 }
 
+// SampleBaseline returns the average clear-channel reading over 3 samples.
+func SampleBaseline(s *Sensor, logger *log.Logger) (uint16, error) {
+	return baseline(s, logger)
+}
+
 // baseline returns the average clear-channel reading over 3 samples.
 func baseline(s *Sensor, logger *log.Logger) (uint16, error) {
 	const samples = 3
@@ -91,20 +123,51 @@ func baseline(s *Sensor, logger *log.Logger) (uint16, error) {
 }
 
 // pollForMovement polls the sensor until movement is detected or the window expires.
-func pollForMovement(s *Sensor, baseline uint16, threshold int, window, interval time.Duration, logger *log.Logger) bool {
+func pollForMovement(s *Sensor, baseline uint16, referenceBaseline *uint16, threshold int, stableSamples int, window, interval time.Duration, debug bool, logger *log.Logger) bool {
 	deadline := time.Now().Add(window)
+	consecutiveHits := 0
+	sampleIndex := 0
 	for time.Now().Before(deadline) {
+		sampleIndex++
 		c, _, _, _, err := s.Read()
 		if err != nil {
 			logger.Printf("Color sensor: read error during polling: %v", err)
 			time.Sleep(interval)
 			continue
 		}
-		diff := int(c) - int(baseline)
-		if diff < 0 {
-			diff = -diff
+
+		diffCurrent := int(c) - int(baseline)
+		if diffCurrent < 0 {
+			diffCurrent = -diffCurrent
 		}
-		if diff >= threshold {
+
+		diffReference := -1
+		effectiveDiff := diffCurrent
+		if referenceBaseline != nil {
+			diffReference = int(c) - int(*referenceBaseline)
+			if diffReference < 0 {
+				diffReference = -diffReference
+			}
+			if diffReference > effectiveDiff {
+				effectiveDiff = diffReference
+			}
+		}
+
+		if effectiveDiff >= threshold {
+			consecutiveHits++
+		} else {
+			consecutiveHits = 0
+		}
+
+		if debug {
+			if diffReference >= 0 {
+				logger.Printf("Color sensor debug: sample=%d C=%d baseline=%d reference=%d diff_current=%d diff_reference=%d effective_diff=%d threshold=%d consecutive_hits=%d/%d", sampleIndex, c, baseline, *referenceBaseline, diffCurrent, diffReference, effectiveDiff, threshold, consecutiveHits, stableSamples)
+			} else {
+				logger.Printf("Color sensor debug: sample=%d C=%d baseline=%d diff_current=%d threshold=%d consecutive_hits=%d/%d", sampleIndex, c, baseline, diffCurrent, threshold, consecutiveHits, stableSamples)
+			}
+		}
+
+		if consecutiveHits >= stableSamples {
 			return true
 		}
 		time.Sleep(interval)
