@@ -22,6 +22,7 @@ type AttemptObserver func(attempt int, maxAttempts int)
 
 type detectOptions struct {
 	referenceBaseline *uint16
+	matchReference    bool
 }
 
 // WaitForBall monitors the colour sensor and waits until a ball drop is detected.
@@ -44,6 +45,12 @@ func WaitForBall(s *Sensor, vib vibratorBuzzer, cfg *config.Config, logger *log.
 // already come to rest by the time polling starts.
 func WaitForBallWithReferenceBaseline(s *Sensor, vib vibratorBuzzer, cfg *config.Config, logger *log.Logger, observer AttemptObserver, referenceBaseline uint16) error {
 	return waitForBallWithOptions(s, vib, cfg, logger, observer, detectOptions{referenceBaseline: &referenceBaseline})
+}
+
+// WaitForBallWithPresenceReferenceBaseline detects a settled ball by checking
+// that sensor readings stay close to a known ball-present reference baseline.
+func WaitForBallWithPresenceReferenceBaseline(s *Sensor, vib vibratorBuzzer, cfg *config.Config, logger *log.Logger, observer AttemptObserver, referenceBaseline uint16) error {
+	return waitForBallWithOptions(s, vib, cfg, logger, observer, detectOptions{referenceBaseline: &referenceBaseline, matchReference: true})
 }
 
 func waitForBallWithOptions(s *Sensor, vib vibratorBuzzer, cfg *config.Config, logger *log.Logger, observer AttemptObserver, opts detectOptions) error {
@@ -78,12 +85,16 @@ func waitForBallWithOptions(s *Sensor, vib vibratorBuzzer, cfg *config.Config, l
 		}
 
 		if opts.referenceBaseline != nil {
-			logger.Printf("Color sensor: attempt %d/%d, baseline C=%d, reference C=%d, threshold=%d, stable_samples=%d", attempt, cfg.ColorSensorMaxAttempts, baseline, *opts.referenceBaseline, cfg.ColorSensorMovementThreshold, stableSamples)
+			if opts.matchReference {
+				logger.Printf("Color sensor: attempt %d/%d, baseline C=%d, reference C=%d, match_mode=near_reference, threshold=%d, stable_samples=%d", attempt, cfg.ColorSensorMaxAttempts, baseline, *opts.referenceBaseline, cfg.ColorSensorMovementThreshold, stableSamples)
+			} else {
+				logger.Printf("Color sensor: attempt %d/%d, baseline C=%d, reference C=%d, match_mode=difference, threshold=%d, stable_samples=%d", attempt, cfg.ColorSensorMaxAttempts, baseline, *opts.referenceBaseline, cfg.ColorSensorMovementThreshold, stableSamples)
+			}
 		} else {
 			logger.Printf("Color sensor: attempt %d/%d, baseline C=%d, threshold=%d, stable_samples=%d", attempt, cfg.ColorSensorMaxAttempts, baseline, cfg.ColorSensorMovementThreshold, stableSamples)
 		}
 
-		if detected := pollForMovement(s, baseline, opts.referenceBaseline, cfg.ColorSensorMovementThreshold, stableSamples, checkDuration, pollInterval, cfg.ColorSensorDebugLogging, logger); detected {
+		if detected := pollForMovement(s, baseline, opts.referenceBaseline, opts.matchReference, cfg.ColorSensorMovementThreshold, stableSamples, checkDuration, pollInterval, cfg.ColorSensorDebugLogging, logger); detected {
 			logger.Printf("Color sensor: ball detected on attempt %d", attempt)
 			return nil
 		}
@@ -123,7 +134,7 @@ func baseline(s *Sensor, logger *log.Logger) (uint16, error) {
 }
 
 // pollForMovement polls the sensor until movement is detected or the window expires.
-func pollForMovement(s *Sensor, baseline uint16, referenceBaseline *uint16, threshold int, stableSamples int, window, interval time.Duration, debug bool, logger *log.Logger) bool {
+func pollForMovement(s *Sensor, baseline uint16, referenceBaseline *uint16, matchReference bool, threshold int, stableSamples int, window, interval time.Duration, debug bool, logger *log.Logger) bool {
 	deadline := time.Now().Add(window)
 	consecutiveHits := 0
 	sampleIndex := 0
@@ -148,20 +159,32 @@ func pollForMovement(s *Sensor, baseline uint16, referenceBaseline *uint16, thre
 			if diffReference < 0 {
 				diffReference = -diffReference
 			}
-			if diffReference > effectiveDiff {
+			if !matchReference && diffReference > effectiveDiff {
 				effectiveDiff = diffReference
 			}
 		}
 
-		if effectiveDiff >= threshold {
-			consecutiveHits++
+		if matchReference && referenceBaseline != nil {
+			if diffReference <= threshold {
+				consecutiveHits++
+			} else {
+				consecutiveHits = 0
+			}
 		} else {
-			consecutiveHits = 0
+			if effectiveDiff >= threshold {
+				consecutiveHits++
+			} else {
+				consecutiveHits = 0
+			}
 		}
 
 		if debug {
 			if diffReference >= 0 {
-				logger.Printf("Color sensor debug: sample=%d C=%d baseline=%d reference=%d diff_current=%d diff_reference=%d effective_diff=%d threshold=%d consecutive_hits=%d/%d", sampleIndex, c, baseline, *referenceBaseline, diffCurrent, diffReference, effectiveDiff, threshold, consecutiveHits, stableSamples)
+				if matchReference {
+					logger.Printf("Color sensor debug: sample=%d C=%d baseline=%d reference=%d diff_current=%d diff_reference=%d match_mode=near_reference threshold=%d consecutive_hits=%d/%d", sampleIndex, c, baseline, *referenceBaseline, diffCurrent, diffReference, threshold, consecutiveHits, stableSamples)
+				} else {
+					logger.Printf("Color sensor debug: sample=%d C=%d baseline=%d reference=%d diff_current=%d diff_reference=%d effective_diff=%d threshold=%d consecutive_hits=%d/%d", sampleIndex, c, baseline, *referenceBaseline, diffCurrent, diffReference, effectiveDiff, threshold, consecutiveHits, stableSamples)
+				}
 			} else {
 				logger.Printf("Color sensor debug: sample=%d C=%d baseline=%d diff_current=%d threshold=%d consecutive_hits=%d/%d", sampleIndex, c, baseline, diffCurrent, threshold, consecutiveHits, stableSamples)
 			}

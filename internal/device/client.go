@@ -1027,13 +1027,13 @@ func (c *Client) waitForBallReady(showWaitingMessage bool, allowVibration bool, 
 
 	if allowVibration {
 		if referenceBaseline != nil {
-			err = colorsensor.WaitForBallWithReferenceBaseline(c.colorSensor, vibratorAdapter{}, c.config, log.Default(), observer, *referenceBaseline)
+			err = colorsensor.WaitForBallWithPresenceReferenceBaseline(c.colorSensor, vibratorAdapter{}, c.config, log.Default(), observer, *referenceBaseline)
 		} else {
 			err = colorsensor.WaitForBall(c.colorSensor, vibratorAdapter{}, c.config, log.Default(), observer)
 		}
 	} else {
 		if referenceBaseline != nil {
-			err = colorsensor.WaitForBallWithReferenceBaseline(c.colorSensor, nil, c.config, log.Default(), observer, *referenceBaseline)
+			err = colorsensor.WaitForBallWithPresenceReferenceBaseline(c.colorSensor, nil, c.config, log.Default(), observer, *referenceBaseline)
 		} else {
 			err = colorsensor.WaitForBall(c.colorSensor, nil, c.config, log.Default(), observer)
 		}
@@ -1067,17 +1067,15 @@ func (c *Client) runStartupExtractorCycle() error {
 		Message: "Starte Initialzyklus",
 	})
 
+	// Capture ball-present reference baseline before startup cycle. In the real
+	// startup condition a ball is already on the sensor, so this reference is
+	// used to detect the same settled-presence state without requiring motion.
+	c.captureStartupBallReferenceBaseline()
+
 	if _, err := actuator.Trigger(); err != nil {
 		c.clearExecutingCommand()
 		return err
 	}
-
-	// Capture empty-funnel reference baseline after the startup cycle:
-	// at startup a ball is guaranteed to be on the sensor, so the cycle
-	// dispenses it. After retract the funnel is empty. Capturing here gives
-	// the first detection cycle a reliable "empty funnel" reference so it
-	// can immediately recognise a newly-arrived settled ball.
-	c.captureStartupBallReferenceBaseline()
 
 	c.clearExecutingCommand()
 	return nil
@@ -1089,21 +1087,15 @@ func (c *Client) captureStartupBallReferenceBaseline() {
 		return
 	}
 
-	// Brief settle to let sensor stabilise after actuator stops.
-	settleDelay := time.Duration(c.config.ColorSensorSettleDelayMs) * time.Millisecond
-	if settleDelay > 0 {
-		time.Sleep(settleDelay)
-	}
-
 	baseline, err := colorsensor.SampleBaseline(c.colorSensor, log.Default())
 	if err != nil {
-		log.Printf("Device client: failed to capture startup post-cycle reference baseline: %v", err)
+		log.Printf("Device client: failed to capture startup ball-present reference baseline: %v", err)
 		c.setPendingBallReference(nil)
 		return
 	}
 
 	c.setPendingBallReference(&baseline)
-	log.Printf("Device client: captured startup post-cycle reference baseline C=%d (empty funnel)", baseline)
+	log.Printf("Device client: captured startup ball-present reference baseline C=%d", baseline)
 }
 
 // DispenseAndWaitForBall runs one dispense cycle and then waits until the next ball is detected.

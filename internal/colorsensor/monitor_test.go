@@ -124,3 +124,26 @@ func TestWaitForBallWithReferenceBaselineDetectsSettledBall(t *testing.T) {
 		t.Fatalf("expected detection with reference baseline, got error: %v", err)
 	}
 }
+
+func TestWaitForBallWithPresenceReferenceBaselineDetectsWithoutMovement(t *testing.T) {
+	s := &Sensor{enabled: true, sim: true}
+	logger := silentLogger()
+
+	cfg := &config.Config{
+		ColorSensorEnabled:           true,
+		ColorSensorMovementThreshold: 5,
+		ColorSensorPollIntervalMs:    1,
+		ColorSensorCheckDurationMs:   5,
+		ColorSensorStableSamples:     1,
+		ColorSensorMaxAttempts:       1,
+	}
+
+	// In simulation mode values are monotonic and start low. A nearby
+	// reference should be matched immediately without requiring motion spikes.
+	reference := uint16(6)
+
+	err := WaitForBallWithPresenceReferenceBaseline(s, nil, cfg, logger, nil, reference)
+	if err != nil {
+		t.Fatalf("expected detection with presence reference baseline, got error: %v", err)
+	}
+}
