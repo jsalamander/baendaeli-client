@@ -12,11 +12,12 @@ stateDiagram-v2
     startup_cycle --> detecting_ball: startup extractor cycle OK
     startup_cycle --> error: startup extractor cycle failed
 
-    detecting_ball --> jam: waitForBallReady failed
-    jam --> detecting_ball: passive recovery successful
-    jam --> jam: passive recovery failed
+    detecting_ball --> ball_stuck_in_funnel: waitForBallReady failed
+    ball_stuck_in_funnel --> detecting_ball: passive recovery successful
+    ball_stuck_in_funnel --> ball_stuck_in_funnel: passive recovery failed
 
-    detecting_ball --> ball_detected: ball detected + payment created
+    detecting_ball --> ball_on_sensor: ball detected at sensor
+    ball_on_sensor --> ball_detected: payment created
     detecting_ball --> error: payment create failed
 
     ball_detected --> ball_detected: payment waiting/open/pending + phase=waiting_for_amount

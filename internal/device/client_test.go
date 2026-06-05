@@ -1017,7 +1017,7 @@ func TestCommandCancelClearsPayment(t *testing.T) {
 func TestWaitForBallReadySetsJamStateAndMessage(t *testing.T) {
 	cfg := &config.Config{}
 	cfg.SetDefaults()
-	// Force failure quickly so we can assert jam behavior deterministically.
+	// Force failure quickly so we can assert stuck-funnel behavior deterministically.
 	cfg.ColorSensorMovementThreshold = 10000
 	cfg.ColorSensorCheckDurationMs = 1
 	cfg.ColorSensorVibrateBursts = 0
@@ -1040,15 +1040,32 @@ func TestWaitForBallReadySetsJamStateAndMessage(t *testing.T) {
 		t.Fatal("expected client to be jammed")
 	}
 
+	snapshot := client.GetStateSnapshot()
+	if snapshot.State != string(StateBallStuckFunnel) {
+		t.Fatalf("expected state %q, got %q", StateBallStuckFunnel, snapshot.State)
+	}
+
 	exec := client.GetExecutingCommand()
 	if exec == nil {
-		t.Fatal("expected executing command to contain jam message")
+		t.Fatal("expected executing command to contain stuck-funnel message")
 	}
 	if exec.Command != "message" {
 		t.Fatalf("expected executing command 'message', got %q", exec.Command)
 	}
-	if exec.Message != "Stau detektiert. Rufe eine Techniker*in." {
-		t.Fatalf("unexpected jam message: %q", exec.Message)
+	if exec.Message != "Ball steckt im Trichter. Rufe eine Techniker*in." {
+		t.Fatalf("unexpected stuck-funnel message: %q", exec.Message)
+	}
+}
+
+func TestCaptureStartupBallReferenceBaselineClearsPendingWhenSensorDisabled(t *testing.T) {
+	client := New(&config.Config{})
+	baseline := uint16(123)
+	client.setPendingBallReference(&baseline)
+
+	client.captureStartupBallReferenceBaseline()
+
+	if got := client.consumePendingBallReference(); got != nil {
+		t.Fatalf("expected pending baseline to be cleared, got %v", *got)
 	}
 }
 

@@ -79,7 +79,9 @@ const (
 	StateStarting         RuntimeState = "starting"
 	StateStartupCycle     RuntimeState = "startup_cycle"
 	StateDetectingBall    RuntimeState = "detecting_ball"
+	StateBallOnSensor     RuntimeState = "ball_on_sensor"
 	StateBallDetected     RuntimeState = "ball_detected"
+	StateBallStuckFunnel  RuntimeState = "ball_stuck_in_funnel"
 	StateAwaitingPayment  RuntimeState = "awaiting_payment"
 	StateDispensing       RuntimeState = "dispensing"
 	StatePaymentFailed    RuntimeState = "payment_failed"
@@ -118,6 +120,7 @@ type Client struct {
 	statusMutex      sync.Mutex
 	executingCommand *CommandResponse
 	pendingCommand   *CommandResponse
+	pendingBallRef   *uint16
 	state            RuntimeState
 	stateMessage     string
 	lastCommandError string // Error from last command execution
@@ -272,6 +275,28 @@ func (c *Client) clearPendingCommand() {
 	c.pendingCommand = nil
 }
 
+func (c *Client) setPendingBallReference(baseline *uint16) {
+	c.statusMutex.Lock()
+	defer c.statusMutex.Unlock()
+	if baseline == nil {
+		c.pendingBallRef = nil
+		return
+	}
+	copyValue := *baseline
+	c.pendingBallRef = &copyValue
+}
+
+func (c *Client) consumePendingBallReference() *uint16 {
+	c.statusMutex.Lock()
+	defer c.statusMutex.Unlock()
+	if c.pendingBallRef == nil {
+		return nil
+	}
+	copyValue := *c.pendingBallRef
+	c.pendingBallRef = nil
+	return &copyValue
+}
+
 // LockActuator acquires the actuator lock
 // Must be paired with UnlockActuator()
 func (c *Client) LockActuator() {
@@ -355,7 +380,6 @@ func (c *Client) poll() {
 	// If a jam was detected, keep showing the message and skip command execution.
 	if c.jammed.Load() {
 		if err := c.waitForBallReady(false, false, nil); err != nil {
-			c.setRuntimeState(StateJam, "Stau detektiert")
 			return
 		}
 		// Jam cleared, continue normal polling and command handling.
@@ -416,12 +440,12 @@ func (c *Client) runStateMachineCycle() bool {
 	paymentID := c.GetPaymentID()
 	if paymentID == "" {
 		c.setRuntimeState(StateDetectingBall, "Warte auf Ball")
-		if err := c.waitForBallReady(true, true, nil); err != nil {
-			c.setRuntimeState(StateJam, "Stau detektiert")
+		referenceBaseline := c.consumePendingBallReference()
+		if err := c.waitForBallReady(true, true, referenceBaseline); err != nil {
 			log.Printf("Device client: ball detection failed: %v", err)
 			return true
 		}
-		c.setRuntimeState(StateBallDetected, "Ball erkannt")
+		c.setRuntimeState(StateBallOnSensor, "Ball auf Sensor erkannt")
 		if _, err := c.createPayment(); err != nil {
 			c.setRuntimeState(StateError, "Payment konnte nicht erstellt werden")
 			log.Printf("Device client: failed to create payment after ball detection: %v", err)
@@ -1017,19 +1041,19 @@ func (c *Client) waitForBallReady(showWaitingMessage bool, allowVibration bool, 
 	if err != nil {
 		log.Printf("Device client: ball not detected — showing jam message")
 		c.jammed.Store(true)
-		c.setRuntimeState(StateJam, "Stau detektiert")
+		c.setRuntimeState(StateBallStuckFunnel, "Ball steckt im Trichter")
 		c.setExecutingCommand(&CommandResponse{
 			Command: "message",
-			Message: "Stau detektiert. Rufe eine Techniker*in.",
+			Message: "Ball steckt im Trichter. Rufe eine Techniker*in.",
 		})
 		return err
 	}
 
 	c.jammed.Store(false)
-	c.setRuntimeState(StateBallDetected, "Ball erkannt")
+	c.setRuntimeState(StateBallOnSensor, "Ball auf Sensor erkannt")
 	c.setExecutingCommand(&CommandResponse{
 		Command: "message",
-		Message: "Ball erkannt",
+		Message: "Ball auf Sensor erkannt",
 	})
 	time.Sleep(700 * time.Millisecond)
 	c.clearExecutingCommand()
@@ -1048,8 +1072,32 @@ func (c *Client) runStartupExtractorCycle() error {
 		return err
 	}
 
+	c.captureStartupBallReferenceBaseline()
+
 	c.clearExecutingCommand()
 	return nil
+}
+
+func (c *Client) captureStartupBallReferenceBaseline() {
+	if c.colorSensor == nil || !c.colorSensor.IsEnabled() {
+		c.setPendingBallReference(nil)
+		return
+	}
+
+	settleDelay := time.Duration(c.config.ColorSensorSettleDelayMs) * time.Millisecond
+	if settleDelay > 0 {
+		time.Sleep(settleDelay)
+	}
+
+	baseline, err := colorsensor.SampleBaseline(c.colorSensor, log.Default())
+	if err != nil {
+		log.Printf("Device client: failed to capture startup post-cycle reference baseline: %v", err)
+		c.setPendingBallReference(nil)
+		return
+	}
+
+	c.setPendingBallReference(&baseline)
+	log.Printf("Device client: captured startup post-cycle reference baseline C=%d", baseline)
 }
 
 // DispenseAndWaitForBall runs one dispense cycle and then waits until the next ball is detected.

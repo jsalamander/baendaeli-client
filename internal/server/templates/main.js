@@ -37,6 +37,14 @@ const stateUi = {
 		placeholderTitle: 'Bereit für nächsten Ball',
 		placeholderSubtitle: 'Sobald ein Ball erkannt wird, startet die Zahlung automatisch.'
 	},
+	ball_on_sensor: {
+		status: 'Ball auf Sensor erkannt',
+		badge: 'badge-success',
+		title: 'Ball erkannt',
+		description: 'Der Ball ist am Sensor angekommen. Zahlung wird vorbereitet.',
+		placeholderTitle: 'Ball erkannt',
+		placeholderSubtitle: 'Die Zahlung wird jetzt erstellt.'
+	},
 	ball_detected: {
 		status: 'Ball erkannt',
 		badge: 'badge-warning',
@@ -44,6 +52,14 @@ const stateUi = {
 		description: 'Bitte scanne den QR-Code und wähle danach den Betrag auf dem Gerät.',
 		placeholderTitle: 'Zahlung wird vorbereitet',
 		placeholderSubtitle: 'QR-Code wird geladen...'
+	},
+	ball_stuck_in_funnel: {
+		status: 'Ball steckt im Trichter',
+		badge: 'badge-error',
+		title: 'Technik-Hinweis',
+		description: 'Bitte Techniker*in informieren.',
+		placeholderTitle: 'Ball steckt im Trichter',
+		placeholderSubtitle: 'Bitte rufe eine Techniker*in.'
 	},
 	awaiting_payment: {
 		status: 'Warten auf Zahlung',
