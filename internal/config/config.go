@@ -79,7 +79,7 @@ func (c *Config) SetDefaults() {
 		c.ColorSensorMovementThreshold = 500
 	}
 	if c.ColorSensorPresenceTolerance == 0 {
-		c.ColorSensorPresenceTolerance = 12
+		c.ColorSensorPresenceTolerance = 18
 	}
 	if c.ColorSensorPollIntervalMs == 0 {
 		c.ColorSensorPollIntervalMs = 100

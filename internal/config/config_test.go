@@ -27,7 +27,7 @@ func TestSetDefaultsAppliesValues(t *testing.T) {
 	if cfg.ColorSensorMovementThreshold != 500 {
 		t.Fatalf("ColorSensorMovementThreshold default not set, got %d", cfg.ColorSensorMovementThreshold)
 	}
-	if cfg.ColorSensorPresenceTolerance != 12 {
+	if cfg.ColorSensorPresenceTolerance != 18 {
 		t.Fatalf("ColorSensorPresenceTolerance default not set, got %d", cfg.ColorSensorPresenceTolerance)
 	}
 	if cfg.ColorSensorPollIntervalMs != 100 {
