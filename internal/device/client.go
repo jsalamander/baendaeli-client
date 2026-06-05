@@ -869,7 +869,13 @@ func (c *Client) executeCommand(cmd *CommandResponse) (string, error) {
 			})
 			c.setRuntimeState(StateDispensing, fmt.Sprintf("Load test: simuliere erfolgreiche Zahlung %d/%d", i, loadTestCycles))
 			c.updateExecutingCommandMessage(fmt.Sprintf("Payment %d/%d", i, loadTestCycles))
-			if _, err := c.dispenseAndWaitForBallLocked(); err != nil {
+			if _, err := actuator.Trigger(); err != nil {
+				log.Printf("Device client: load test failed on cycle %d during dispense: %v", i, err)
+				return "", err
+			}
+			// For load tests, avoid reference-baseline matching to prevent false positives
+			// from stale geometry shifts between cycles.
+			if err := c.waitForBallReady(true, true, nil); err != nil {
 				log.Printf("Device client: load test failed on cycle %d: %v", i, err)
 				return "", err
 			}
