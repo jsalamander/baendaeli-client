@@ -11,6 +11,12 @@ type Config struct {
 	BaendaeliAPIKey                           string  `yaml:"BAENDAELI_API_KEY"`
 	BaendaeliURL                              string  `yaml:"BAENDAELI_URL"`
 	HTTPRequestLogging                        bool    `yaml:"HTTP_REQUEST_LOGGING"`
+	LogShippingEnabled                        bool    `yaml:"LOG_SHIPPING_ENABLED"`
+	LogShippingFlushIntervalMs                int     `yaml:"LOG_SHIPPING_FLUSH_INTERVAL_MS"`
+	LogShippingBatchLines                     int     `yaml:"LOG_SHIPPING_BATCH_LINES"`
+	LogShippingMaxQueueLines                  int     `yaml:"LOG_SHIPPING_MAX_QUEUE_LINES"`
+	LogShippingMaxLineBytes                   int     `yaml:"LOG_SHIPPING_MAX_LINE_BYTES"`
+	LogShippingMaxRequestBytes                int     `yaml:"LOG_SHIPPING_MAX_REQUEST_BYTES"`
 	DefaultAmount                             int     `yaml:"DEFAULT_AMOUNT_CENTS"`
 	SuccessOverlayMs                          int     `yaml:"SUCCESS_OVERLAY_MILLIS"`
 	ActuatorEnabled                           bool    `yaml:"ACTUATOR_ENABLED"`
@@ -65,6 +71,24 @@ func (c *Config) SetDefaults() {
 		c.SuccessOverlayMs = 10000 // 10 seconds by default
 	}
 	// HTTPRequestLogging defaults to false to reduce browser request log noise.
+	if !c.LogShippingEnabled {
+		c.LogShippingEnabled = true
+	}
+	if c.LogShippingFlushIntervalMs == 0 {
+		c.LogShippingFlushIntervalMs = 3000
+	}
+	if c.LogShippingBatchLines == 0 {
+		c.LogShippingBatchLines = 200
+	}
+	if c.LogShippingMaxQueueLines == 0 {
+		c.LogShippingMaxQueueLines = 5000
+	}
+	if c.LogShippingMaxLineBytes == 0 {
+		c.LogShippingMaxLineBytes = 16384
+	}
+	if c.LogShippingMaxRequestBytes == 0 {
+		c.LogShippingMaxRequestBytes = 262144
+	}
 	if c.ActuatorMovement == 0 {
 		c.ActuatorMovement = 2 // 2 seconds by default (for both extend and retract)
 	}

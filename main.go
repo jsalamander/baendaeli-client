@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"net/http"
@@ -109,6 +110,9 @@ func main() {
 
 	// Create device client and set it on the server
 	deviceClient := device.New(cfg)
+	originalLogOutput := log.Writer()
+	deviceClient.SetLogShippingDiagnosticsWriter(originalLogOutput)
+	log.SetOutput(io.MultiWriter(originalLogOutput, deviceClient.LogSinkWriter()))
 	srv.SetDeviceClient(deviceClient)
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)

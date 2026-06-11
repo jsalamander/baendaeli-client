@@ -36,12 +36,12 @@ type StatusResponse struct {
 
 // CommandResponse is received from the server
 type CommandResponse struct {
-	ID         int    `json:"id"`
-	Command    string `json:"command"`
-	DurationMs *int   `json:"duration_ms,omitempty"` // Optional duration in milliseconds
-	RepeatCount *int  `json:"repeat_count,omitempty"` // Optional repeat count for load_test cycles
-	Message    string `json:"message,omitempty"`     // Message text for message command
-	Percent    *int   `json:"percent,omitempty"`     // Vibration intensity (1-100) for vibrate command
+	ID          int    `json:"id"`
+	Command     string `json:"command"`
+	DurationMs  *int   `json:"duration_ms,omitempty"`  // Optional duration in milliseconds
+	RepeatCount *int   `json:"repeat_count,omitempty"` // Optional repeat count for load_test cycles
+	Message     string `json:"message,omitempty"`      // Message text for message command
+	Percent     *int   `json:"percent,omitempty"`      // Vibration intensity (1-100) for vibrate command
 }
 
 // AckRequest is sent to the server
@@ -127,6 +127,7 @@ type Client struct {
 	lastCommandError string // Error from last command execution
 	dispenseMutex    sync.Mutex
 	pendingDispense  *pendingDispense
+	logShipper       *logShipper
 
 	// Actuator lock to prevent concurrent commands
 	actuatorMutex sync.Mutex
@@ -135,7 +136,7 @@ type Client struct {
 // New creates a new device client
 func New(cfg *config.Config) *Client {
 	ctx, cancel := context.WithCancel(context.Background())
-	return &Client{
+	c := &Client{
 		config:       cfg,
 		httpClient:   &http.Client{Timeout: 15 * time.Second},
 		ctx:          ctx,
@@ -144,6 +145,24 @@ func New(cfg *config.Config) *Client {
 		colorSensor:  colorsensor.New(cfg),
 		state:        StateStarting,
 	}
+	c.logShipper = newLogShipper(ctx, c, c.httpClient, io.Discard)
+	return c
+}
+
+// SetLogShippingDiagnosticsWriter configures where shipper diagnostics are written.
+func (c *Client) SetLogShippingDiagnosticsWriter(w io.Writer) {
+	if c.logShipper == nil {
+		return
+	}
+	if w == nil {
+		w = io.Discard
+	}
+	c.logShipper.diagWriter = w
+}
+
+// LogSinkWriter returns an io.Writer that enqueues lines for API shipping.
+func (c *Client) LogSinkWriter() io.Writer {
+	return logSinkWriter{shipper: c.logShipper}
 }
 
 // SetPaymentID updates the current payment ID
@@ -335,6 +354,10 @@ func (c *Client) Start() {
 
 	c.setRuntimeState(StateDetectingBall, "Warte auf Ball")
 
+	if c.logShipper != nil {
+		c.logShipper.start()
+	}
+
 	c.wg.Add(1)
 	go c.pollLoop()
 	log.Println("Device client started")
@@ -347,10 +370,30 @@ func (c *Client) Stop() {
 	}
 	c.cancel()
 	c.wg.Wait()
+	if c.logShipper != nil {
+		c.logShipper.stopAndFlush(3 * time.Second)
+	}
 	if err := c.colorSensor.Close(); err != nil {
 		log.Printf("Device client: failed to close colour sensor: %v", err)
 	}
 	log.Println("Device client stopped")
+}
+
+type logSinkWriter struct {
+	shipper *logShipper
+}
+
+func (w logSinkWriter) Write(p []byte) (int, error) {
+	if w.shipper == nil {
+		return len(p), nil
+	}
+	for _, line := range strings.Split(string(p), "\n") {
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
+		w.shipper.enqueue(line)
+	}
+	return len(p), nil
 }
 
 // pollLoop runs the main polling loop
