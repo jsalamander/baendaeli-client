@@ -8,38 +8,39 @@ import (
 )
 
 type Config struct {
-	BaendaeliAPIKey              string  `yaml:"BAENDAELI_API_KEY"`
-	BaendaeliURL                 string  `yaml:"BAENDAELI_URL"`
-	HTTPRequestLogging           bool    `yaml:"HTTP_REQUEST_LOGGING"`
-	DefaultAmount                int     `yaml:"DEFAULT_AMOUNT_CENTS"`
-	SuccessOverlayMs             int     `yaml:"SUCCESS_OVERLAY_MILLIS"`
-	ActuatorEnabled              bool    `yaml:"ACTUATOR_ENABLED"`
-	ActuatorENAPin               string  `yaml:"ACTUATOR_ENA_PIN"`
-	ActuatorIN1Pin               string  `yaml:"ACTUATOR_IN1_PIN"`
-	ActuatorIN2Pin               string  `yaml:"ACTUATOR_IN2_PIN"`
-	ActuatorMovement             int     `yaml:"ACTUATOR_MOVEMENT_SECONDS"` // Used for both extend and retract
-	ActuatorPause                int     `yaml:"ACTUATOR_PAUSE_SECONDS"`
-	ColorSensorEnabled           bool    `yaml:"COLOR_SENSOR_ENABLED"`
-	ColorSensorI2CBus            int     `yaml:"COLOR_SENSOR_I2C_BUS"`
-	ColorSensorI2CAddress        string  `yaml:"COLOR_SENSOR_I2C_ADDRESS"`
-	ColorSensorMovementThreshold int     `yaml:"COLOR_SENSOR_MOVEMENT_THRESHOLD"`
-	ColorSensorPresenceTolerance int     `yaml:"COLOR_SENSOR_PRESENCE_TOLERANCE"`
-	ColorSensorReferenceMaxDrift int     `yaml:"COLOR_SENSOR_REFERENCE_MAX_DRIFT"`
-	ColorSensorReferenceResampleAfterAttempts int `yaml:"COLOR_SENSOR_REFERENCE_RESAMPLE_AFTER_ATTEMPTS"`
-	ColorSensorPollIntervalMs    int     `yaml:"COLOR_SENSOR_POLL_INTERVAL_MS"`
-	ColorSensorCheckDurationMs   int     `yaml:"COLOR_SENSOR_CHECK_DURATION_MS"`
-	ColorSensorStableSamples     int     `yaml:"COLOR_SENSOR_STABLE_SAMPLES"`
-	ColorSensorSettleDelayMs     int     `yaml:"COLOR_SENSOR_SETTLE_DELAY_MS"`
-	ColorSensorDebugLogging      bool    `yaml:"COLOR_SENSOR_DEBUG_LOGGING"`
-	ColorSensorVibrateIntensity  float64 `yaml:"COLOR_SENSOR_VIBRATE_INTENSITY"`
-	ColorSensorVibrateDurationMs int     `yaml:"COLOR_SENSOR_VIBRATE_DURATION_MS"`
-	ColorSensorVibrateBursts     int     `yaml:"COLOR_SENSOR_VIBRATE_BURSTS"`
-	ColorSensorMaxAttempts       int     `yaml:"COLOR_SENSOR_MAX_ATTEMPTS"`
-	VibrationEnabled             bool    `yaml:"VIBRATOR_ENABLED"`
-	VibrationIN3Pin              string  `yaml:"VIBRATOR_IN3_PIN"`
-	VibrationIN4Pin              string  `yaml:"VIBRATOR_IN4_PIN"`
-	VibrationENBPin              string  `yaml:"VIBRATOR_ENB_PIN"`
-	CameraEnabled                bool    `yaml:"CAMERA_ENABLED"`
+	BaendaeliAPIKey                           string  `yaml:"BAENDAELI_API_KEY"`
+	BaendaeliURL                              string  `yaml:"BAENDAELI_URL"`
+	HTTPRequestLogging                        bool    `yaml:"HTTP_REQUEST_LOGGING"`
+	DefaultAmount                             int     `yaml:"DEFAULT_AMOUNT_CENTS"`
+	SuccessOverlayMs                          int     `yaml:"SUCCESS_OVERLAY_MILLIS"`
+	ActuatorEnabled                           bool    `yaml:"ACTUATOR_ENABLED"`
+	ActuatorENAPin                            string  `yaml:"ACTUATOR_ENA_PIN"`
+	ActuatorIN1Pin                            string  `yaml:"ACTUATOR_IN1_PIN"`
+	ActuatorIN2Pin                            string  `yaml:"ACTUATOR_IN2_PIN"`
+	ActuatorMovement                          int     `yaml:"ACTUATOR_MOVEMENT_SECONDS"` // Used for both extend and retract
+	ActuatorPause                             int     `yaml:"ACTUATOR_PAUSE_SECONDS"`
+	ColorSensorEnabled                        bool    `yaml:"COLOR_SENSOR_ENABLED"`
+	ColorSensorI2CBus                         int     `yaml:"COLOR_SENSOR_I2C_BUS"`
+	ColorSensorI2CAddress                     string  `yaml:"COLOR_SENSOR_I2C_ADDRESS"`
+	ColorSensorMovementThreshold              int     `yaml:"COLOR_SENSOR_MOVEMENT_THRESHOLD"`
+	ColorSensorPresenceTolerance              int     `yaml:"COLOR_SENSOR_PRESENCE_TOLERANCE"`
+	ColorSensorHybridCGuardMargin             int     `yaml:"COLOR_SENSOR_HYBRID_C_GUARD_MARGIN"`
+	ColorSensorReferenceMaxDrift              int     `yaml:"COLOR_SENSOR_REFERENCE_MAX_DRIFT"`
+	ColorSensorReferenceResampleAfterAttempts int     `yaml:"COLOR_SENSOR_REFERENCE_RESAMPLE_AFTER_ATTEMPTS"`
+	ColorSensorPollIntervalMs                 int     `yaml:"COLOR_SENSOR_POLL_INTERVAL_MS"`
+	ColorSensorCheckDurationMs                int     `yaml:"COLOR_SENSOR_CHECK_DURATION_MS"`
+	ColorSensorStableSamples                  int     `yaml:"COLOR_SENSOR_STABLE_SAMPLES"`
+	ColorSensorSettleDelayMs                  int     `yaml:"COLOR_SENSOR_SETTLE_DELAY_MS"`
+	ColorSensorDebugLogging                   bool    `yaml:"COLOR_SENSOR_DEBUG_LOGGING"`
+	ColorSensorVibrateIntensity               float64 `yaml:"COLOR_SENSOR_VIBRATE_INTENSITY"`
+	ColorSensorVibrateDurationMs              int     `yaml:"COLOR_SENSOR_VIBRATE_DURATION_MS"`
+	ColorSensorVibrateBursts                  int     `yaml:"COLOR_SENSOR_VIBRATE_BURSTS"`
+	ColorSensorMaxAttempts                    int     `yaml:"COLOR_SENSOR_MAX_ATTEMPTS"`
+	VibrationEnabled                          bool    `yaml:"VIBRATOR_ENABLED"`
+	VibrationIN3Pin                           string  `yaml:"VIBRATOR_IN3_PIN"`
+	VibrationIN4Pin                           string  `yaml:"VIBRATOR_IN4_PIN"`
+	VibrationENBPin                           string  `yaml:"VIBRATOR_ENB_PIN"`
+	CameraEnabled                             bool    `yaml:"CAMERA_ENABLED"`
 }
 
 func Load(filename string) (*Config, error) {
@@ -82,6 +83,9 @@ func (c *Config) SetDefaults() {
 	}
 	if c.ColorSensorPresenceTolerance == 0 {
 		c.ColorSensorPresenceTolerance = 18
+	}
+	if c.ColorSensorHybridCGuardMargin == 0 {
+		c.ColorSensorHybridCGuardMargin = 24
 	}
 	if c.ColorSensorReferenceMaxDrift == 0 {
 		c.ColorSensorReferenceMaxDrift = 35

@@ -379,3 +379,30 @@ func TestWaitForBallWithReferenceBaselineReturnsToHybridAfterResample(t *testing
 		t.Fatalf("expected hybrid mode to resume by attempt 2 after resample, logs were:\n%s", logs)
 	}
 }
+
+func TestWaitForBallWithReferenceBaselineHybridCGuardPreventsLowCFalsePositive(t *testing.T) {
+	s := &Sensor{enabled: true, sim: true}
+	logger := silentLogger()
+
+	cfg := &config.Config{
+		ColorSensorEnabled:                        true,
+		ColorSensorMovementThreshold:              1,
+		ColorSensorPresenceTolerance:              10,
+		ColorSensorHybridCGuardMargin:             24,
+		ColorSensorReferenceMaxDrift:              5000,
+		ColorSensorReferenceResampleAfterAttempts: 99,
+		ColorSensorPollIntervalMs:                 1,
+		ColorSensorCheckDurationMs:                5,
+		ColorSensorStableSamples:                  1,
+		ColorSensorVibrateBursts:                  0,
+		ColorSensorMaxAttempts:                    1,
+	}
+
+	// This reference intentionally puts the simulated readings far below the
+	// hybrid C-guard floor. Movement-only spikes must not count as detection.
+	reference := uint16(1000)
+	err := WaitForBallWithReferenceBaseline(s, nil, cfg, logger, nil, reference)
+	if err != ErrNoBallDetected {
+		t.Fatalf("expected ErrNoBallDetected when below C guard floor, got %v", err)
+	}
+}

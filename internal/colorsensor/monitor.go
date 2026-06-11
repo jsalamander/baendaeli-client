@@ -127,7 +127,7 @@ func waitForBallWithOptions(s *Sensor, vib vibratorBuzzer, cfg *config.Config, l
 			case detectModePresenceReference:
 				logger.Printf("Color sensor: attempt %d/%d, baseline C=%d, reference C=%d, match_mode=near_reference, movement_threshold=%d, presence_tolerance=%d, stable_samples=%d", attempt, cfg.ColorSensorMaxAttempts, baselineValue, *referenceForAttempt, cfg.ColorSensorMovementThreshold, cfg.ColorSensorPresenceTolerance, stableSamples)
 			case detectModeHybridReference:
-				logger.Printf("Color sensor: attempt %d/%d, baseline C=%d, reference C=%d, match_mode=hybrid, movement_threshold=%d, presence_tolerance=%d, stable_samples=%d", attempt, cfg.ColorSensorMaxAttempts, baselineValue, *referenceForAttempt, cfg.ColorSensorMovementThreshold, cfg.ColorSensorPresenceTolerance, stableSamples)
+				logger.Printf("Color sensor: attempt %d/%d, baseline C=%d, reference C=%d, match_mode=hybrid, movement_threshold=%d, presence_tolerance=%d, c_guard_margin=%d, stable_samples=%d", attempt, cfg.ColorSensorMaxAttempts, baselineValue, *referenceForAttempt, cfg.ColorSensorMovementThreshold, cfg.ColorSensorPresenceTolerance, cfg.ColorSensorHybridCGuardMargin, stableSamples)
 			default:
 				logger.Printf("Color sensor: attempt %d/%d, baseline C=%d, reference C=%d, match_mode=movement_only, movement_threshold=%d, stable_samples=%d", attempt, cfg.ColorSensorMaxAttempts, baselineValue, *referenceForAttempt, cfg.ColorSensorMovementThreshold, stableSamples)
 			}
@@ -135,7 +135,7 @@ func waitForBallWithOptions(s *Sensor, vib vibratorBuzzer, cfg *config.Config, l
 			logger.Printf("Color sensor: attempt %d/%d, baseline C=%d, threshold=%d, stable_samples=%d", attempt, cfg.ColorSensorMaxAttempts, baselineValue, cfg.ColorSensorMovementThreshold, stableSamples)
 		}
 
-		if detected := pollForMovement(s, baselineValue, referenceForAttempt, attemptMode, cfg.ColorSensorMovementThreshold, cfg.ColorSensorPresenceTolerance, stableSamples, checkDuration, pollInterval, cfg.ColorSensorDebugLogging, logger); detected {
+		if detected := pollForMovement(s, baselineValue, referenceForAttempt, attemptMode, cfg.ColorSensorMovementThreshold, cfg.ColorSensorPresenceTolerance, cfg.ColorSensorHybridCGuardMargin, stableSamples, checkDuration, pollInterval, cfg.ColorSensorDebugLogging, logger); detected {
 			logger.Printf("Color sensor: ball detected on attempt %d", attempt)
 			return nil
 		}
@@ -250,12 +250,15 @@ func baseline(s *Sensor, logger *log.Logger) (uint16, error) {
 
 // pollForMovement polls the sensor until movement or presence detection is stable
 // or the window expires.
-func pollForMovement(s *Sensor, baseline uint16, referenceBaseline *uint16, mode detectMode, movementThreshold int, presenceTolerance int, stableSamples int, window, interval time.Duration, debug bool, logger *log.Logger) bool {
+func pollForMovement(s *Sensor, baseline uint16, referenceBaseline *uint16, mode detectMode, movementThreshold int, presenceTolerance int, cGuardMargin int, stableSamples int, window, interval time.Duration, debug bool, logger *log.Logger) bool {
 	deadline := time.Now().Add(window)
 	consecutiveHits := 0
 	sampleIndex := 0
 	if presenceTolerance <= 0 {
 		presenceTolerance = movementThreshold
+	}
+	if cGuardMargin < 0 {
+		cGuardMargin = 0
 	}
 	for time.Now().Before(deadline) {
 		sampleIndex++
@@ -274,12 +277,18 @@ func pollForMovement(s *Sensor, baseline uint16, referenceBaseline *uint16, mode
 		diffReference := -1
 		movementHit := diffCurrent >= movementThreshold
 		presenceHit := false
+		cGuardPass := true
+		cGuardFloor := -1
 		if referenceBaseline != nil {
 			diffReference = int(c) - int(*referenceBaseline)
 			if diffReference < 0 {
 				diffReference = -diffReference
 			}
 			presenceHit = diffReference <= presenceTolerance
+			if mode == detectModeHybridReference && cGuardMargin > 0 {
+				cGuardFloor = int(*referenceBaseline) - cGuardMargin
+				cGuardPass = int(c) >= cGuardFloor
+			}
 		}
 
 		hit := movementHit
@@ -288,7 +297,7 @@ func pollForMovement(s *Sensor, baseline uint16, referenceBaseline *uint16, mode
 			case detectModePresenceReference:
 				hit = presenceHit
 			case detectModeHybridReference:
-				hit = movementHit || presenceHit
+				hit = presenceHit || (movementHit && cGuardPass)
 			default:
 				hit = movementHit
 			}
@@ -302,7 +311,11 @@ func pollForMovement(s *Sensor, baseline uint16, referenceBaseline *uint16, mode
 
 		if debug {
 			if diffReference >= 0 {
-				logger.Printf("Color sensor debug: sample=%d C=%d baseline=%d reference=%d diff_current=%d diff_reference=%d movement_hit=%t presence_hit=%t mode=%d movement_threshold=%d presence_tolerance=%d consecutive_hits=%d/%d", sampleIndex, c, baseline, *referenceBaseline, diffCurrent, diffReference, movementHit, presenceHit, mode, movementThreshold, presenceTolerance, consecutiveHits, stableSamples)
+				if cGuardFloor >= 0 {
+					logger.Printf("Color sensor debug: sample=%d C=%d baseline=%d reference=%d diff_current=%d diff_reference=%d movement_hit=%t presence_hit=%t c_guard_pass=%t c_guard_floor=%d mode=%d movement_threshold=%d presence_tolerance=%d c_guard_margin=%d consecutive_hits=%d/%d", sampleIndex, c, baseline, *referenceBaseline, diffCurrent, diffReference, movementHit, presenceHit, cGuardPass, cGuardFloor, mode, movementThreshold, presenceTolerance, cGuardMargin, consecutiveHits, stableSamples)
+				} else {
+					logger.Printf("Color sensor debug: sample=%d C=%d baseline=%d reference=%d diff_current=%d diff_reference=%d movement_hit=%t presence_hit=%t mode=%d movement_threshold=%d presence_tolerance=%d consecutive_hits=%d/%d", sampleIndex, c, baseline, *referenceBaseline, diffCurrent, diffReference, movementHit, presenceHit, mode, movementThreshold, presenceTolerance, consecutiveHits, stableSamples)
+				}
 			} else {
 				logger.Printf("Color sensor debug: sample=%d C=%d baseline=%d diff_current=%d movement_hit=%t movement_threshold=%d consecutive_hits=%d/%d", sampleIndex, c, baseline, diffCurrent, movementHit, movementThreshold, consecutiveHits, stableSamples)
 			}
