@@ -51,6 +51,7 @@ cp config.yaml.example config.yaml
 Edit `config.yaml` and set your credentials:
 - `BAENDAELI_API_KEY`: Your Baendae.li API key
 - `BAENDAELI_URL`: The Baendae.li API URL
+- `HTTP_REQUEST_LOGGING`: Enable HTTP request logs (`false` by default)
 
 Optional GPIO actuator settings:
 - `ACTUATOR_ENABLED`: Set to `true` to enable the linear actuator (Raspberry Pi GPIO)

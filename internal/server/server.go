@@ -46,7 +46,9 @@ func (s *Server) SetDeviceClient(dc *device.Client) {
 
 func (s *Server) Router() *chi.Mux {
 	r := chi.NewRouter()
-	r.Use(middleware.Logger)
+	if s.config.HTTPRequestLogging {
+		r.Use(middleware.Logger)
+	}
 	r.Use(middleware.Recoverer)
 
 	r.Get("/", s.handleIndex)

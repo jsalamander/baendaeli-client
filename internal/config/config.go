@@ -10,6 +10,7 @@ import (
 type Config struct {
 	BaendaeliAPIKey              string  `yaml:"BAENDAELI_API_KEY"`
 	BaendaeliURL                 string  `yaml:"BAENDAELI_URL"`
+	HTTPRequestLogging           bool    `yaml:"HTTP_REQUEST_LOGGING"`
 	DefaultAmount                int     `yaml:"DEFAULT_AMOUNT_CENTS"`
 	SuccessOverlayMs             int     `yaml:"SUCCESS_OVERLAY_MILLIS"`
 	ActuatorEnabled              bool    `yaml:"ACTUATOR_ENABLED"`
@@ -62,6 +63,7 @@ func (c *Config) SetDefaults() {
 	if c.SuccessOverlayMs == 0 {
 		c.SuccessOverlayMs = 10000 // 10 seconds by default
 	}
+	// HTTPRequestLogging defaults to false to reduce browser request log noise.
 	if c.ActuatorMovement == 0 {
 		c.ActuatorMovement = 2 // 2 seconds by default (for both extend and retract)
 	}

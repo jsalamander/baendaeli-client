@@ -12,6 +12,9 @@ func TestSetDefaultsAppliesValues(t *testing.T) {
 	if cfg.SuccessOverlayMs != 10000 {
 		t.Fatalf("SuccessOverlayMs not set, got %d", cfg.SuccessOverlayMs)
 	}
+	if cfg.HTTPRequestLogging {
+		t.Fatal("HTTPRequestLogging should be disabled by default")
+	}
 	if cfg.ActuatorMovement != 2 || cfg.ActuatorPause != 0 {
 		t.Fatalf("Actuator defaults not set: movement=%d pause=%d", cfg.ActuatorMovement, cfg.ActuatorPause)
 	}
@@ -51,6 +54,7 @@ func TestSetDefaultsPreservesValues(t *testing.T) {
 	cfg := &Config{
 		DefaultAmount:                123,
 		SuccessOverlayMs:             5000,
+		HTTPRequestLogging:           true,
 		ActuatorMovement:             3,
 		ActuatorPause:                5,
 		ColorSensorEnabled:           true,
@@ -67,7 +71,7 @@ func TestSetDefaultsPreservesValues(t *testing.T) {
 	}
 	cfg.SetDefaults()
 
-	if cfg.DefaultAmount != 123 || cfg.SuccessOverlayMs != 5000 || cfg.ActuatorMovement != 3 || cfg.ActuatorPause != 5 || !cfg.ColorSensorEnabled || cfg.ColorSensorI2CBus != 3 || cfg.ColorSensorI2CAddress != "0x30" || cfg.ColorSensorMovementThreshold != 1000 || cfg.ColorSensorPresenceTolerance != 7 || cfg.ColorSensorReferenceMaxDrift != 44 || cfg.ColorSensorReferenceResampleAfterAttempts != 3 || cfg.ColorSensorPollIntervalMs != 250 || cfg.ColorSensorStableSamples != 3 || cfg.ColorSensorSettleDelayMs != 350 || !cfg.ColorSensorDebugLogging {
+	if cfg.DefaultAmount != 123 || cfg.SuccessOverlayMs != 5000 || !cfg.HTTPRequestLogging || cfg.ActuatorMovement != 3 || cfg.ActuatorPause != 5 || !cfg.ColorSensorEnabled || cfg.ColorSensorI2CBus != 3 || cfg.ColorSensorI2CAddress != "0x30" || cfg.ColorSensorMovementThreshold != 1000 || cfg.ColorSensorPresenceTolerance != 7 || cfg.ColorSensorReferenceMaxDrift != 44 || cfg.ColorSensorReferenceResampleAfterAttempts != 3 || cfg.ColorSensorPollIntervalMs != 250 || cfg.ColorSensorStableSamples != 3 || cfg.ColorSensorSettleDelayMs != 350 || !cfg.ColorSensorDebugLogging {
 		t.Fatalf("values should be preserved: %+v", cfg)
 	}
 }
