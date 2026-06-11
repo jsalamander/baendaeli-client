@@ -111,12 +111,10 @@ func waitForBallWithOptions(s *Sensor, vib vibratorBuzzer, cfg *config.Config, l
 		if forceMovementOnly {
 			attemptMode = detectModeMovementOnly
 		}
-		driftedReference := false
 		if referenceForAttempt != nil && opts.detectMode == detectModeHybridReference {
 			if absInt(int(baselineValue)-int(*referenceForAttempt)) > referenceMaxDrift {
 				logger.Printf("Color sensor: attempt %d/%d reference drift too high (baseline=%d reference=%d max_drift=%d), temporarily ignoring reference", attempt, cfg.ColorSensorMaxAttempts, baselineValue, *referenceForAttempt, referenceMaxDrift)
 				referenceForAttempt = nil
-				driftedReference = true
 				attemptMode = detectModeMovementOnly
 				forceMovementOnly = true
 			}
@@ -142,23 +140,26 @@ func waitForBallWithOptions(s *Sensor, vib vibratorBuzzer, cfg *config.Config, l
 
 		if activeReference != nil && opts.detectMode == detectModeHybridReference {
 			baselineReferenceDelta := absInt(int(baselineValue) - int(*activeReference))
-			forceImmediateResample := baselineReferenceDelta > cfg.ColorSensorPresenceTolerance
-			if forceImmediateResample {
-				logger.Printf("Color sensor: forcing immediate reference resample after hybrid miss (baseline=%d reference=%d delta=%d presence_tolerance=%d)", baselineValue, *activeReference, baselineReferenceDelta, cfg.ColorSensorPresenceTolerance)
-			}
-			if driftedReference && failedReferenceAttempts < referenceResampleAfterAttempts-1 {
-				failedReferenceAttempts = referenceResampleAfterAttempts - 1
-			}
-			failedReferenceAttempts++
-			if forceImmediateResample || failedReferenceAttempts >= referenceResampleAfterAttempts {
-				resampledReference, resampleErr := baseline(s, logger)
-				if resampleErr != nil {
-					logger.Printf("Color sensor: failed to resample reference baseline after %d failed attempts: %v", failedReferenceAttempts, resampleErr)
-				} else {
-					activeReference = &resampledReference
-					failedReferenceAttempts = 0
-					forceMovementOnly = false
-					logger.Printf("Color sensor: resampled hybrid reference baseline C=%d", resampledReference)
+			if forceMovementOnly {
+				// Drifted references are ignored for this detection cycle. Avoid
+				// learning a new reference from an empty/jammed miss window.
+				failedReferenceAttempts = 0
+			} else {
+				forceImmediateResample := baselineReferenceDelta > cfg.ColorSensorPresenceTolerance
+				if forceImmediateResample {
+					logger.Printf("Color sensor: forcing immediate reference resample after hybrid miss (baseline=%d reference=%d delta=%d presence_tolerance=%d)", baselineValue, *activeReference, baselineReferenceDelta, cfg.ColorSensorPresenceTolerance)
+				}
+				failedReferenceAttempts++
+				if forceImmediateResample || failedReferenceAttempts >= referenceResampleAfterAttempts {
+					resampledReference, resampleErr := baseline(s, logger)
+					if resampleErr != nil {
+						logger.Printf("Color sensor: failed to resample reference baseline after %d failed attempts: %v", failedReferenceAttempts, resampleErr)
+					} else {
+						activeReference = &resampledReference
+						failedReferenceAttempts = 0
+						forceMovementOnly = false
+						logger.Printf("Color sensor: resampled hybrid reference baseline C=%d", resampledReference)
+					}
 				}
 			}
 		}

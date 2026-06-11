@@ -276,7 +276,7 @@ func TestWaitForBallIncreasesVibrationIntensityAcrossBursts(t *testing.T) {
 	}
 }
 
-func TestWaitForBallWithReferenceBaselineResamplesImmediatelyAfterDriftedMiss(t *testing.T) {
+func TestWaitForBallWithReferenceBaselineSkipsImmediateResampleAfterDriftedMiss(t *testing.T) {
 	s := &Sensor{enabled: true, sim: true}
 	logger, buf := bufferLogger()
 
@@ -302,14 +302,11 @@ func TestWaitForBallWithReferenceBaselineResamplesImmediatelyAfterDriftedMiss(t 
 	logs := buf.String()
 	resampleIndex := strings.Index(logs, "resampled hybrid reference baseline")
 	attemptTwoIndex := strings.Index(logs, "attempt 2/2")
-	if resampleIndex == -1 {
-		t.Fatal("expected resample log entry after drifted miss")
+	if resampleIndex != -1 {
+		t.Fatalf("expected no reference resample after drifted miss, logs were:\n%s", logs)
 	}
 	if attemptTwoIndex == -1 {
 		t.Fatal("expected attempt 2 log entry")
-	}
-	if resampleIndex > attemptTwoIndex {
-		t.Fatalf("expected resample before second attempt, logs were:\n%s", logs)
 	}
 	if !strings.Contains(logs, "reference drift too high") {
 		t.Fatalf("expected drift log entry, logs were:\n%s", logs)
@@ -333,7 +330,7 @@ func TestWaitForBallWithReferenceBaselineForcesImmediateResampleOnLargeDelta(t *
 		ColorSensorMaxAttempts:                    1,
 	}
 
-	reference := uint16(500)
+	reference := uint16(50)
 	err := WaitForBallWithReferenceBaseline(s, nil, cfg, logger, nil, reference)
 	if err != ErrNoBallDetected {
 		t.Fatalf("expected ErrNoBallDetected, got %v", err)
@@ -348,7 +345,7 @@ func TestWaitForBallWithReferenceBaselineForcesImmediateResampleOnLargeDelta(t *
 	}
 }
 
-func TestWaitForBallWithReferenceBaselineReturnsToHybridAfterResample(t *testing.T) {
+func TestWaitForBallWithReferenceBaselineStaysMovementOnlyAfterDriftedMiss(t *testing.T) {
 	s := &Sensor{enabled: true, sim: true}
 	logger, buf := bufferLogger()
 
@@ -367,16 +364,19 @@ func TestWaitForBallWithReferenceBaselineReturnsToHybridAfterResample(t *testing
 
 	reference := uint16(500)
 	err := WaitForBallWithReferenceBaseline(s, nil, cfg, logger, nil, reference)
-	if err != nil {
-		t.Fatalf("expected detection after hybrid mode resumes, got %v", err)
+	if err != ErrNoBallDetected {
+		t.Fatalf("expected ErrNoBallDetected when hybrid reference is not resampled after drift, got %v", err)
 	}
 
 	logs := buf.String()
 	if !strings.Contains(logs, "reference drift too high") {
 		t.Fatalf("expected drift log entry, logs were:\n%s", logs)
 	}
-	if !strings.Contains(logs, "attempt 2/3,") || !strings.Contains(logs, "match_mode=hybrid") {
-		t.Fatalf("expected hybrid mode to resume by attempt 2 after resample, logs were:\n%s", logs)
+	if strings.Contains(logs, "resampled hybrid reference baseline") {
+		t.Fatalf("expected no reference resample after drifted miss, logs were:\n%s", logs)
+	}
+	if !strings.Contains(logs, "attempt 2/3, baseline C=") || !strings.Contains(logs, "attempt 3/3, baseline C=") {
+		t.Fatalf("expected later attempts to continue without hybrid reference mode, logs were:\n%s", logs)
 	}
 }
 

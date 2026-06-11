@@ -33,7 +33,7 @@ func TestSetDefaultsAppliesValues(t *testing.T) {
 	if cfg.ColorSensorPresenceTolerance != 18 {
 		t.Fatalf("ColorSensorPresenceTolerance default not set, got %d", cfg.ColorSensorPresenceTolerance)
 	}
-	if cfg.ColorSensorReferenceMaxDrift != 35 {
+	if cfg.ColorSensorReferenceMaxDrift != 45 {
 		t.Fatalf("ColorSensorReferenceMaxDrift default not set, got %d", cfg.ColorSensorReferenceMaxDrift)
 	}
 	if cfg.ColorSensorReferenceResampleAfterAttempts != 2 {

@@ -88,7 +88,7 @@ func (c *Config) SetDefaults() {
 		c.ColorSensorHybridCGuardMargin = 24
 	}
 	if c.ColorSensorReferenceMaxDrift == 0 {
-		c.ColorSensorReferenceMaxDrift = 35
+		c.ColorSensorReferenceMaxDrift = 45
 	}
 	if c.ColorSensorReferenceResampleAfterAttempts == 0 {
 		c.ColorSensorReferenceResampleAfterAttempts = 2
