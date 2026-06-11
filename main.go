@@ -298,7 +298,13 @@ func runStateCalibrationCommand() {
 	}
 	defer actuator.Cleanup()
 
-	reader := bufio.NewReader(os.Stdin)
+	reader, cleanup, err := newInteractiveReader()
+	if err != nil {
+		fmt.Printf("Error: %v\n", err)
+		os.Exit(1)
+	}
+	defer cleanup()
+
 	fmt.Printf("State calibration started (%d cycles)\n", repeatCount)
 	fmt.Println("This helper records two labeled states: ball on the sensor and manual funnel jam.")
 	if sensor.IsSimulation() {
@@ -531,6 +537,18 @@ func logRGBState(label string, cycle int, sample rgbStateSample) {
 func waitForEnter(reader *bufio.Reader) error {
 	_, err := reader.ReadString('\n')
 	return err
+}
+
+func newInteractiveReader() (*bufio.Reader, func(), error) {
+	if tty, err := os.OpenFile("/dev/tty", os.O_RDONLY, 0); err == nil {
+		return bufio.NewReader(tty), func() { _ = tty.Close() }, nil
+	}
+
+	if os.Stdin == nil {
+		return nil, func() {}, fmt.Errorf("no interactive terminal available for prompts")
+	}
+
+	return bufio.NewReader(os.Stdin), func() {}, nil
 }
 
 // printStopCommandsIfServerActive prints only the commands to stop services if port 8000 is in use
