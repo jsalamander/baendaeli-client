@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"log"
 	"net"
@@ -39,6 +40,9 @@ func main() {
 			return
 		case "color-debug":
 			runColorDebugCommand()
+			return
+		case "state-calibrate", "measure-states":
+			runStateCalibrationCommand()
 			return
 		case "help", "-h", "--help":
 			printUsage()
@@ -181,6 +185,7 @@ func printUsage() {
 	fmt.Println("  baendaeli-client retract <ms>       Retract actuator for specified milliseconds")
 	fmt.Println("  baendaeli-client home               Bring actuator to home position")
 	fmt.Println("  baendaeli-client color-debug [ms]   Print live TCS34725 C/R/G/B readings")
+	fmt.Println("  baendaeli-client state-calibrate [n] Measure ball-present and manual-jam states")
 	fmt.Println("  baendaeli-client help               Show this help message")
 	fmt.Println()
 	fmt.Println("Examples:")
@@ -189,6 +194,7 @@ func printUsage() {
 	fmt.Println("  baendaeli-client retract 1500       Retract for 1.5 seconds")
 	fmt.Println("  baendaeli-client home               Retract fully to home position")
 	fmt.Println("  baendaeli-client color-debug 300    Print color values every 300ms")
+	fmt.Println("  baendaeli-client state-calibrate 5  Measure 5 ball/jam state pairs")
 	fmt.Println()
 	fmt.Println("Note: Actuator commands require ACTUATOR_ENABLED: true in config.yaml")
 }
@@ -205,6 +211,13 @@ func runColorDebugCommand() {
 		interval = time.Duration(ms) * time.Millisecond
 	}
 
+	sensor, err := initColorSensorForCommand()
+	if err != nil {
+		fmt.Printf("Error: %v\n", err)
+		os.Exit(1)
+	}
+	defer sensor.Close()
+
 	cfg, err := config.Load("config.yaml")
 	if err != nil {
 		fmt.Printf("Error: failed to load config.yaml: %v\n", err)
@@ -212,13 +225,6 @@ func runColorDebugCommand() {
 	}
 	cfg.SetDefaults()
 	cfg.ColorSensorEnabled = true
-
-	sensor := colorsensor.New(cfg)
-	if err := sensor.Init(cfg); err != nil {
-		fmt.Printf("Error: failed to initialize color sensor: %v\n", err)
-		os.Exit(1)
-	}
-	defer sensor.Close()
 
 	fmt.Printf("Color debug started (interval=%v, threshold=%d)\n", interval, cfg.ColorSensorMovementThreshold)
 	if sensor.IsSimulation() {
@@ -249,6 +255,102 @@ func runColorDebugCommand() {
 
 		<-ticker.C
 	}
+}
+
+// runStateCalibrationCommand samples the ball-on-sensor and manual-jam states.
+func runStateCalibrationCommand() {
+	repeatCount := 5
+	if len(os.Args) >= 3 {
+		count, err := strconv.Atoi(os.Args[2])
+		if err != nil || count <= 0 {
+			fmt.Printf("Error: invalid repeat count '%s'. Must be a positive integer\n", os.Args[2])
+			os.Exit(1)
+		}
+		repeatCount = count
+	}
+
+	printStopCommandsIfServerActive()
+
+	cfg, err := config.Load("config.yaml")
+	if err != nil {
+		fmt.Printf("Error: failed to load config.yaml: %v\n", err)
+		os.Exit(1)
+	}
+	cfg.SetDefaults()
+
+	if !cfg.ActuatorEnabled {
+		fmt.Println("Error: actuator is disabled in config.yaml. Set ACTUATOR_ENABLED: true to use state-calibrate")
+		os.Exit(1)
+	}
+
+	cfg.ColorSensorEnabled = true
+	sensor := colorsensor.New(cfg)
+	if err := sensor.Init(cfg); err != nil {
+		fmt.Printf("Error: failed to initialize color sensor: %v\n", err)
+		os.Exit(1)
+	}
+	defer sensor.Close()
+
+	if err := initActuatorForCommand(); err != nil {
+		printStopCommandsIfServerActive()
+		fmt.Printf("Error: %v\n", err)
+		os.Exit(1)
+	}
+	defer actuator.Cleanup()
+
+	reader := bufio.NewReader(os.Stdin)
+	fmt.Printf("State calibration started (%d cycles)\n", repeatCount)
+	fmt.Println("This helper records two labeled states: ball on the sensor and manual funnel jam.")
+	if sensor.IsSimulation() {
+		fmt.Println("WARNING: color sensor is in SIMULATION mode (check I2C wiring/bus/address)")
+	} else {
+		fmt.Println("Color sensor is in HARDWARE mode")
+	}
+	fmt.Println("For each cycle: place a ball on the sensor, press Enter, let the actuator run, create the jam manually, then press Enter again.")
+
+	for cycle := 1; cycle <= repeatCount; cycle++ {
+		fmt.Printf("\nCycle %d/%d - place a ball on the sensor and press Enter to record the ball-present state...", cycle, repeatCount)
+		if err := waitForEnter(reader); err != nil {
+			fmt.Printf("\nError waiting for confirmation: %v\n", err)
+			os.Exit(1)
+		}
+
+		ballState, err := sampleRGBState(sensor, 3, 50*time.Millisecond)
+		if err != nil {
+			fmt.Printf("Error sampling ball-present state: %v\n", err)
+			os.Exit(1)
+		}
+		logRGBState("ball-present", cycle, ballState)
+
+		fmt.Printf("Cycle %d/%d - moving actuator to output the ball...\n", cycle, repeatCount)
+		if _, err := actuator.Trigger(); err != nil {
+			fmt.Printf("Error moving actuator: %v\n", err)
+			os.Exit(1)
+		}
+
+		fmt.Printf("Cycle %d/%d - create the funnel jam manually, then press Enter to record the jam state...", cycle, repeatCount)
+		if err := waitForEnter(reader); err != nil {
+			fmt.Printf("\nError waiting for jam confirmation: %v\n", err)
+			os.Exit(1)
+		}
+
+		jamState, err := sampleRGBState(sensor, 3, 50*time.Millisecond)
+		if err != nil {
+			fmt.Printf("Error sampling jam state: %v\n", err)
+			os.Exit(1)
+		}
+		logRGBState("jam", cycle, jamState)
+
+		if cycle < repeatCount {
+			fmt.Printf("Cycle %d/%d complete. Reset the setup and press Enter to continue...", cycle, repeatCount)
+			if err := waitForEnter(reader); err != nil {
+				fmt.Printf("\nError waiting for reset confirmation: %v\n", err)
+				os.Exit(1)
+			}
+		}
+	}
+
+	fmt.Println("State calibration complete")
 }
 
 // runExtendCommand extends the actuator for specified milliseconds
@@ -367,6 +469,68 @@ func initActuatorForCommand() error {
 	}
 
 	return nil
+}
+
+func initColorSensorForCommand() (*colorsensor.Sensor, error) {
+	cfg, err := config.Load("config.yaml")
+	if err != nil {
+		return nil, fmt.Errorf("failed to load config: %w", err)
+	}
+
+	cfg.SetDefaults()
+	cfg.ColorSensorEnabled = true
+
+	sensor := colorsensor.New(cfg)
+	if err := sensor.Init(cfg); err != nil {
+		return nil, fmt.Errorf("failed to initialize color sensor: %w", err)
+	}
+
+	return sensor, nil
+}
+
+type rgbStateSample struct {
+	C uint16
+	R uint16
+	G uint16
+	B uint16
+}
+
+func sampleRGBState(sensor *colorsensor.Sensor, sampleCount int, interval time.Duration) (rgbStateSample, error) {
+	if sampleCount < 1 {
+		sampleCount = 1
+	}
+
+	var totalC, totalR, totalG, totalB uint64
+	for i := 1; i <= sampleCount; i++ {
+		c, r, g, b, err := sensor.Read()
+		if err != nil {
+			return rgbStateSample{}, err
+		}
+		totalC += uint64(c)
+		totalR += uint64(r)
+		totalG += uint64(g)
+		totalB += uint64(b)
+		fmt.Printf("  sample %d/%d: C:%5d R:%5d G:%5d B:%5d\n", i, sampleCount, c, r, g, b)
+		if i < sampleCount {
+			time.Sleep(interval)
+		}
+	}
+
+	return rgbStateSample{
+		C: uint16(totalC / uint64(sampleCount)),
+		R: uint16(totalR / uint64(sampleCount)),
+		G: uint16(totalG / uint64(sampleCount)),
+		B: uint16(totalB / uint64(sampleCount)),
+	}, nil
+}
+
+func logRGBState(label string, cycle int, sample rgbStateSample) {
+	fmt.Printf("%s cycle %d average: C:%5d R:%5d G:%5d B:%5d\n", label, cycle, sample.C, sample.R, sample.G, sample.B)
+}
+
+func waitForEnter(reader *bufio.Reader) error {
+	_, err := reader.ReadString('\n')
+	return err
 }
 
 // printStopCommandsIfServerActive prints only the commands to stop services if port 8000 is in use
