@@ -66,6 +66,12 @@ func TestSetDefaultsAppliesValues(t *testing.T) {
 	if cfg.ColorSensorSettleDelayMs != 200 {
 		t.Fatalf("ColorSensorSettleDelayMs default not set, got %d", cfg.ColorSensorSettleDelayMs)
 	}
+	if cfg.ColorSensorProbeDuringVibration {
+		t.Fatal("ColorSensorProbeDuringVibration should be disabled by default")
+	}
+	if cfg.ColorSensorProbePostBurstWindowMs != 120 {
+		t.Fatalf("ColorSensorProbePostBurstWindowMs default not set, got %d", cfg.ColorSensorProbePostBurstWindowMs)
+	}
 }
 
 func TestSetDefaultsPreservesValues(t *testing.T) {
@@ -91,11 +97,13 @@ func TestSetDefaultsPreservesValues(t *testing.T) {
 		ColorSensorPollIntervalMs:                 250,
 		ColorSensorStableSamples:                  3,
 		ColorSensorSettleDelayMs:                  350,
+		ColorSensorProbeDuringVibration:           true,
+		ColorSensorProbePostBurstWindowMs:         240,
 		ColorSensorDebugLogging:                   true,
 	}
 	cfg.SetDefaults()
 
-	if cfg.DefaultAmount != 123 || cfg.SuccessOverlayMs != 5000 || !cfg.HTTPRequestLogging || !cfg.LogShippingEnabled || cfg.LogShippingFlushIntervalMs != 1234 || cfg.LogShippingBatchLines != 55 || cfg.LogShippingMaxQueueLines != 777 || cfg.LogShippingMaxLineBytes != 4444 || cfg.LogShippingMaxRequestBytes != 99999 || cfg.ActuatorMovement != 3 || cfg.ActuatorPause != 5 || !cfg.ColorSensorEnabled || cfg.ColorSensorI2CBus != 3 || cfg.ColorSensorI2CAddress != "0x30" || cfg.ColorSensorMovementThreshold != 1000 || cfg.ColorSensorPresenceTolerance != 7 || cfg.ColorSensorReferenceMaxDrift != 44 || cfg.ColorSensorReferenceResampleAfterAttempts != 3 || cfg.ColorSensorPollIntervalMs != 250 || cfg.ColorSensorStableSamples != 3 || cfg.ColorSensorSettleDelayMs != 350 || !cfg.ColorSensorDebugLogging {
+	if cfg.DefaultAmount != 123 || cfg.SuccessOverlayMs != 5000 || !cfg.HTTPRequestLogging || !cfg.LogShippingEnabled || cfg.LogShippingFlushIntervalMs != 1234 || cfg.LogShippingBatchLines != 55 || cfg.LogShippingMaxQueueLines != 777 || cfg.LogShippingMaxLineBytes != 4444 || cfg.LogShippingMaxRequestBytes != 99999 || cfg.ActuatorMovement != 3 || cfg.ActuatorPause != 5 || !cfg.ColorSensorEnabled || cfg.ColorSensorI2CBus != 3 || cfg.ColorSensorI2CAddress != "0x30" || cfg.ColorSensorMovementThreshold != 1000 || cfg.ColorSensorPresenceTolerance != 7 || cfg.ColorSensorReferenceMaxDrift != 44 || cfg.ColorSensorReferenceResampleAfterAttempts != 3 || cfg.ColorSensorPollIntervalMs != 250 || cfg.ColorSensorStableSamples != 3 || cfg.ColorSensorSettleDelayMs != 350 || !cfg.ColorSensorProbeDuringVibration || cfg.ColorSensorProbePostBurstWindowMs != 240 || !cfg.ColorSensorDebugLogging {
 		t.Fatalf("values should be preserved: %+v", cfg)
 	}
 }

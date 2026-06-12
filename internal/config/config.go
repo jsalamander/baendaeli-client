@@ -41,6 +41,8 @@ type Config struct {
 	ColorSensorVibrateIntensity               float64 `yaml:"COLOR_SENSOR_VIBRATE_INTENSITY"`
 	ColorSensorVibrateDurationMs              int     `yaml:"COLOR_SENSOR_VIBRATE_DURATION_MS"`
 	ColorSensorVibrateBursts                  int     `yaml:"COLOR_SENSOR_VIBRATE_BURSTS"`
+	ColorSensorProbeDuringVibration           bool    `yaml:"COLOR_SENSOR_PROBE_DURING_VIBRATION"`
+	ColorSensorProbePostBurstWindowMs         int     `yaml:"COLOR_SENSOR_PROBE_POST_BURST_WINDOW_MS"`
 	ColorSensorMaxAttempts                    int     `yaml:"COLOR_SENSOR_MAX_ATTEMPTS"`
 	VibrationEnabled                          bool    `yaml:"VIBRATOR_ENABLED"`
 	VibrationIN3Pin                           string  `yaml:"VIBRATOR_IN3_PIN"`
@@ -137,6 +139,9 @@ func (c *Config) SetDefaults() {
 	}
 	if c.ColorSensorVibrateBursts == 0 {
 		c.ColorSensorVibrateBursts = 3
+	}
+	if c.ColorSensorProbePostBurstWindowMs == 0 {
+		c.ColorSensorProbePostBurstWindowMs = 120
 	}
 	if c.ColorSensorMaxAttempts == 0 {
 		c.ColorSensorMaxAttempts = 5
