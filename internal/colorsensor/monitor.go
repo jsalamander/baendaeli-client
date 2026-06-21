@@ -75,7 +75,6 @@ func waitForBallWithOptions(s *Sensor, vib vibratorBuzzer, cfg *config.Config, l
 	pollInterval := time.Duration(cfg.ColorSensorPollIntervalMs) * time.Millisecond
 	checkDuration := time.Duration(cfg.ColorSensorCheckDurationMs) * time.Millisecond
 	settleDelay := time.Duration(cfg.ColorSensorSettleDelayMs) * time.Millisecond
-	probePostBurstWindow := time.Duration(cfg.ColorSensorProbePostBurstWindowMs) * time.Millisecond
 	stableSamples := cfg.ColorSensorStableSamples
 	if stableSamples < 1 {
 		stableSamples = 1
@@ -172,41 +171,11 @@ func waitForBallWithOptions(s *Sensor, vib vibratorBuzzer, cfg *config.Config, l
 				intensity := scaledVibrationIntensity(cfg.ColorSensorVibrateIntensity, attempt, burst)
 				duration := scaledVibrationDuration(time.Duration(cfg.ColorSensorVibrateDurationMs)*time.Millisecond, attempt, burst)
 				pauseBetweenBursts := scaledVibrationPause(attempt)
-
-				if cfg.ColorSensorProbeDuringVibration {
-					errChan := make(chan error, 1)
-					go func() {
-						errChan <- vib.Buzz(intensity, duration)
-					}()
-
-					detectedDuringBurst := pollForMovement(s, baselineValue, referenceForAttempt, attemptMode, cfg.ColorSensorMovementThreshold, cfg.ColorSensorPresenceTolerance, cfg.ColorSensorHybridCGuardMargin, stableSamples, duration, pollInterval, cfg.ColorSensorDebugLogging, logger)
-					buzzErr := <-errChan
-					if buzzErr != nil {
-						logger.Printf("Color sensor: vibration burst %d failed: %v", burst+1, buzzErr)
-					} else if cfg.ColorSensorDebugLogging {
-						logger.Printf("Color sensor: vibration burst %d intensity=%.2f duration_ms=%d pause_ms=%d", burst+1, intensity, duration.Milliseconds(), pauseBetweenBursts.Milliseconds())
-					}
-
-					if detectedDuringBurst {
-						logger.Printf("Color sensor: ball detected during vibration burst %d (attempt %d)", burst+1, attempt)
-						return nil
-					}
-
-					if probePostBurstWindow > 0 {
-						detectedAfterBurst := pollForMovement(s, baselineValue, referenceForAttempt, attemptMode, cfg.ColorSensorMovementThreshold, cfg.ColorSensorPresenceTolerance, cfg.ColorSensorHybridCGuardMargin, stableSamples, probePostBurstWindow, pollInterval, cfg.ColorSensorDebugLogging, logger)
-						if detectedAfterBurst {
-							logger.Printf("Color sensor: ball detected immediately after vibration burst %d (attempt %d)", burst+1, attempt)
-							return nil
-						}
-					}
-				} else {
-					if err := vib.Buzz(intensity, duration); err != nil {
-						logger.Printf("Color sensor: vibration burst %d failed: %v", burst+1, err)
-					} else if cfg.ColorSensorDebugLogging {
-						logger.Printf("Color sensor: vibration burst %d intensity=%.2f duration_ms=%d pause_ms=%d", burst+1, intensity, duration.Milliseconds(), pauseBetweenBursts.Milliseconds())
-					}
+				if err := vib.Buzz(intensity, duration); err != nil {
+					logger.Printf("Color sensor: vibration burst %d failed: %v", burst+1, err)
+				} else if cfg.ColorSensorDebugLogging {
+					logger.Printf("Color sensor: vibration burst %d intensity=%.2f duration_ms=%d pause_ms=%d", burst+1, intensity, duration.Milliseconds(), pauseBetweenBursts.Milliseconds())
 				}
-
 				time.Sleep(pauseBetweenBursts)
 			}
 		}

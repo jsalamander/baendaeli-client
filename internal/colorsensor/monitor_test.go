@@ -25,20 +25,6 @@ func (b *stubBuzzer) Buzz(intensity float64, duration time.Duration) error {
 	return nil
 }
 
-type callbackBuzzer struct {
-	count int
-	fn    func()
-}
-
-func (b *callbackBuzzer) Buzz(_ float64, duration time.Duration) error {
-	b.count++
-	if b.fn != nil {
-		b.fn()
-	}
-	time.Sleep(duration)
-	return nil
-}
-
 func silentLogger() *log.Logger {
 	return log.New(io.Discard, "", 0)
 }
@@ -418,35 +404,5 @@ func TestWaitForBallWithReferenceBaselineHybridCGuardPreventsLowCFalsePositive(t
 	err := WaitForBallWithReferenceBaseline(s, nil, cfg, logger, nil, reference)
 	if err != ErrNoBallDetected {
 		t.Fatalf("expected ErrNoBallDetected when below C guard floor, got %v", err)
-	}
-}
-
-func TestWaitForBallProbeDuringVibrationCanDetectBetweenAttempts(t *testing.T) {
-	s := &Sensor{enabled: true, sim: true}
-	b := &callbackBuzzer{fn: func() {
-		// Simulate an abrupt reading shift while vibration is running.
-		s.simCount.Add(120)
-	}}
-
-	cfg := &config.Config{
-		ColorSensorEnabled:                true,
-		ColorSensorMovementThreshold:      50,
-		ColorSensorPollIntervalMs:         1,
-		ColorSensorCheckDurationMs:        1,
-		ColorSensorStableSamples:          1,
-		ColorSensorVibrateIntensity:       0.8,
-		ColorSensorVibrateDurationMs:      20,
-		ColorSensorVibrateBursts:          1,
-		ColorSensorProbeDuringVibration:   true,
-		ColorSensorProbePostBurstWindowMs: 0,
-		ColorSensorMaxAttempts:            1,
-	}
-
-	err := WaitForBall(s, b, cfg, silentLogger(), nil)
-	if err != nil {
-		t.Fatalf("expected detection during vibration-assisted probe, got %v", err)
-	}
-	if b.count != 1 {
-		t.Fatalf("expected one vibration burst, got %d", b.count)
 	}
 }
