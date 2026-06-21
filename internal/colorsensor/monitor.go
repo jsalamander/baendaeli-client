@@ -174,6 +174,9 @@ func waitForBallWithOptions(s *Sensor, vib vibratorBuzzer, cfg *config.Config, l
 				// Drifted references are ignored for this detection cycle. Avoid
 				// learning a new reference from an empty/jammed miss window.
 				failedReferenceAttempts = 0
+			} else if skipMovementFallback {
+				// A jam-confirmed window should never become the next hybrid reference.
+				failedReferenceAttempts = 0
 			} else {
 				forceImmediateResample := baselineReferenceDelta > cfg.ColorSensorPresenceTolerance
 				if forceImmediateResample {
