@@ -1377,6 +1377,10 @@ func TestPollJammedRecoversAndFetchesCommand(t *testing.T) {
 	cfg.ColorSensorCheckDurationMs = 400
 	cfg.ColorSensorVibrateBursts = 0
 	cfg.ColorSensorMaxAttempts = 1
+	// Disable clear-band precheck: sim sensor values (C=1,2,3…) all fall below the
+	// default jam_max=584 and would be classified as clearBandJamConfirmed, which
+	// blocks the movement fallback this test is specifically exercising.
+	cfg.ColorSensorClearBandEnabled = false
 
 	client := New(cfg)
 	if err := client.colorSensor.Init(cfg); err != nil {
