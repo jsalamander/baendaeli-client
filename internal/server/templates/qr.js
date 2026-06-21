@@ -5,6 +5,21 @@ let qrResizeTimer = null;
 const MIN_QR_SIZE = 96;
 const MAX_QR_SIZE = 360;
 
+// Cache the last rendered QR source so repeated polls with identical data do
+// not clear and reinsert the DOM (which is the root cause of the size bounce).
+let lastQrKey = null;
+
+function getQrKey(data) {
+	const src =
+		data.qr_code_svg || data.qrcode_svg || data.qr_svg || data.twint_qr_code_svg ||
+		data.qr_code_png_base64 || data.qrcode_png_base64 || data.twint_qr_code_png_base64 ||
+		data.qr || data.qrcode || data.qr_data || data.qr_code ||
+		data.qr_code_url || data.qrcode_url || data.payment_qr_url || data.url ||
+		'';
+	// A 128-char prefix is enough to distinguish different QR payloads.
+	return String(src).substring(0, 128);
+}
+
 function getLayoutOverflowPx() {
 	const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
 	const paymentCardEl = document.getElementById('paymentCard');
@@ -50,9 +65,10 @@ function updateResponsiveQrSize() {
 	const qrPadding = parseFloat(window.getComputedStyle(qrEl).paddingLeft) || 0;
 
 	const widthBudget = Math.max(0, viewportWidth - mainPadLeft - mainPadRight);
-	const maxByCardWidth = Math.max(0, widthBudget - 224); // 14rem card side content budget
+	// Card is full-width (no side content beside the QR), so the only constraint
+	// is the QR box padding plus a small card-interior gutter.
 	const maxByQrBoxWidth = Math.max(0, widthBudget - (qrPadding * 2) - 24);
-	const initialWidthCap = Math.min(maxByCardWidth, maxByQrBoxWidth, viewportWidth * 0.85);
+	const initialWidthCap = Math.min(maxByQrBoxWidth, viewportWidth * 0.85);
 	const initialHeightCap = viewportHeight * 0.62;
 
 	let qrSize = Math.round(Math.max(MIN_QR_SIZE, Math.min(MAX_QR_SIZE, initialWidthCap, initialHeightCap)));
@@ -113,6 +129,8 @@ if (window.visualViewport) {
 document.addEventListener('DOMContentLoaded', scheduleResponsiveQrSizeUpdate);
 
 function renderQrPlaceholder(title, subtitle) {
+	// Reset the cache so the next renderQr() call always re-renders fresh.
+	lastQrKey = null;
 	qrEl.innerHTML =
 		'<div class="mx-auto flex max-w-xs flex-col items-center justify-center gap-3 text-center text-base-content/80">' +
 		'<svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 opacity-70" fill="none" viewBox="0 0 24 24" stroke="currentColor">' +
@@ -124,6 +142,15 @@ function renderQrPlaceholder(title, subtitle) {
 }
 
 function renderQr(data) {
+	// Skip DOM mutation + resize recalculation when the QR content hasn't changed.
+	// Without this guard, every 1-second status poll would clear and reinsert the
+	// SVG and retrigger updateResponsiveQrSize(), creating a visible size bounce.
+	const key = getQrKey(data);
+	if (key && key === lastQrKey) {
+		return;
+	}
+	lastQrKey = key;
+
 	const svg = data.qr_code_svg || data.qrcode_svg || data.qr_svg || data.twint_qr_code_svg;
 	const png = data.qr_code_png_base64 || data.qrcode_png_base64 || data.twint_qr_code_png_base64;
 	const url = data.qr_code_url || data.qrcode_url || data.payment_qr_url || data.url;
@@ -150,14 +177,13 @@ function renderQr(data) {
 		svgEl.style.aspectRatio = '1 / 1';
 	};
 
-	scheduleResponsiveQrSizeUpdate();
-
 	qrEl.innerHTML = '';
 
 	// Try inline SVG first
 	if (svg && typeof svg === 'string') {
 		qrEl.innerHTML = svg;
 		applyInlineSvgSizing();
+		scheduleResponsiveQrSizeUpdate();
 		return;
 	}
 
@@ -168,6 +194,7 @@ function renderQr(data) {
 		img.alt = 'Payment QR code';
 		applyImageSizing(img);
 		qrEl.appendChild(img);
+		scheduleResponsiveQrSizeUpdate();
 		return;
 	}
 
@@ -182,6 +209,7 @@ function renderQr(data) {
 			img.alt = 'Payment QR code';
 			applyImageSizing(img);
 			qrEl.appendChild(img);
+			scheduleResponsiveQrSizeUpdate();
 			return;
 		}
 
@@ -189,6 +217,7 @@ function renderQr(data) {
 		if (trimmed.startsWith('<svg')) {
 			qrEl.innerHTML = trimmed;
 			applyInlineSvgSizing();
+			scheduleResponsiveQrSizeUpdate();
 			return;
 		}
 
@@ -200,6 +229,7 @@ function renderQr(data) {
 			img.alt = 'Payment QR code';
 			applyImageSizing(img);
 			qrEl.appendChild(img);
+			scheduleResponsiveQrSizeUpdate();
 			return;
 		}
 	}
@@ -211,6 +241,7 @@ function renderQr(data) {
 		img.alt = 'Payment QR code';
 		applyImageSizing(img);
 		qrEl.appendChild(img);
+		scheduleResponsiveQrSizeUpdate();
 		return;
 	}
 
