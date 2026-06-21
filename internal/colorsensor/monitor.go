@@ -252,9 +252,9 @@ func scaledVibrationDuration(base time.Duration, attempt int, burst int) time.Du
 }
 
 func scaledVibrationPause(attempt int) time.Duration {
-	pause := 300 - 30*(attempt-1)
-	if pause < 150 {
-		pause = 150
+	pause := 350 + 20*(attempt-1)
+	if pause > 500 {
+		pause = 500
 	}
 	return time.Duration(pause) * time.Millisecond
 }
