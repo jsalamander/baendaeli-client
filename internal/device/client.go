@@ -1216,6 +1216,16 @@ func (c *Client) sampleBallReferenceBaseline(context string) *uint16 {
 		return nil
 	}
 
+	// Sanity-check: reject readings that fall in the jam/empty band. Storing a jam-level
+	// value as a ball-present reference would make the hybrid detector accept empty sensor
+	// readings as valid balls on every subsequent cycle.
+	if c.config.ColorSensorClearBandEnabled &&
+		c.config.ColorSensorClearBallMin > 0 &&
+		int(baseline) < c.config.ColorSensorClearBallMin {
+		log.Printf("Device client: captured %s reference baseline C=%d rejected — below clear-band ball_min=%d", context, baseline, c.config.ColorSensorClearBallMin)
+		return nil
+	}
+
 	log.Printf("Device client: captured %s reference baseline C=%d", context, baseline)
 	return &baseline
 }

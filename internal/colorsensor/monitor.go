@@ -113,12 +113,21 @@ func waitForBallWithOptions(s *Sensor, vib vibratorBuzzer, cfg *config.Config, l
 			time.Sleep(settleDelay)
 		}
 
+		skipMovementFallback := false
 		if cfg.ColorSensorClearBandEnabled {
 			if cfg.ColorSensorClearJamMax > 0 && cfg.ColorSensorClearBallMin > cfg.ColorSensorClearJamMax {
 				logger.Printf("Color sensor: attempt %d/%d clear-band precheck jam_max=%d ball_min=%d stable_samples=%d window_ms=%d", attempt, cfg.ColorSensorMaxAttempts, cfg.ColorSensorClearJamMax, cfg.ColorSensorClearBallMin, stableSamples, clearBandWindow.Milliseconds())
-				if detected := pollForClearBandPresence(s, cfg.ColorSensorClearJamMax, cfg.ColorSensorClearBallMin, stableSamples, clearBandWindow, pollInterval, cfg.ColorSensorDebugLogging, logger); detected {
+				switch pollForClearBandPresence(s, cfg.ColorSensorClearJamMax, cfg.ColorSensorClearBallMin, stableSamples, clearBandWindow, pollInterval, cfg.ColorSensorDebugLogging, logger) {
+				case clearBandBallPresent:
 					logger.Printf("Color sensor: ball detected on attempt %d by clear-band precheck", attempt)
 					return nil
+				case clearBandJamConfirmed:
+					// The clear-band classifier is certain no ball is present; do not let
+					// the movement-only fallback override this negative result.
+					logger.Printf("Color sensor: attempt %d/%d clear-band confirmed jam/empty — skipping movement fallback", attempt, cfg.ColorSensorMaxAttempts)
+					skipMovementFallback = true
+				default:
+					// inconclusive — fall through to movement/reference path
 				}
 			} else {
 				logger.Printf("Color sensor: attempt %d/%d clear-band precheck skipped due to invalid thresholds (jam_max=%d ball_min=%d)", attempt, cfg.ColorSensorMaxAttempts, cfg.ColorSensorClearJamMax, cfg.ColorSensorClearBallMin)
@@ -152,9 +161,11 @@ func waitForBallWithOptions(s *Sensor, vib vibratorBuzzer, cfg *config.Config, l
 			logger.Printf("Color sensor: attempt %d/%d, baseline C=%d, threshold=%d, stable_samples=%d", attempt, cfg.ColorSensorMaxAttempts, baselineValue, cfg.ColorSensorMovementThreshold, stableSamples)
 		}
 
-		if detected := pollForMovement(s, baselineValue, referenceForAttempt, attemptMode, cfg.ColorSensorMovementThreshold, cfg.ColorSensorPresenceTolerance, cfg.ColorSensorHybridCGuardMargin, stableSamples, checkDuration, pollInterval, cfg.ColorSensorDebugLogging, logger); detected {
-			logger.Printf("Color sensor: ball detected on attempt %d", attempt)
-			return nil
+		if !skipMovementFallback {
+			if detected := pollForMovement(s, baselineValue, referenceForAttempt, attemptMode, cfg.ColorSensorMovementThreshold, cfg.ColorSensorPresenceTolerance, cfg.ColorSensorHybridCGuardMargin, stableSamples, checkDuration, pollInterval, cfg.ColorSensorDebugLogging, logger); detected {
+				logger.Printf("Color sensor: ball detected on attempt %d", attempt)
+				return nil
+			}
 		}
 
 		if activeReference != nil && opts.detectMode == detectModeHybridReference {
@@ -349,7 +360,16 @@ func pollForMovement(s *Sensor, baseline uint16, referenceBaseline *uint16, mode
 	return false
 }
 
-func pollForClearBandPresence(s *Sensor, jamMax int, ballMin int, stableSamples int, window, interval time.Duration, debug bool, logger *log.Logger) bool {
+// clearBandResult is the tri-state outcome of pollForClearBandPresence.
+type clearBandResult int
+
+const (
+	clearBandInconclusive  clearBandResult = 0 // window expired without enough consecutive hits either way
+	clearBandBallPresent   clearBandResult = 1 // ball-level C readings confirmed
+	clearBandJamConfirmed  clearBandResult = 2 // jam/empty-level C readings confirmed
+)
+
+func pollForClearBandPresence(s *Sensor, jamMax int, ballMin int, stableSamples int, window, interval time.Duration, debug bool, logger *log.Logger) clearBandResult {
 	deadline := time.Now().Add(window)
 	consecutiveBallHits := 0
 	consecutiveJamHits := 0
@@ -384,14 +404,14 @@ func pollForClearBandPresence(s *Sensor, jamMax int, ballMin int, stableSamples 
 		}
 
 		if consecutiveBallHits >= stableSamples {
-			return true
+			return clearBandBallPresent
 		}
 		if consecutiveJamHits >= stableSamples {
-			return false
+			return clearBandJamConfirmed
 		}
 
 		time.Sleep(interval)
 	}
 
-	return false
+	return clearBandInconclusive
 }

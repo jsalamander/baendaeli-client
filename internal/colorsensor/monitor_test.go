@@ -76,11 +76,14 @@ func TestWaitForBallDetectsWithClearBandBeforeMovement(t *testing.T) {
 
 func TestWaitForBallClearBandFallsBackToMovement(t *testing.T) {
 	s := &Sensor{enabled: true, sim: true}
+	// jam_max=0 means no sim value (which starts at 1) will ever be classified as
+	// jam-confirmed, so the clear-band window expires as inconclusive and the movement
+	// fallback is allowed to run and detect.
 	cfg := &config.Config{
 		ColorSensorEnabled:           true,
 		ColorSensorMovementThreshold: 1,
 		ColorSensorClearBandEnabled:  true,
-		ColorSensorClearJamMax:       10,
+		ColorSensorClearJamMax:       0,
 		ColorSensorClearBallMin:      1000,
 		ColorSensorClearBandWindowMs: 10,
 		ColorSensorPollIntervalMs:    1,
@@ -93,7 +96,36 @@ func TestWaitForBallClearBandFallsBackToMovement(t *testing.T) {
 
 	err := WaitForBall(s, nil, cfg, silentLogger(), nil)
 	if err != nil {
-		t.Fatalf("expected movement fallback detection after clear-band miss, got error: %v", err)
+		t.Fatalf("expected movement fallback detection after clear-band inconclusive, got error: %v", err)
+	}
+}
+
+// TestWaitForBallClearBandJamConfirmedSkipsMovementFallback verifies that when the
+// clear-band classifier confirms jam/empty (C <= jam_max), the movement-only fallback
+// is NOT allowed to override that decision even if movement threshold would have fired.
+func TestWaitForBallClearBandJamConfirmedSkipsMovementFallback(t *testing.T) {
+	s := &Sensor{enabled: true, sim: true}
+	// Sim counter starts at 1 and increments by 1 per Read(), so values 1, 2, 3 … are
+	// all well below jam_max=100. movement_threshold=1 would normally fire immediately
+	// if pollForMovement were reached.
+	cfg := &config.Config{
+		ColorSensorEnabled:           true,
+		ColorSensorMovementThreshold: 1,
+		ColorSensorClearBandEnabled:  true,
+		ColorSensorClearJamMax:       100,
+		ColorSensorClearBallMin:      5000,
+		ColorSensorClearBandWindowMs: 20,
+		ColorSensorPollIntervalMs:    1,
+		ColorSensorStableSamples:     2,
+		ColorSensorSettleDelayMs:     0,
+		ColorSensorCheckDurationMs:   20,
+		ColorSensorVibrateBursts:     0,
+		ColorSensorMaxAttempts:       2,
+	}
+
+	err := WaitForBall(s, nil, cfg, silentLogger(), nil)
+	if err != ErrNoBallDetected {
+		t.Fatalf("expected ErrNoBallDetected when jam confirmed blocks movement fallback, got: %v", err)
 	}
 }
 
