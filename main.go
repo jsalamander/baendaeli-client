@@ -317,43 +317,74 @@ func runStateCalibrationCommand() {
 		fmt.Println("Color sensor is in HARDWARE mode")
 	}
 	fmt.Println("For each cycle: place a ball on the sensor, press Enter, let the actuator run, create the jam manually, then press Enter again.")
+	fmt.Println("Shortcuts at prompts: Enter=record/continue, e=rerun extend+retract cycle (jam prompt), r=restart current cycle")
 
 	for cycle := 1; cycle <= repeatCount; cycle++ {
-		fmt.Printf("\nCycle %d/%d - place a ball on the sensor and press Enter to record the ball-present state...", cycle, repeatCount)
-		if err := waitForEnter(reader); err != nil {
-			fmt.Printf("\nError waiting for confirmation: %v\n", err)
-			os.Exit(1)
-		}
+		for {
+			fmt.Printf("\nCycle %d/%d - place a ball on the sensor and press Enter to record the ball-present state (r to restart cycle)...", cycle, repeatCount)
+			action, err := waitForCalibrationInput(reader, false)
+			if err != nil {
+				fmt.Printf("\nError waiting for confirmation: %v\n", err)
+				os.Exit(1)
+			}
 
-		ballState, err := sampleRGBState(sensor, 3, 50*time.Millisecond)
-		if err != nil {
-			fmt.Printf("Error sampling ball-present state: %v\n", err)
-			os.Exit(1)
-		}
-		logRGBState("ball-present", cycle, ballState)
+			if action == calibrationInputRestartCycle {
+				fmt.Printf("\nCycle %d/%d restarted\n", cycle, repeatCount)
+				continue
+			}
 
-		fmt.Printf("Cycle %d/%d - moving actuator to output the ball...\n", cycle, repeatCount)
-		if _, err := actuator.Trigger(); err != nil {
-			fmt.Printf("Error moving actuator: %v\n", err)
-			os.Exit(1)
-		}
+			ballState, err := sampleRGBState(sensor, 3, 50*time.Millisecond)
+			if err != nil {
+				fmt.Printf("Error sampling ball-present state: %v\n", err)
+				os.Exit(1)
+			}
+			logRGBState("ball-present", cycle, ballState)
 
-		fmt.Printf("Cycle %d/%d - create the funnel jam manually, then press Enter to record the jam state...", cycle, repeatCount)
-		if err := waitForEnter(reader); err != nil {
-			fmt.Printf("\nError waiting for jam confirmation: %v\n", err)
-			os.Exit(1)
-		}
+			restartCycle := false
+			for {
+				fmt.Printf("Cycle %d/%d - moving actuator to output the ball...\n", cycle, repeatCount)
+				if _, err := actuator.Trigger(); err != nil {
+					fmt.Printf("Error moving actuator: %v\n", err)
+					os.Exit(1)
+				}
 
-		jamState, err := sampleRGBState(sensor, 3, 50*time.Millisecond)
-		if err != nil {
-			fmt.Printf("Error sampling jam state: %v\n", err)
-			os.Exit(1)
+				fmt.Printf("Cycle %d/%d - create the funnel jam manually, then press Enter to record the jam state (e to rerun actuator cycle, r to restart cycle)...", cycle, repeatCount)
+				action, err = waitForCalibrationInput(reader, true)
+				if err != nil {
+					fmt.Printf("\nError waiting for jam confirmation: %v\n", err)
+					os.Exit(1)
+				}
+
+				if action == calibrationInputRetryActuatorCycle {
+					fmt.Printf("\nCycle %d/%d - rerunning extend/retract cycle\n", cycle, repeatCount)
+					continue
+				}
+
+				if action == calibrationInputRestartCycle {
+					restartCycle = true
+					break
+				}
+
+				break
+			}
+
+			if restartCycle {
+				fmt.Printf("Cycle %d/%d restarted\n", cycle, repeatCount)
+				continue
+			}
+
+			jamState, err := sampleRGBState(sensor, 3, 50*time.Millisecond)
+			if err != nil {
+				fmt.Printf("Error sampling jam state: %v\n", err)
+				os.Exit(1)
+			}
+			logRGBState("jam", cycle, jamState)
+			break
 		}
-		logRGBState("jam", cycle, jamState)
 
 		if cycle < repeatCount {
 			fmt.Printf("Cycle %d/%d complete. Reset the setup and press Enter to continue...", cycle, repeatCount)
-			if err := waitForEnter(reader); err != nil {
+			if _, err := waitForCalibrationInput(reader, false); err != nil {
 				fmt.Printf("\nError waiting for reset confirmation: %v\n", err)
 				os.Exit(1)
 			}
@@ -538,9 +569,40 @@ func logRGBState(label string, cycle int, sample rgbStateSample) {
 	fmt.Printf("%s cycle %d average: C:%5d R:%5d G:%5d B:%5d\n", label, cycle, sample.C, sample.R, sample.G, sample.B)
 }
 
-func waitForEnter(reader *bufio.Reader) error {
-	_, err := reader.ReadString('\n')
-	return err
+type calibrationInputAction int
+
+const (
+	calibrationInputConfirm calibrationInputAction = iota
+	calibrationInputRetryActuatorCycle
+	calibrationInputRestartCycle
+)
+
+func waitForCalibrationInput(reader *bufio.Reader, allowRetryActuator bool) (calibrationInputAction, error) {
+	for {
+		line, err := reader.ReadString('\n')
+		if err != nil {
+			return calibrationInputConfirm, err
+		}
+
+		input := strings.ToLower(strings.TrimSpace(line))
+		switch input {
+		case "":
+			return calibrationInputConfirm, nil
+		case "r":
+			return calibrationInputRestartCycle, nil
+		case "e":
+			if allowRetryActuator {
+				return calibrationInputRetryActuatorCycle, nil
+			}
+			fallthrough
+		default:
+			if allowRetryActuator {
+				fmt.Print("\nInvalid input. Press Enter to continue, 'e' to rerun actuator cycle, or 'r' to restart cycle: ")
+			} else {
+				fmt.Print("\nInvalid input. Press Enter to continue or 'r' to restart cycle: ")
+			}
+		}
+	}
 }
 
 func newInteractiveReader() (*bufio.Reader, func(), error) {
