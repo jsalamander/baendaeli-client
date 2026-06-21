@@ -39,6 +39,7 @@ func TestWaitForBallDetectsMovementInSimMode(t *testing.T) {
 	cfg := &config.Config{
 		ColorSensorEnabled:           true,
 		ColorSensorMovementThreshold: 1,
+		ColorSensorClearBandEnabled:  false,
 		ColorSensorCheckDurationMs:   400,
 		ColorSensorVibrateBursts:     0,
 		ColorSensorMaxAttempts:       1,
@@ -47,6 +48,52 @@ func TestWaitForBallDetectsMovementInSimMode(t *testing.T) {
 	err := WaitForBall(s, nil, cfg, silentLogger(), nil)
 	if err != nil {
 		t.Fatalf("expected movement detection, got error: %v", err)
+	}
+}
+
+func TestWaitForBallDetectsWithClearBandBeforeMovement(t *testing.T) {
+	s := &Sensor{enabled: true, sim: true}
+	cfg := &config.Config{
+		ColorSensorEnabled:           true,
+		ColorSensorMovementThreshold: 10000,
+		ColorSensorClearBandEnabled:  true,
+		ColorSensorClearJamMax:       1,
+		ColorSensorClearBallMin:      4,
+		ColorSensorClearBandWindowMs: 20,
+		ColorSensorPollIntervalMs:    1,
+		ColorSensorStableSamples:     2,
+		ColorSensorSettleDelayMs:     0,
+		ColorSensorCheckDurationMs:   20,
+		ColorSensorVibrateBursts:     0,
+		ColorSensorMaxAttempts:       1,
+	}
+
+	err := WaitForBall(s, nil, cfg, silentLogger(), nil)
+	if err != nil {
+		t.Fatalf("expected clear-band detection before movement path, got error: %v", err)
+	}
+}
+
+func TestWaitForBallClearBandFallsBackToMovement(t *testing.T) {
+	s := &Sensor{enabled: true, sim: true}
+	cfg := &config.Config{
+		ColorSensorEnabled:           true,
+		ColorSensorMovementThreshold: 1,
+		ColorSensorClearBandEnabled:  true,
+		ColorSensorClearJamMax:       10,
+		ColorSensorClearBallMin:      1000,
+		ColorSensorClearBandWindowMs: 10,
+		ColorSensorPollIntervalMs:    1,
+		ColorSensorStableSamples:     1,
+		ColorSensorSettleDelayMs:     0,
+		ColorSensorCheckDurationMs:   20,
+		ColorSensorVibrateBursts:     0,
+		ColorSensorMaxAttempts:       1,
+	}
+
+	err := WaitForBall(s, nil, cfg, silentLogger(), nil)
+	if err != nil {
+		t.Fatalf("expected movement fallback detection after clear-band miss, got error: %v", err)
 	}
 }
 

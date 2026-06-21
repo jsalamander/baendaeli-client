@@ -29,6 +29,10 @@ type Config struct {
 	ColorSensorI2CBus                         int     `yaml:"COLOR_SENSOR_I2C_BUS"`
 	ColorSensorI2CAddress                     string  `yaml:"COLOR_SENSOR_I2C_ADDRESS"`
 	ColorSensorMovementThreshold              int     `yaml:"COLOR_SENSOR_MOVEMENT_THRESHOLD"`
+	ColorSensorClearBandEnabled               bool    `yaml:"COLOR_SENSOR_CLEAR_BAND_ENABLED"`
+	ColorSensorClearJamMax                    int     `yaml:"COLOR_SENSOR_CLEAR_JAM_MAX"`
+	ColorSensorClearBallMin                   int     `yaml:"COLOR_SENSOR_CLEAR_BALL_MIN"`
+	ColorSensorClearBandWindowMs              int     `yaml:"COLOR_SENSOR_CLEAR_BAND_WINDOW_MS"`
 	ColorSensorPresenceTolerance              int     `yaml:"COLOR_SENSOR_PRESENCE_TOLERANCE"`
 	ColorSensorHybridCGuardMargin             int     `yaml:"COLOR_SENSOR_HYBRID_C_GUARD_MARGIN"`
 	ColorSensorReferenceMaxDrift              int     `yaml:"COLOR_SENSOR_REFERENCE_MAX_DRIFT"`
@@ -104,6 +108,18 @@ func (c *Config) SetDefaults() {
 	}
 	if c.ColorSensorMovementThreshold == 0 {
 		c.ColorSensorMovementThreshold = 500
+	}
+	if !c.ColorSensorClearBandEnabled {
+		c.ColorSensorClearBandEnabled = true
+	}
+	if c.ColorSensorClearJamMax == 0 {
+		c.ColorSensorClearJamMax = 584
+	}
+	if c.ColorSensorClearBallMin == 0 {
+		c.ColorSensorClearBallMin = 592
+	}
+	if c.ColorSensorClearBandWindowMs == 0 {
+		c.ColorSensorClearBandWindowMs = 400
 	}
 	if c.ColorSensorPresenceTolerance == 0 {
 		c.ColorSensorPresenceTolerance = 18

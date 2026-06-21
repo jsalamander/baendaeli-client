@@ -74,6 +74,13 @@ func waitForBallWithOptions(s *Sensor, vib vibratorBuzzer, cfg *config.Config, l
 
 	pollInterval := time.Duration(cfg.ColorSensorPollIntervalMs) * time.Millisecond
 	checkDuration := time.Duration(cfg.ColorSensorCheckDurationMs) * time.Millisecond
+	clearBandWindow := time.Duration(cfg.ColorSensorClearBandWindowMs) * time.Millisecond
+	if clearBandWindow <= 0 {
+		clearBandWindow = checkDuration
+	}
+	if clearBandWindow > checkDuration {
+		clearBandWindow = checkDuration
+	}
 	settleDelay := time.Duration(cfg.ColorSensorSettleDelayMs) * time.Millisecond
 	stableSamples := cfg.ColorSensorStableSamples
 	if stableSamples < 1 {
@@ -104,6 +111,18 @@ func waitForBallWithOptions(s *Sensor, vib vibratorBuzzer, cfg *config.Config, l
 
 		if settleDelay > 0 {
 			time.Sleep(settleDelay)
+		}
+
+		if cfg.ColorSensorClearBandEnabled {
+			if cfg.ColorSensorClearJamMax > 0 && cfg.ColorSensorClearBallMin > cfg.ColorSensorClearJamMax {
+				logger.Printf("Color sensor: attempt %d/%d clear-band precheck jam_max=%d ball_min=%d stable_samples=%d window_ms=%d", attempt, cfg.ColorSensorMaxAttempts, cfg.ColorSensorClearJamMax, cfg.ColorSensorClearBallMin, stableSamples, clearBandWindow.Milliseconds())
+				if detected := pollForClearBandPresence(s, cfg.ColorSensorClearJamMax, cfg.ColorSensorClearBallMin, stableSamples, clearBandWindow, pollInterval, cfg.ColorSensorDebugLogging, logger); detected {
+					logger.Printf("Color sensor: ball detected on attempt %d by clear-band precheck", attempt)
+					return nil
+				}
+			} else {
+				logger.Printf("Color sensor: attempt %d/%d clear-band precheck skipped due to invalid thresholds (jam_max=%d ball_min=%d)", attempt, cfg.ColorSensorMaxAttempts, cfg.ColorSensorClearJamMax, cfg.ColorSensorClearBallMin)
+			}
 		}
 
 		referenceForAttempt := activeReference
@@ -327,5 +346,52 @@ func pollForMovement(s *Sensor, baseline uint16, referenceBaseline *uint16, mode
 		}
 		time.Sleep(interval)
 	}
+	return false
+}
+
+func pollForClearBandPresence(s *Sensor, jamMax int, ballMin int, stableSamples int, window, interval time.Duration, debug bool, logger *log.Logger) bool {
+	deadline := time.Now().Add(window)
+	consecutiveBallHits := 0
+	consecutiveJamHits := 0
+	sampleIndex := 0
+
+	for time.Now().Before(deadline) {
+		sampleIndex++
+		c, _, _, _, err := s.Read()
+		if err != nil {
+			logger.Printf("Color sensor: read error during clear-band precheck: %v", err)
+			time.Sleep(interval)
+			continue
+		}
+
+		cValue := int(c)
+		ballHit := cValue >= ballMin
+		jamHit := cValue <= jamMax
+		switch {
+		case ballHit:
+			consecutiveBallHits++
+			consecutiveJamHits = 0
+		case jamHit:
+			consecutiveJamHits++
+			consecutiveBallHits = 0
+		default:
+			consecutiveBallHits = 0
+			consecutiveJamHits = 0
+		}
+
+		if debug {
+			logger.Printf("Color sensor debug: clear-band sample=%d C=%d jam_max=%d ball_min=%d ball_hit=%t jam_hit=%t consecutive_ball_hits=%d/%d consecutive_jam_hits=%d/%d", sampleIndex, cValue, jamMax, ballMin, ballHit, jamHit, consecutiveBallHits, stableSamples, consecutiveJamHits, stableSamples)
+		}
+
+		if consecutiveBallHits >= stableSamples {
+			return true
+		}
+		if consecutiveJamHits >= stableSamples {
+			return false
+		}
+
+		time.Sleep(interval)
+	}
+
 	return false
 }
