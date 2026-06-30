@@ -568,13 +568,12 @@ func (c *Client) runStateMachineCycle() bool {
 func (c *Client) reportStatus(paymentID string) error {
 	url := c.buildURL("/api/v1/device/status")
 	dispensedCount := c.pendingDispensedCount(paymentID)
-	if dispensedCount == nil && paymentID == "" {
-		// Idle: always send 0 so the server knows the device is not dispensing
+	if dispensedCount == nil {
+		// Always send dispensed_count: backend requires the field.
+		// 0 is correct before a dispense or when idle.
 		zero := 0
 		dispensedCount = &zero
 	}
-	// Active payment with no pending dispense: omit dispensed_count (nil + omitempty)
-	// so we never overwrite an already-acknowledged count with 0.
 	var requestPaymentID *string
 	if paymentID != "" {
 		requestPaymentID = &paymentID
@@ -628,7 +627,11 @@ func (c *Client) reportStatus(paymentID string) error {
 		return fmt.Errorf("server returned success=false")
 	}
 
-	c.clearPendingDispense(paymentID, dispensedCount)
+	// Do NOT clear pendingDispense after a successful ack.
+	// The count must remain at its confirmed value (e.g. 1) for all subsequent
+	// polls of the same payment_id. Sending 0 again would overwrite the server
+	// record. The count is reset only when the payment_id changes (handled by
+	// dropStalePendingDispense).
 
 	return nil
 }

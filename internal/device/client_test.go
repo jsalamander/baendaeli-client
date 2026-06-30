@@ -3,7 +3,6 @@ package device
 import (
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -114,7 +113,10 @@ func TestReportStatus(t *testing.T) {
 	}
 }
 
-func TestReportStatusIncludesDispensedCountAndClearsIt(t *testing.T) {
+func TestReportStatusIncludesDispensedCountAndKeepsIt(t *testing.T) {
+	// After a successful ack the count must NOT be cleared — subsequent polls
+	// for the same payment_id must keep sending the same value so the server
+	// record stays at 4 and never gets overwritten with 0.
 	var received StatusRequest
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -143,75 +145,46 @@ func TestReportStatusIncludesDispensedCountAndClearsIt(t *testing.T) {
 	if *received.DispensedCount != 4 {
 		t.Fatalf("expected dispensed_count=4, got %d", *received.DispensedCount)
 	}
-	if client.pendingDispensedCount("payment-123") != nil {
-		t.Fatal("expected pending dispensed count to be cleared after successful report")
+	// Count must still be present after ack so next poll keeps sending 4.
+	pending := client.pendingDispensedCount("payment-123")
+	if pending == nil || *pending != 4 {
+		t.Fatalf("expected pending count to remain at 4 after ack, got %v", pending)
 	}
 }
 
-func TestReportStatusIncludesZeroDispensedCountWhenNoPending(t *testing.T) {
-	// When an active payment has no pending dispense (already acked), dispensed_count
-	// must be omitted entirely so the server does not overwrite a previously confirmed
-	// count with 0.
-	var body []byte
-
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		var err error
-		body, err = io.ReadAll(r.Body)
-		if err != nil {
-			t.Fatalf("failed to read request body: %v", err)
-		}
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"success": true}`))
-	}))
-	defer server.Close()
-
-	cfg := &config.Config{
-		BaendaeliURL:    server.URL,
-		BaendaeliAPIKey: "test-key",
-	}
-	client := New(cfg)
-
-	if err := client.reportStatus("payment-123"); err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
-
-	var received map[string]any
-	if err := json.Unmarshal(body, &received); err != nil {
-		t.Fatalf("failed to decode request: %v", err)
-	}
-	if _, ok := received["dispensed_count"]; ok {
-		t.Fatal("dispensed_count must be omitted for active payment with no pending dispense to avoid overwriting server value with 0")
-	}
-}
-
-func TestReportStatusIdleSendsZeroDispensedCount(t *testing.T) {
-	// When idle (no payment_id), dispensed_count: 0 must be sent explicitly.
-	var received StatusRequest
-
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if err := json.NewDecoder(r.Body).Decode(&received); err != nil {
-			t.Fatalf("failed to decode request: %v", err)
-		}
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"success": true}`))
-	}))
-	defer server.Close()
-
-	cfg := &config.Config{
-		BaendaeliURL:    server.URL,
-		BaendaeliAPIKey: "test-key",
-	}
-	client := New(cfg)
-
-	if err := client.reportStatus(""); err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
-
-	if received.DispensedCount == nil {
-		t.Fatal("expected dispensed_count in idle request")
-	}
-	if *received.DispensedCount != 0 {
-		t.Fatalf("expected dispensed_count=0 when idle, got %d", *received.DispensedCount)
+func TestReportStatusAlwaysSendsDispensedCount(t *testing.T) {
+	// dispensed_count is required by the backend — must always be present.
+	// Pre-dispense (no pending): send 0. Post-dispense (pending cleared): still
+	// sends the last confirmed count because we no longer clear after ack.
+	for _, tc := range []struct {
+		name        string
+		paymentID   string
+		expectCount int
+	}{
+		{"idle no payment", "", 0},
+		{"active payment pre-dispense", "payment-123", 0},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var received StatusRequest
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if err := json.NewDecoder(r.Body).Decode(&received); err != nil {
+					t.Fatalf("failed to decode request: %v", err)
+				}
+				w.WriteHeader(http.StatusOK)
+				w.Write([]byte(`{"success": true}`))
+			}))
+			defer server.Close()
+			client := New(&config.Config{BaendaeliURL: server.URL, BaendaeliAPIKey: "test-key"})
+			if err := client.reportStatus(tc.paymentID); err != nil {
+				t.Fatalf("expected no error, got %v", err)
+			}
+			if received.DispensedCount == nil {
+				t.Fatal("dispensed_count must always be present (backend requires it)")
+			}
+			if *received.DispensedCount != tc.expectCount {
+				t.Fatalf("expected dispensed_count=%d, got %d", tc.expectCount, *received.DispensedCount)
+			}
+		})
 	}
 }
 
