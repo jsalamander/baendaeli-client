@@ -1568,6 +1568,11 @@ func TestRunStateMachineCyclePaymentFailureClearsPayment(t *testing.T) {
 
 func TestRunStateMachineCyclePaymentSuccessDispensesAndResets(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost && r.URL.Path == "/api/v1/device/status" {
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`{"success": true}`))
+			return
+		}
 		if r.Method == http.MethodGet && strings.Contains(r.URL.Path, "/api/v1/payment/") {
 			w.WriteHeader(http.StatusOK)
 			w.Write([]byte(`{"status":"success"}`))

@@ -537,11 +537,26 @@ func (c *Client) runStateMachineCycle() bool {
 			Command: "message",
 			Message: "Zahlung erhalten - Ausgabe läuft",
 		})
-		if _, err := c.DispenseAndWaitForBall(); err != nil {
-			c.setRuntimeState(StateError, "Ausgabe fehlgeschlagen")
-			log.Printf("Device client: dispense failed after successful payment: %v", err)
+
+		// If this payment was already dispensed in a prior cycle, do not dispense again.
+		// Just keep retrying status report until the dispense count is successfully sent.
+		if pending := c.pendingDispensedCount(paymentID); pending == nil {
+			if _, err := c.DispenseAndWaitForBall(); err != nil {
+				c.setRuntimeState(StateError, "Ausgabe fehlgeschlagen")
+				log.Printf("Device client: dispense failed after successful payment: %v", err)
+				return true
+			}
+		} else if c.config.BreakBeamDebugLogging {
+			log.Printf("Device client: payment %s already dispensed (pending_count=%d), skipping repeated dispense", paymentID, *pending)
+		}
+
+		// Ensure the non-zero dispensed_count is reported before clearing the payment.
+		if err := c.reportStatus(paymentID); err != nil {
+			c.setRuntimeState(StateError, "Dispense-Status konnte nicht gemeldet werden")
+			log.Printf("Device client: failed to report dispensed count for payment %s: %v", paymentID, err)
 			return true
 		}
+
 		c.SetPaymentID("")
 		c.clearExecutingCommand()
 		c.setRuntimeState(StateDetectingBall, "Warte auf Ball")
