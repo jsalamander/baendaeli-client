@@ -103,6 +103,13 @@ type StateSnapshot struct {
 	PendingCommand   *CommandResponse `json:"pending_command,omitempty"`
 }
 
+type breakBeamSensor interface {
+	IsEnabled() bool
+	ReadInterrupted() (bool, error)
+	Init(cfg *config.Config) error
+	Close() error
+}
+
 // Client polls the device API and executes commands
 type Client struct {
 	config           *config.Config
@@ -116,7 +123,7 @@ type Client struct {
 	currentPayment   map[string]any
 	running          atomic.Bool
 	colorSensor      *colorsensor.Sensor
-	breakBeamSensor  *breakbeam.Sensor
+	breakBeamSensor  breakBeamSensor
 	jammed           atomic.Bool
 
 	// Command execution status
@@ -1216,9 +1223,9 @@ func (c *Client) waitForBallReady(showWaitingMessage bool, allowVibration bool, 
 }
 
 func (c *Client) waitForBallReadyAttempt(allowVibration bool, referenceBaseline *uint16, observer colorsensor.AttemptObserver) (string, error) {
-	if c.isBreakBeamInterrupted() {
+	if c.detectBreakBeamDuringWindow() {
 		if c.config.BreakBeamDebugLogging {
-			log.Println("Break-beam: interrupted during detect phase, confirming ball presence")
+			log.Println("Break-beam: interrupted during detect window, confirming ball presence")
 		}
 		return "break-beam", nil
 	}
@@ -1234,6 +1241,54 @@ func (c *Client) waitForBallReadyAttempt(allowVibration bool, referenceBaseline 
 		return "color-sensor", colorsensor.WaitForBallWithReferenceBaseline(c.colorSensor, nil, c.config, log.Default(), observer, *referenceBaseline)
 	}
 	return "color-sensor", colorsensor.WaitForBall(c.colorSensor, nil, c.config, log.Default(), observer)
+}
+
+func (c *Client) detectBreakBeamDuringWindow() bool {
+	if c.breakBeamSensor == nil || !c.breakBeamSensor.IsEnabled() {
+		return false
+	}
+
+	intervalMs := c.config.BreakBeamPollIntervalMs
+	if intervalMs <= 0 {
+		intervalMs = 10
+	}
+
+	const detectWindowMs = 220
+	samples := detectWindowMs / intervalMs
+	if detectWindowMs%intervalMs != 0 {
+		samples++
+	}
+	if samples < 1 {
+		samples = 1
+	}
+
+	interval := time.Duration(intervalMs) * time.Millisecond
+	if c.config.BreakBeamDebugLogging {
+		log.Printf("Break-beam: detect window start (window_ms=%d poll_ms=%d samples=%d)", detectWindowMs, intervalMs, samples)
+	}
+
+	for i := 0; i < samples; i++ {
+		interrupted, err := c.breakBeamSensor.ReadInterrupted()
+		if err != nil {
+			if c.config.BreakBeamDebugLogging {
+				log.Printf("Break-beam: read error during detect window: %v", err)
+			}
+		} else if interrupted {
+			if c.config.BreakBeamDebugLogging {
+				log.Printf("Break-beam: detect window hit at sample %d/%d", i+1, samples)
+			}
+			return true
+		}
+
+		if i+1 < samples {
+			time.Sleep(interval)
+		}
+	}
+
+	if c.config.BreakBeamDebugLogging {
+		log.Printf("Break-beam: detect window miss after %d samples", samples)
+	}
+	return false
 }
 
 func (c *Client) isBreakBeamInterrupted() bool {

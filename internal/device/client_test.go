@@ -7,12 +7,45 @@ import (
 	"net/http/httptest"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/jsalamander/baendaeli-client/internal/colorsensor"
 	"github.com/jsalamander/baendaeli-client/internal/config"
 )
+
+type stubBreakBeamSensor struct {
+	enabled bool
+	reads   []bool
+	idx     int
+	calls   atomic.Int32
+}
+
+func (s *stubBreakBeamSensor) IsEnabled() bool {
+	return s.enabled
+}
+
+func (s *stubBreakBeamSensor) ReadInterrupted() (bool, error) {
+	s.calls.Add(1)
+	if len(s.reads) == 0 {
+		return false, nil
+	}
+	if s.idx >= len(s.reads) {
+		return s.reads[len(s.reads)-1], nil
+	}
+	v := s.reads[s.idx]
+	s.idx++
+	return v, nil
+}
+
+func (s *stubBreakBeamSensor) Init(_ *config.Config) error {
+	return nil
+}
+
+func (s *stubBreakBeamSensor) Close() error {
+	return nil
+}
 
 func TestReportStatus(t *testing.T) {
 	tests := []struct {
@@ -1132,6 +1165,59 @@ func TestWaitForBallReadyActiveScanSetsJamAfterMaxAttempts(t *testing.T) {
 	}
 	if !client.jammed.Load() {
 		t.Fatal("expected jam state after active scan exhausted max attempts")
+	}
+}
+
+func TestWaitForBallReadyAttemptBreakBeamDetectsWithinWindow(t *testing.T) {
+	cfg := &config.Config{}
+	cfg.SetDefaults()
+	cfg.BreakBeamEnabled = true
+	cfg.BreakBeamPollIntervalMs = 60
+
+	client := New(cfg)
+	client.breakBeamSensor = &stubBreakBeamSensor{
+		enabled: true,
+		reads:   []bool{false, false, true},
+	}
+
+	source, err := client.waitForBallReadyAttempt(false, nil, nil)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if source != "break-beam" {
+		t.Fatalf("expected break-beam source, got %q", source)
+	}
+}
+
+func TestWaitForBallReadyAttemptFallsBackToColorSensorWhenBreakBeamWindowMisses(t *testing.T) {
+	cfg := &config.Config{}
+	cfg.SetDefaults()
+	cfg.BreakBeamEnabled = true
+	cfg.BreakBeamPollIntervalMs = 220
+	cfg.ColorSensorEnabled = true
+	cfg.ColorSensorClearBandEnabled = false
+	cfg.ColorSensorMovementThreshold = 1
+	cfg.ColorSensorCheckDurationMs = 20
+	cfg.ColorSensorPollIntervalMs = 1
+	cfg.ColorSensorVibrateBursts = 0
+	cfg.ColorSensorMaxAttempts = 1
+
+	client := New(cfg)
+	if err := client.colorSensor.Init(cfg); err != nil {
+		t.Fatalf("failed to init color sensor in test: %v", err)
+	}
+	defer client.colorSensor.Close()
+	client.breakBeamSensor = &stubBreakBeamSensor{
+		enabled: true,
+		reads:   []bool{false},
+	}
+
+	source, err := client.waitForBallReadyAttempt(false, nil, nil)
+	if err != nil {
+		t.Fatalf("expected color-sensor fallback success, got %v", err)
+	}
+	if source != "color-sensor" {
+		t.Fatalf("expected color-sensor source, got %q", source)
 	}
 }
 
