@@ -1179,7 +1179,7 @@ func (c *Client) waitForBallReady(showWaitingMessage bool, allowVibration bool, 
 		}
 	}
 
-	err := c.waitForBallReadyAttempt(allowVibration, referenceBaseline, observer)
+	detectionSource, err := c.waitForBallReadyAttempt(allowVibration, referenceBaseline, observer)
 	if err != nil {
 		if referenceBaseline != nil {
 			// Keep a viable reference around for jam recovery scans.
@@ -1203,6 +1203,9 @@ func (c *Client) waitForBallReady(showWaitingMessage bool, allowVibration bool, 
 
 	c.jammed.Store(false)
 	c.setRuntimeState(StateBallOnSensor, "Ball auf Sensor erkannt")
+	if detectionSource != "" {
+		log.Printf("Device client: ball presence detected by %s", detectionSource)
+	}
 	c.setExecutingCommand(&CommandResponse{
 		Command: "message",
 		Message: "Ball auf Sensor erkannt",
@@ -1212,25 +1215,25 @@ func (c *Client) waitForBallReady(showWaitingMessage bool, allowVibration bool, 
 	return nil
 }
 
-func (c *Client) waitForBallReadyAttempt(allowVibration bool, referenceBaseline *uint16, observer colorsensor.AttemptObserver) error {
+func (c *Client) waitForBallReadyAttempt(allowVibration bool, referenceBaseline *uint16, observer colorsensor.AttemptObserver) (string, error) {
 	if c.isBreakBeamInterrupted() {
 		if c.config.BreakBeamDebugLogging {
 			log.Println("Break-beam: interrupted during detect phase, confirming ball presence")
 		}
-		return nil
+		return "break-beam", nil
 	}
 
 	if allowVibration {
 		if referenceBaseline != nil {
-			return colorsensor.WaitForBallWithReferenceBaseline(c.colorSensor, vibratorAdapter{}, c.config, log.Default(), observer, *referenceBaseline)
+			return "color-sensor", colorsensor.WaitForBallWithReferenceBaseline(c.colorSensor, vibratorAdapter{}, c.config, log.Default(), observer, *referenceBaseline)
 		}
-		return colorsensor.WaitForBall(c.colorSensor, vibratorAdapter{}, c.config, log.Default(), observer)
+		return "color-sensor", colorsensor.WaitForBall(c.colorSensor, vibratorAdapter{}, c.config, log.Default(), observer)
 	}
 
 	if referenceBaseline != nil {
-		return colorsensor.WaitForBallWithReferenceBaseline(c.colorSensor, nil, c.config, log.Default(), observer, *referenceBaseline)
+		return "color-sensor", colorsensor.WaitForBallWithReferenceBaseline(c.colorSensor, nil, c.config, log.Default(), observer, *referenceBaseline)
 	}
-	return colorsensor.WaitForBall(c.colorSensor, nil, c.config, log.Default(), observer)
+	return "color-sensor", colorsensor.WaitForBall(c.colorSensor, nil, c.config, log.Default(), observer)
 }
 
 func (c *Client) isBreakBeamInterrupted() bool {
