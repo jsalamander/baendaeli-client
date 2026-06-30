@@ -568,10 +568,13 @@ func (c *Client) runStateMachineCycle() bool {
 func (c *Client) reportStatus(paymentID string) error {
 	url := c.buildURL("/api/v1/device/status")
 	dispensedCount := c.pendingDispensedCount(paymentID)
-	if dispensedCount == nil {
+	if dispensedCount == nil && paymentID == "" {
+		// Idle: always send 0 so the server knows the device is not dispensing
 		zero := 0
 		dispensedCount = &zero
 	}
+	// Active payment with no pending dispense: omit dispensed_count (nil + omitempty)
+	// so we never overwrite an already-acknowledged count with 0.
 	var requestPaymentID *string
 	if paymentID != "" {
 		requestPaymentID = &paymentID

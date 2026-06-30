@@ -3,6 +3,7 @@ package device
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -148,6 +149,43 @@ func TestReportStatusIncludesDispensedCountAndClearsIt(t *testing.T) {
 }
 
 func TestReportStatusIncludesZeroDispensedCountWhenNoPending(t *testing.T) {
+	// When an active payment has no pending dispense (already acked), dispensed_count
+	// must be omitted entirely so the server does not overwrite a previously confirmed
+	// count with 0.
+	var body []byte
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var err error
+		body, err = io.ReadAll(r.Body)
+		if err != nil {
+			t.Fatalf("failed to read request body: %v", err)
+		}
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"success": true}`))
+	}))
+	defer server.Close()
+
+	cfg := &config.Config{
+		BaendaeliURL:    server.URL,
+		BaendaeliAPIKey: "test-key",
+	}
+	client := New(cfg)
+
+	if err := client.reportStatus("payment-123"); err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	var received map[string]any
+	if err := json.Unmarshal(body, &received); err != nil {
+		t.Fatalf("failed to decode request: %v", err)
+	}
+	if _, ok := received["dispensed_count"]; ok {
+		t.Fatal("dispensed_count must be omitted for active payment with no pending dispense to avoid overwriting server value with 0")
+	}
+}
+
+func TestReportStatusIdleSendsZeroDispensedCount(t *testing.T) {
+	// When idle (no payment_id), dispensed_count: 0 must be sent explicitly.
 	var received StatusRequest
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -165,15 +203,15 @@ func TestReportStatusIncludesZeroDispensedCountWhenNoPending(t *testing.T) {
 	}
 	client := New(cfg)
 
-	if err := client.reportStatus("payment-123"); err != nil {
+	if err := client.reportStatus(""); err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
 
 	if received.DispensedCount == nil {
-		t.Fatal("expected dispensed_count in request")
+		t.Fatal("expected dispensed_count in idle request")
 	}
 	if *received.DispensedCount != 0 {
-		t.Fatalf("expected dispensed_count=0, got %d", *received.DispensedCount)
+		t.Fatalf("expected dispensed_count=0 when idle, got %d", *received.DispensedCount)
 	}
 }
 
