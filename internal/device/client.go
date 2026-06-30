@@ -584,6 +584,12 @@ func (c *Client) reportStatus(paymentID string) error {
 		DispensedCount: dispensedCount,
 	}
 
+	paymentLabel := "<none>"
+	if requestPaymentID != nil {
+		paymentLabel = *requestPaymentID
+	}
+	log.Printf("Device client: reporting status payment_id=%s dispensed_count=%d", paymentLabel, *dispensedCount)
+
 	body, err := json.Marshal(req)
 	if err != nil {
 		return fmt.Errorf("failed to marshal status request: %w", err)
