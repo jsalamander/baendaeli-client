@@ -10,10 +10,13 @@ This repository uses a device-driven state machine. The UI is display-only and m
 - Actuator power: 12 V, 10 A, 120 W supply.
 - Vibrator: Mini-Vibrationsmotor, 12 V/24 V, 3800 U/min, 10 W.
 - Sensor: Purecrea RGB colour sensor based on the TCS34725 with IR filter and LED.
+- Light barrier: DFRobot SEN0523 IR break-beam pair (through-beam), 5 V DC, up to 4 m range, response time 0.5 ms.
 
 ## Hardware Setup
 
 The physical setup is a funnel feeding balls into a movable wood piece that is connected to the actuator. A Purecrea TCS34725 RGB color sensor sits below the wood piece and reads through a glass-protected surface. In the initial state, the wood piece is positioned so the hole in the wood is aligned over the sensor area, and the funnel outlet sits directly above it.
+
+An additional IR break-beam light barrier (DFRobot SEN0523) is mounted on the actuator axis as a through-beam pair. The transmitter and receiver are aligned in a straight line so the moving axis can interrupt the beam for fast movement timing/position checks. This sensor runs at 5 V DC and is intended for non-transparent targets.
 
 The ball drops from the funnel into the hole in the wood piece and comes to rest above the RGB sensor. The sensor's job is to confirm that a ball has successfully left the funnel and reached the sensor area without jamming in the funnel. A vibrator is mounted directly on the funnel to help clear jams when the ball does not drop cleanly.
 

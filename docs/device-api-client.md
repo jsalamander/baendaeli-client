@@ -37,6 +37,7 @@ The device client runs the following loop every 7 seconds:
 1. POST /api/v1/device/status
   - Sends current payment_id to server
   - Includes dispensed_count after a monitored ball dispenser cycle
+  - When break-beam is enabled, dispensed_count equals the number of beam-cut events counted during actuator movement
    - No client_info (ignored per requirements)
 
 2. GET /api/v1/device/commands
@@ -84,7 +85,7 @@ Authorization: Bearer <API_KEY>
 - `retract`: Retracts the actuator
 - `home`: Homes the actuator (full retraction)
 - `message`: Displays a message on the device UI
-- `ball_dispenser`: Runs one extend-pause-retract cycle and counts IR beam breaks during the cycle
+- `ball_dispenser`: Runs one extend-retract cycle and counts IR beam-cut events during movement
 
 **Message Command Example:**
 ```json
@@ -124,6 +125,7 @@ Uses existing configuration fields:
 - `ACTUATOR_MOVEMENT_SECONDS`: Duration for extend/retract commands
 - `COLOR_SENSOR_ENABLED`, `COLOR_SENSOR_I2C_BUS`, `COLOR_SENSOR_I2C_ADDRESS`: TCS34725 color sensor setup for ball readiness detection
 - `COLOR_SENSOR_MOVEMENT_THRESHOLD`, `COLOR_SENSOR_CHECK_DURATION_MS`, `COLOR_SENSOR_VIBRATE_*`, `COLOR_SENSOR_MAX_ATTEMPTS`: Movement detection and jam-recovery tuning
+- `BREAKBEAM_ENABLED`, `BREAKBEAM_PIN`, `BREAKBEAM_POLL_INTERVAL_MS`, `BREAKBEAM_DEBUG_LOGGING`: IR break-beam setup (fast-path detect + dispense cut counting)
 
 ## Testing
 
@@ -165,7 +167,7 @@ Device polling cycle:
   deviceClient → Server: GET /api/v1/device/commands
   Server → deviceClient: {id: 42, command: "ball_dispenser"}
   
-  deviceClient:          Execute actuator.Trigger(), then verify next ball readiness via color sensor movement
+  deviceClient:          Execute actuator.Trigger(), count break-beam cuts during movement, then verify next ball readiness via color sensor movement
   
   deviceClient → Server: POST /api/v1/device/commands/42/ack
   Server → deviceClient: Acknowledged

@@ -12,6 +12,23 @@ The client for Baendae.li
 - **Secure Deployment**: Runs as dedicated system user with minimal privileges
 - **Auto-updates**: Manual update script for easy maintenance
 
+## Physical Setup
+
+- Ball path: A funnel feeds 2.8 cm transparent plastic baubles into a movable wood piece connected to a 1500 N linear actuator.
+- Ball presence sensor: A TCS34725-based RGB color sensor sits below the wood piece and reads through a protected surface.
+- Jam recovery: A funnel-mounted vibrator helps clear jams when a ball does not drop cleanly.
+- Actuator-axis movement sensor: A DFRobot SEN0523 IR break-beam light barrier is installed on the actuator axis as a through-beam pair.
+
+IR break-beam details (DFRobot SEN0523):
+
+- Operating voltage: 5 V DC
+- Detection mode: through-beam (transparent objects are not detected)
+- Detection range: up to 4 m
+- Response time: 0.5 ms
+- Wavelength: 830 nm
+- Operating temperature: -10 C to +60 C
+- Typical use in this setup: detect axis interruption events for fast movement timing checks
+
 ## Installation
 
 ### Quick Install (Linux)

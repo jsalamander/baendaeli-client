@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/jsalamander/baendaeli-client/internal/actuator"
+	"github.com/jsalamander/baendaeli-client/internal/breakbeam"
 	"github.com/jsalamander/baendaeli-client/internal/camera"
 	"github.com/jsalamander/baendaeli-client/internal/colorsensor"
 	"github.com/jsalamander/baendaeli-client/internal/config"
@@ -115,6 +116,7 @@ type Client struct {
 	currentPayment   map[string]any
 	running          atomic.Bool
 	colorSensor      *colorsensor.Sensor
+	breakBeamSensor  *breakbeam.Sensor
 	jammed           atomic.Bool
 
 	// Command execution status
@@ -137,13 +139,14 @@ type Client struct {
 func New(cfg *config.Config) *Client {
 	ctx, cancel := context.WithCancel(context.Background())
 	c := &Client{
-		config:       cfg,
-		httpClient:   &http.Client{Timeout: 15 * time.Second},
-		ctx:          ctx,
-		cancel:       cancel,
-		pollInterval: 7 * time.Second,
-		colorSensor:  colorsensor.New(cfg),
-		state:        StateStarting,
+		config:          cfg,
+		httpClient:      &http.Client{Timeout: 15 * time.Second},
+		ctx:             ctx,
+		cancel:          cancel,
+		pollInterval:    7 * time.Second,
+		colorSensor:     colorsensor.New(cfg),
+		breakBeamSensor: breakbeam.New(cfg),
+		state:           StateStarting,
 	}
 	c.logShipper = newLogShipper(ctx, c, c.httpClient, io.Discard)
 	return c
@@ -344,6 +347,9 @@ func (c *Client) Start() {
 	if err := c.colorSensor.Init(c.config); err != nil {
 		log.Printf("Device client: colour sensor init failed: %v", err)
 	}
+	if err := c.breakBeamSensor.Init(c.config); err != nil {
+		log.Printf("Device client: break-beam sensor init failed: %v", err)
+	}
 
 	if c.config.ActuatorEnabled {
 		if err := c.runStartupExtractorCycle(); err != nil {
@@ -375,6 +381,9 @@ func (c *Client) Stop() {
 	}
 	if err := c.colorSensor.Close(); err != nil {
 		log.Printf("Device client: failed to close colour sensor: %v", err)
+	}
+	if err := c.breakBeamSensor.Close(); err != nil {
+		log.Printf("Device client: failed to close break-beam sensor: %v", err)
 	}
 	log.Println("Device client stopped")
 }
@@ -916,6 +925,13 @@ func (c *Client) executeCommand(cmd *CommandResponse) (string, error) {
 		}
 
 		log.Printf("Device client: load test started (%d simulated successful payments)", loadTestCycles)
+		totalBeamCuts := 0
+		zeroCutCycles := 0
+		totalActuatorMs := 0
+		minBeamCuts := -1
+		maxBeamCuts := -1
+		minActuatorMs := -1
+		maxActuatorMs := -1
 		for i := 1; i <= loadTestCycles; i++ {
 			paymentID := fmt.Sprintf("load-test-payment-%d", i)
 			c.setCurrentPayment(paymentID, map[string]any{
@@ -926,17 +942,54 @@ func (c *Client) executeCommand(cmd *CommandResponse) (string, error) {
 			c.setRuntimeState(StateDispensing, fmt.Sprintf("Load test: simuliere erfolgreiche Zahlung %d/%d", i, loadTestCycles))
 			c.updateExecutingCommandMessage(fmt.Sprintf("Payment %d/%d", i, loadTestCycles))
 			referenceBaseline := c.sampleBallReferenceBaseline("load_test")
-			if _, err := actuator.Trigger(); err != nil {
+
+			log.Printf("Device client: load test cycle %d/%d starting dispense", i, loadTestCycles)
+			cycleActuatorMs, beamCuts, err := c.triggerWithBreakBeamCount()
+			if err != nil {
 				log.Printf("Device client: load test failed on cycle %d during dispense: %v", i, err)
 				return "", err
 			}
+
+			totalActuatorMs += cycleActuatorMs
+			totalBeamCuts += beamCuts
+			if minBeamCuts == -1 || beamCuts < minBeamCuts {
+				minBeamCuts = beamCuts
+			}
+			if maxBeamCuts == -1 || beamCuts > maxBeamCuts {
+				maxBeamCuts = beamCuts
+			}
+			if minActuatorMs == -1 || cycleActuatorMs < minActuatorMs {
+				minActuatorMs = cycleActuatorMs
+			}
+			if maxActuatorMs == -1 || cycleActuatorMs > maxActuatorMs {
+				maxActuatorMs = cycleActuatorMs
+			}
+			if beamCuts == 0 {
+				zeroCutCycles++
+				log.Printf("Device client: load test cycle %d/%d dispense complete: total_ms=%d beam_cuts=%d WARNING=no beam interruption detected", i, loadTestCycles, cycleActuatorMs, beamCuts)
+			} else {
+				log.Printf("Device client: load test cycle %d/%d dispense complete: total_ms=%d beam_cuts=%d", i, loadTestCycles, cycleActuatorMs, beamCuts)
+			}
+
+			c.recordDispensedCount(paymentID, beamCuts)
+
 			if err := c.waitForBallReady(true, true, referenceBaseline); err != nil {
-				log.Printf("Device client: load test failed on cycle %d: %v", i, err)
+				log.Printf("Device client: load test failed on cycle %d after dispense verification: %v (beam_cuts=%d total_ms=%d)", i, err, beamCuts, cycleActuatorMs)
 				return "", err
 			}
+
+			log.Printf("Device client: load test cycle %d/%d verification complete", i, loadTestCycles)
 			c.SetPaymentID("")
 			c.setRuntimeState(StateDetectingBall, "Warte auf Ball")
 		}
+
+		avgBeamCuts := 0.0
+		avgActuatorMs := 0.0
+		if loadTestCycles > 0 {
+			avgBeamCuts = float64(totalBeamCuts) / float64(loadTestCycles)
+			avgActuatorMs = float64(totalActuatorMs) / float64(loadTestCycles)
+		}
+		log.Printf("Device client: load test complete cycles=%d total_beam_cuts=%d zero_cut_cycles=%d avg_beam_cuts=%.2f min_beam_cuts=%d max_beam_cuts=%d avg_actuator_ms=%.1f min_actuator_ms=%d max_actuator_ms=%d", loadTestCycles, totalBeamCuts, zeroCutCycles, avgBeamCuts, minBeamCuts, maxBeamCuts, avgActuatorMs, minActuatorMs, maxActuatorMs)
 		return "", nil
 	case "vibrate":
 		// Vibrate command: validate percent and duration_ms, then buzz vibrator
@@ -1133,6 +1186,13 @@ func (c *Client) waitForBallReady(showWaitingMessage bool, allowVibration bool, 
 }
 
 func (c *Client) waitForBallReadyAttempt(allowVibration bool, referenceBaseline *uint16, observer colorsensor.AttemptObserver) error {
+	if c.isBreakBeamInterrupted() {
+		if c.config.BreakBeamDebugLogging {
+			log.Println("Break-beam: interrupted during detect phase, confirming ball presence")
+		}
+		return nil
+	}
+
 	if allowVibration {
 		if referenceBaseline != nil {
 			return colorsensor.WaitForBallWithReferenceBaseline(c.colorSensor, vibratorAdapter{}, c.config, log.Default(), observer, *referenceBaseline)
@@ -1144,6 +1204,76 @@ func (c *Client) waitForBallReadyAttempt(allowVibration bool, referenceBaseline 
 		return colorsensor.WaitForBallWithReferenceBaseline(c.colorSensor, nil, c.config, log.Default(), observer, *referenceBaseline)
 	}
 	return colorsensor.WaitForBall(c.colorSensor, nil, c.config, log.Default(), observer)
+}
+
+func (c *Client) isBreakBeamInterrupted() bool {
+	if c.breakBeamSensor == nil || !c.breakBeamSensor.IsEnabled() {
+		return false
+	}
+	interrupted, err := c.breakBeamSensor.ReadInterrupted()
+	if err != nil {
+		if c.config.BreakBeamDebugLogging {
+			log.Printf("Break-beam: read error: %v", err)
+		}
+		return false
+	}
+	return interrupted
+}
+
+func (c *Client) triggerWithBreakBeamCount() (int, int, error) {
+	if c.breakBeamSensor == nil || !c.breakBeamSensor.IsEnabled() {
+		totalMs, err := actuator.Trigger()
+		return totalMs, 1, err
+	}
+
+	type triggerResult struct {
+		totalMs int
+		err     error
+	}
+
+	resultCh := make(chan triggerResult, 1)
+	go func() {
+		totalMs, err := actuator.Trigger()
+		resultCh <- triggerResult{totalMs: totalMs, err: err}
+	}()
+
+	intervalMs := c.config.BreakBeamPollIntervalMs
+	if intervalMs <= 0 {
+		intervalMs = 10
+	}
+	ticker := time.NewTicker(time.Duration(intervalMs) * time.Millisecond)
+	defer ticker.Stop()
+
+	prevInterrupted := c.isBreakBeamInterrupted()
+	cuts := 0
+	if c.config.BreakBeamDebugLogging {
+		log.Printf("Break-beam: monitoring dispense cycle (poll=%dms, initial_interrupted=%t)", intervalMs, prevInterrupted)
+	}
+
+	for {
+		select {
+		case result := <-resultCh:
+			if c.config.BreakBeamDebugLogging {
+				log.Printf("Break-beam: dispense monitoring complete (cuts=%d)", cuts)
+			}
+			return result.totalMs, cuts, result.err
+		case <-ticker.C:
+			interrupted, err := c.breakBeamSensor.ReadInterrupted()
+			if err != nil {
+				if c.config.BreakBeamDebugLogging {
+					log.Printf("Break-beam: read error during dispense monitoring: %v", err)
+				}
+				continue
+			}
+			if interrupted && !prevInterrupted {
+				cuts++
+				if c.config.BreakBeamDebugLogging {
+					log.Printf("Break-beam: cut #%d detected during dispense", cuts)
+				}
+			}
+			prevInterrupted = interrupted
+		}
+	}
 }
 
 func (c *Client) runStartupExtractorCycle() error {
@@ -1243,13 +1373,17 @@ func (c *Client) dispenseAndWaitForBallLocked() (int, error) {
 	paymentID := c.GetPaymentID()
 	referenceBaseline := c.sampleBallReferenceBaseline("post-dispense")
 
-	totalMs, err := actuator.Trigger()
+	totalMs, beamCuts, err := c.triggerWithBreakBeamCount()
 	if err != nil {
 		return 0, err
 	}
 
 	if paymentID != "" {
-		c.recordDispensedCount(paymentID, 1)
+		c.recordDispensedCount(paymentID, beamCuts)
+	}
+
+	if c.config.BreakBeamDebugLogging {
+		log.Printf("Device client: dispense beam cut count=%d", beamCuts)
 	}
 
 	if err := c.waitForBallReady(true, true, referenceBaseline); err != nil {

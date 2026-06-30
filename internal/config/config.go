@@ -46,6 +46,10 @@ type Config struct {
 	ColorSensorVibrateDurationMs              int     `yaml:"COLOR_SENSOR_VIBRATE_DURATION_MS"`
 	ColorSensorVibrateBursts                  int     `yaml:"COLOR_SENSOR_VIBRATE_BURSTS"`
 	ColorSensorMaxAttempts                    int     `yaml:"COLOR_SENSOR_MAX_ATTEMPTS"`
+	BreakBeamEnabled                          bool    `yaml:"BREAKBEAM_ENABLED"`
+	BreakBeamPin                              string  `yaml:"BREAKBEAM_PIN"`
+	BreakBeamPollIntervalMs                   int     `yaml:"BREAKBEAM_POLL_INTERVAL_MS"`
+	BreakBeamDebugLogging                     bool    `yaml:"BREAKBEAM_DEBUG_LOGGING"`
 	VibrationEnabled                          bool    `yaml:"VIBRATOR_ENABLED"`
 	VibrationIN3Pin                           string  `yaml:"VIBRATOR_IN3_PIN"`
 	VibrationIN4Pin                           string  `yaml:"VIBRATOR_IN4_PIN"`
@@ -156,6 +160,12 @@ func (c *Config) SetDefaults() {
 	}
 	if c.ColorSensorMaxAttempts == 0 {
 		c.ColorSensorMaxAttempts = 5
+	}
+	if c.BreakBeamPin == "" {
+		c.BreakBeamPin = "GPIO10"
+	}
+	if c.BreakBeamPollIntervalMs == 0 {
+		c.BreakBeamPollIntervalMs = 10
 	}
 	if c.VibrationIN3Pin == "" {
 		c.VibrationIN3Pin = "GPIO16"
