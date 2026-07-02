@@ -121,6 +121,7 @@ type Client struct {
 	paymentIDMutex   sync.Mutex
 	currentPaymentID string
 	currentPayment   map[string]any
+	lastPaymentDebug string
 	running          atomic.Bool
 	colorSensor      *colorsensor.Sensor
 	breakBeamSensor  breakBeamSensor
@@ -182,6 +183,7 @@ func (c *Client) SetPaymentID(paymentID string) {
 	c.currentPaymentID = paymentID
 	if paymentID == "" {
 		c.currentPayment = nil
+		c.lastPaymentDebug = ""
 	}
 	c.dropStalePendingDispense(paymentID)
 }
@@ -524,10 +526,12 @@ func (c *Client) runStateMachineCycle() bool {
 		return true
 	}
 	c.setCurrentPayment(paymentID, payment)
+	c.logPaymentSnapshotIfChanged(paymentID, status, payment)
+	phase := paymentPhase(payment)
 
 	switch status {
 	case "waiting", "pending", "open":
-		if paymentPhase(payment) == "waiting_for_payment" {
+		if phase == "waiting_for_payment" {
 			c.setRuntimeState(StateAwaitingPayment, "Warten auf Zahlung")
 			c.setExecutingCommand(&CommandResponse{
 				Command: "message",
@@ -1495,6 +1499,48 @@ func paymentPhase(payment map[string]any) string {
 	}
 	phase, _ := payment["payment_phase"].(string)
 	return strings.ToLower(strings.TrimSpace(phase))
+}
+
+func paymentFieldLabel(payment map[string]any, key string) string {
+	if payment == nil {
+		return "<nil>"
+	}
+	v, ok := payment[key]
+	if !ok || v == nil {
+		return "<nil>"
+	}
+	label := strings.TrimSpace(fmt.Sprint(v))
+	if label == "" {
+		return "<empty>"
+	}
+	return label
+}
+
+func (c *Client) logPaymentSnapshotIfChanged(paymentID, status string, payment map[string]any) {
+	phase := paymentPhase(payment)
+	amountCents := paymentFieldLabel(payment, "amount_cents")
+	amountSelectionExpiry := paymentFieldLabel(payment, "amount_selection_expires_at")
+	paymentExpiry := paymentFieldLabel(payment, "payment_expires_at")
+
+	signature := strings.Join([]string{paymentID, status, phase, amountCents, amountSelectionExpiry, paymentExpiry}, "|")
+
+	c.paymentIDMutex.Lock()
+	if signature == c.lastPaymentDebug {
+		c.paymentIDMutex.Unlock()
+		return
+	}
+	c.lastPaymentDebug = signature
+	c.paymentIDMutex.Unlock()
+
+	log.Printf(
+		"Device client: payment snapshot id=%s status=%s payment_phase=%s amount_cents=%s amount_selection_expires_at=%s payment_expires_at=%s",
+		paymentID,
+		status,
+		phase,
+		amountCents,
+		amountSelectionExpiry,
+		paymentExpiry,
+	)
 }
 
 func (c *Client) canExecuteCommandNow(cmd *CommandResponse) bool {
