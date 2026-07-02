@@ -11,6 +11,8 @@ const defaultAmount = {{ .DefaultAmount }};
 const successOverlayMs = {{ .SuccessOverlayMs }};
 
 let deviceStatusTimer = null;
+let consecutiveStatusFailures = 0;
+const maxStatusFailuresBeforeOffline = 3;
 
 const stateUi = {
 	starting: {
@@ -218,7 +220,17 @@ function formatRemainingLabel(expiryMs) {
 }
 
 function renderDeviceState(data) {
-	const state = (data.state || '').toLowerCase();
+	const rawState = (data.state || '').toLowerCase();
+	const hasActivePayment = Boolean((data.payment_id || '').trim());
+	const phase = String((data.payment && (data.payment.payment_phase || data.payment.paymentPhase)) || '').toLowerCase().trim();
+	let state = rawState;
+
+	// Guard against transient backend snapshot races: if payment_id is active,
+	// do not display the plain detecting_ball screen.
+	if (hasActivePayment && rawState === 'detecting_ball') {
+		state = phase === 'waiting_for_payment' ? 'awaiting_payment' : 'ball_detected';
+	}
+
 	const ui = mapStateUi(state);
 	const message = data.message || ui.status;
 	let statusMessage = message;
@@ -275,16 +287,21 @@ function checkDeviceStatus() {
 				throw new Error('Device status unavailable');
 			}
 
+			consecutiveStatusFailures = 0;
 			const latencyMs = Math.round(performance.now() - startedAt);
 			updateDiagnostics({ ok: true, latencyMs, at: timestamp });
 			renderDeviceState(data);
 		})
 		.catch((err) => {
 			console.error('Failed to check device status:', err);
-			updateDiagnostics({ ok: false, latencyMs: null, at: Date.now() });
-			updateStatus('Gerätestatus nicht verfügbar', 'badge-error');
-			renderQrPlaceholder('Verbindung fehlt', 'Statusdaten konnten nicht geladen werden.');
-			deviceCommandOverlay.classList.add('hidden');
+			consecutiveStatusFailures += 1;
+
+			if (consecutiveStatusFailures >= maxStatusFailuresBeforeOffline) {
+				updateDiagnostics({ ok: false, latencyMs: null, at: Date.now() });
+				updateStatus('Gerätestatus nicht verfügbar', 'badge-error');
+				renderQrPlaceholder('Verbindung fehlt', 'Statusdaten konnten nicht geladen werden.');
+				deviceCommandOverlay.classList.add('hidden');
+			}
 		})
 		.finally(() => {
 			deviceStatusTimer = setTimeout(checkDeviceStatus, 2000);
