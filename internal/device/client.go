@@ -9,6 +9,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"sort"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -32,7 +33,9 @@ type StatusRequest struct {
 
 // StatusResponse is received from the server
 type StatusResponse struct {
-	Success bool `json:"success"`
+	Success bool   `json:"success"`
+	Error   string `json:"error,omitempty"`
+	Message string `json:"message,omitempty"`
 }
 
 // CommandResponse is received from the server
@@ -224,9 +227,16 @@ func (c *Client) GetExecutingCommand() *CommandResponse {
 }
 
 func (c *Client) GetStateSnapshot() StateSnapshot {
+	// Acquire both locks in a consistent order to avoid mixed snapshots where
+	// state and payment fields come from different moments in time.
 	c.statusMutex.Lock()
+	c.paymentIDMutex.Lock()
+
 	state := c.state
 	message := c.stateMessage
+	paymentID := c.currentPaymentID
+	payment := cloneMap(c.currentPayment)
+
 	var cmdCopy *CommandResponse
 	var pendingCopy *CommandResponse
 	if c.executingCommand != nil {
@@ -237,13 +247,15 @@ func (c *Client) GetStateSnapshot() StateSnapshot {
 		copyValue := *c.pendingCommand
 		pendingCopy = &copyValue
 	}
+
+	c.paymentIDMutex.Unlock()
 	c.statusMutex.Unlock()
 
 	return StateSnapshot{
 		State:            string(state),
 		Message:          message,
-		PaymentID:        c.GetPaymentID(),
-		Payment:          c.getCurrentPayment(),
+		PaymentID:        paymentID,
+		Payment:          payment,
 		Jammed:           c.jammed.Load(),
 		ExecutingCommand: cmdCopy,
 		PendingCommand:   pendingCopy,
@@ -656,6 +668,16 @@ func (c *Client) reportStatus(paymentID string) error {
 	}
 
 	if !statusResp.Success {
+		reason := strings.TrimSpace(statusResp.Error)
+		if reason == "" {
+			reason = strings.TrimSpace(statusResp.Message)
+		}
+		if reason == "" {
+			reason = strings.TrimSpace(string(respBody))
+		}
+		if reason != "" {
+			return fmt.Errorf("server returned success=false: %s", reason)
+		}
 		return fmt.Errorf("server returned success=false")
 	}
 
@@ -823,10 +845,19 @@ func (c *Client) createPayment() (string, error) {
 	}
 
 	id, _ := payment["id"].(string)
+	if id == "" {
+		if nestedPayment, ok := payment["payment"].(map[string]any); ok {
+			id, _ = nestedPayment["id"].(string)
+		}
+	}
 	paymentResp := paymentCreateResponse{ID: id}
 
 	if paymentResp.ID == "" {
-		return "", fmt.Errorf("payment API response missing id")
+		preview := strings.TrimSpace(string(respBody))
+		if len(preview) > 240 {
+			preview = preview[:240] + "..."
+		}
+		return "", fmt.Errorf("payment API response missing id (keys=%s, body=%q)", mapKeyList(payment), preview)
 	}
 
 	c.setCurrentPayment(paymentResp.ID, payment)
@@ -1171,10 +1202,40 @@ func decodeJSONResponse(body []byte, target interface{}, contentType string) err
 	return nil
 }
 
+func mapKeyList(payload map[string]any) string {
+	if len(payload) == 0 {
+		return "<none>"
+	}
+	keys := make([]string, 0, len(payload))
+	for key := range payload {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	return strings.Join(keys, ",")
+}
+
 // waitForBallReady calls the colour sensor monitor to confirm a ball is in position.
 // When showWaitingMessage is true, it displays a waiting overlay while scanning.
 // When allowVibration is false, scanning is passive and never triggers vibrator bursts.
 func (c *Client) waitForBallReady(showWaitingMessage bool, allowVibration bool, referenceBaseline *uint16) error {
+	if c.config != nil && c.config.DebugBypassBallDetection {
+		log.Printf("Device client: DEBUG_BYPASS_BALL_DETECTION enabled - skipping physical ball detection")
+		c.jammed.Store(false)
+		c.setRuntimeState(StateBallOnSensor, "Ball auf Sensor erkannt (debug bypass)")
+		if showWaitingMessage {
+			c.setExecutingCommand(&CommandResponse{
+				Command: "message",
+				Message: "Ball auf Sensor erkannt (debug bypass)",
+			})
+			time.Sleep(150 * time.Millisecond)
+			c.clearExecutingCommand()
+		}
+		if referenceBaseline != nil {
+			c.setPendingBallReference(referenceBaseline)
+		}
+		return nil
+	}
+
 	if showWaitingMessage {
 		c.setRuntimeState(StateDetectingBall, "Warte auf Ball")
 		c.setExecutingCommand(&CommandResponse{

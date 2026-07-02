@@ -1562,6 +1562,43 @@ func TestRunStateMachineCycleCreatesPaymentAndMovesToAwaiting(t *testing.T) {
 	}
 }
 
+func TestRunStateMachineCycleDebugBypassBallDetectionCreatesPayment(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost && strings.Contains(r.URL.Path, "/api/v1/payment") {
+			w.WriteHeader(http.StatusCreated)
+			w.Write([]byte(`{"id":"pay-debug","qr_code_url":"https://example.com/qr/pay-debug"}`))
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer server.Close()
+
+	client := New(&config.Config{
+		BaendaeliURL:              server.URL,
+		BaendaeliAPIKey:           "test-key",
+		DebugBypassBallDetection:  true,
+	})
+
+	handled := client.runStateMachineCycle()
+	if !handled {
+		t.Fatal("expected state machine cycle to be handled with debug bypass")
+	}
+	if got := client.GetPaymentID(); got != "pay-debug" {
+		t.Fatalf("expected payment id pay-debug, got %q", got)
+	}
+
+	snapshot := client.GetStateSnapshot()
+	if snapshot.State != string(StateBallDetected) {
+		t.Fatalf("expected state ball_detected after payment creation, got %q", snapshot.State)
+	}
+	if snapshot.Payment == nil {
+		t.Fatal("expected payment payload in snapshot")
+	}
+	if snapshot.Payment["qr_code_url"] != "https://example.com/qr/pay-debug" {
+		t.Fatalf("expected debug QR payload to be retained, got %+v", snapshot.Payment)
+	}
+}
+
 func TestRunStateMachineCycleWaitingForAmountStaysBallDetected(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodGet && strings.Contains(r.URL.Path, "/api/v1/payment/") {
@@ -1584,6 +1621,9 @@ func TestRunStateMachineCycleWaitingForAmountStaysBallDetected(t *testing.T) {
 	snapshot := client.GetStateSnapshot()
 	if snapshot.State != string(StateBallDetected) {
 		t.Fatalf("expected state ball_detected while waiting for amount, got %q", snapshot.State)
+	}
+	if snapshot.PaymentID == "" {
+		t.Fatal("expected active payment id while waiting for amount")
 	}
 	if snapshot.ExecutingCommand != nil {
 		t.Fatalf("expected no waiting message command while QR should remain visible, got %+v", snapshot.ExecutingCommand)
