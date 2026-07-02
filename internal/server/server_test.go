@@ -148,6 +148,15 @@ func TestServeMainTemplate_SubstitutesConfig(t *testing.T) {
     if strings.Contains(body, "setCommandOverlay({ command: 'message', message: 'Warte auf Betragsauswahl") {
         t.Fatalf("main.js should not force blocking command overlay for amount-selection waiting, body: %s", body)
     }
+    if !strings.Contains(body, "state === 'awaiting_payment'") {
+        t.Fatalf("main.js should handle awaiting_payment overlay branch, body: %s", body)
+    }
+    if !strings.Contains(body, "Warte auf Zahlung · ") {
+        t.Fatalf("main.js should show waiting-for-payment countdown in overlay, body: %s", body)
+    }
+    if strings.Contains(body, "renderQrPlaceholder('Warte auf Zahlung'") {
+        t.Fatalf("main.js should not duplicate waiting-for-payment countdown text in qr placeholder, body: %s", body)
+    }
     if strings.Contains(body, "payment.expires_at") || strings.Contains(body, "payment.expiration_at") {
         t.Fatalf("main.js should not reference removed expires_at fields, body: %s", body)
     }

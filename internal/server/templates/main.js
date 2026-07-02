@@ -241,10 +241,17 @@ function renderDeviceState(data) {
 		const remainingLabel = formatRemainingLabel(amountSelectionExpiryMs);
 		renderQrPlaceholder('Betrag wird ausgewählt', 'Bitte wähle den Betrag auf dem Smartphone. Verbleibend: ' + remainingLabel);
 	} else if (state === 'awaiting_payment') {
-		const remainingLabel = formatRemainingLabel(paymentExpiryMs);
-		renderQrPlaceholder('Warte auf Zahlung', 'Bitte zahle jetzt. Verbleibend: ' + remainingLabel);
+		renderQrPlaceholder('Zahlung wird abgeschlossen', 'Bitte schließe die Zahlung auf dem Smartphone ab.');
 	} else {
 		renderQrPlaceholder(ui.placeholderTitle, ui.placeholderSubtitle);
+	}
+
+	if (state === 'awaiting_payment') {
+		setCommandOverlay(
+			{ command: 'message', message: 'Warte auf Zahlung · ' + formatRemainingLabel(paymentExpiryMs) },
+			message,
+		);
+		return;
 	}
 
 	setCommandOverlay(data.executing_command, message);
