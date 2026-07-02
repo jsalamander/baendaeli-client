@@ -153,14 +153,6 @@ function renderPaymentExpiry(payment, state) {
 	clearExpiry();
 }
 
-function paymentPhase(payment) {
-	if (!payment) {
-		return '';
-	}
-
-	return String(payment.payment_phase || payment.paymentPhase || '').toLowerCase().trim();
-}
-
 function hasAmountSelectionExpiry(payment) {
 	if (!payment) {
 		return false;
@@ -174,8 +166,7 @@ function shouldShowAmountSelectionWaiting(state, payment) {
 		return false;
 	}
 
-	const phase = paymentPhase(payment);
-	return phase === 'waiting_for_amount' || hasAmountSelectionExpiry(payment);
+	return hasAmountSelectionExpiry(payment);
 }
 
 function getAmountSelectionExpiryMs(payment) {
@@ -254,24 +245,6 @@ function renderDeviceState(data) {
 		renderQrPlaceholder('Warte auf Zahlung', 'Bitte zahle jetzt. Verbleibend: ' + remainingLabel);
 	} else {
 		renderQrPlaceholder(ui.placeholderTitle, ui.placeholderSubtitle);
-	}
-
-	if (!data.executing_command && showAmountSelectionWaiting) {
-		setCommandOverlay({ command: 'message', message: 'Warte auf Betragsauswahl · ' + formatRemainingLabel(amountSelectionExpiryMs) }, message);
-		return;
-	}
-
-	if (state === 'awaiting_payment') {
-		const paymentOverlayMessage = 'Warte auf Zahlung · ' + formatRemainingLabel(paymentExpiryMs);
-		if (data.executing_command && data.executing_command.command) {
-			setCommandOverlay({
-				...data.executing_command,
-				message: paymentOverlayMessage
-			}, message);
-			return;
-		}
-		setCommandOverlay({ command: 'message', message: paymentOverlayMessage }, message);
-		return;
 	}
 
 	setCommandOverlay(data.executing_command, message);
