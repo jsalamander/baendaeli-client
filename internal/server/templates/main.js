@@ -128,16 +128,25 @@ function setCommandOverlay(executingCommand, fallbackMessage) {
 	deviceCommandOverlay.classList.add('hidden');
 }
 
-function renderPaymentExpiry(payment) {
+function renderPaymentExpiry(payment, state) {
 	if (!payment) {
 		clearExpiry();
 		return;
 	}
 
-	const expiresAt = payment.expires_at || payment.expiresAt || payment.expiration_at || payment.expirationAt || null;
-	const validForMinutes = Number(payment.valid_for_minutes || payment.validForMinutes || 0);
-	if (expiresAt || validForMinutes > 0) {
-		startExpiryCountdown(expiresAt, validForMinutes);
+	let expiresAt = null;
+	let countdownLabel = '';
+
+	if (state === 'ball_detected') {
+		expiresAt = payment.amount_selection_expires_at || payment.amount_selection_expiresAt || null;
+		countdownLabel = 'Warte auf Betragsauswahl';
+	} else if (state === 'awaiting_payment') {
+		expiresAt = payment.payment_expires_at || payment.payment_expiresAt || null;
+		countdownLabel = 'Warte auf Zahlung';
+	}
+
+	if (expiresAt && countdownLabel) {
+		startExpiryCountdown(expiresAt, countdownLabel);
 		return;
 	}
 
@@ -156,7 +165,7 @@ function renderDeviceState(data) {
 	updateStatus(statusMessage, ui.badge);
 	paymentTitleEl.textContent = ui.title;
 	paymentDescriptionEl.textContent = ui.description;
-	renderPaymentExpiry(data.payment);
+	renderPaymentExpiry(data.payment, state);
 
 	if (data.payment && state === 'ball_detected') {
 		renderQr(data.payment);

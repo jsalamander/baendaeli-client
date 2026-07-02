@@ -68,7 +68,9 @@ function showErrorPopup(serverError) {
 }
 
 // Expiry countdown
-function startExpiryCountdown(expiresAtString, validForMinutes) {
+let expiryLabel = '';
+
+function startExpiryCountdown(expiresAtString, labelText) {
 	clearExpiry();
 	let target = null;
 	
@@ -79,11 +81,9 @@ function startExpiryCountdown(expiresAtString, validForMinutes) {
 		}
 	}
 	
-	if (!target && validForMinutes) {
-		target = Date.now() + Math.max(0, validForMinutes) * 60_000;
-	}
-	
 	if (!target) return;
+
+	expiryLabel = labelText || '';
 	
 	expiryAt = target;
 	updateExpiryCountdown();
@@ -120,7 +120,7 @@ function updateExpiryCountdown() {
 	if (!expiryMeta) {
 		return;
 	}
-	expiryMeta.textContent = 'Gültig bis ' + formatExpiryDate(expiryAt) + ' (' + String(mins).padStart(2, '0') + ':' + String(secs).padStart(2, '0') + ')';
+	expiryMeta.textContent = expiryLabel + ': ' + String(mins).padStart(2, '0') + ':' + String(secs).padStart(2, '0') + ' (bis ' + formatExpiryDate(expiryAt) + ')';
 }
 
 function clearExpiry() {
@@ -129,8 +129,9 @@ function clearExpiry() {
 		expiryTimer = null;
 	}
 	expiryAt = null;
+	expiryLabel = '';
 	if (expiryMeta) {
-		expiryMeta.textContent = 'Gültig bis --';
+		expiryMeta.textContent = 'Warte auf Aktion: --:--';
 	}
 }
 

@@ -133,6 +133,21 @@ func TestServeMainTemplate_SubstitutesConfig(t *testing.T) {
     if !strings.Contains(body, "renderQr(data.payment)") {
         t.Fatalf("main.js should render QR from device status payment payload, body: %s", body)
     }
+    if !strings.Contains(body, "renderPaymentExpiry(data.payment, state)") {
+        t.Fatalf("main.js should pass state into renderPaymentExpiry, body: %s", body)
+    }
+    if !strings.Contains(body, "payment.amount_selection_expires_at") {
+        t.Fatalf("main.js should read amount_selection_expires_at for ball_detected, body: %s", body)
+    }
+    if !strings.Contains(body, "payment.payment_expires_at") {
+        t.Fatalf("main.js should read payment_expires_at for awaiting_payment, body: %s", body)
+    }
+    if strings.Contains(body, "payment.expires_at") || strings.Contains(body, "payment.expiration_at") {
+        t.Fatalf("main.js should not reference removed expires_at fields, body: %s", body)
+    }
+    if strings.Contains(body, "valid_for_minutes") {
+        t.Fatalf("main.js should not use valid_for_minutes countdown fallback anymore, body: %s", body)
+    }
     if strings.Contains(body, "state === 'ball_detected' || state === 'awaiting_payment'") {
         t.Fatalf("main.js should not keep QR visible once awaiting_payment starts, body: %s", body)
     }
