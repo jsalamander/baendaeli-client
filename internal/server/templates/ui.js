@@ -139,15 +139,13 @@ function clearExpiry() {
 let lastDiagnosticsState = 'pending';
 let lastDiagnosticsTime = null;
 let lastDiagnosticsLatency = null;
-let lastInternetState = 'pending';
-let internetCheckInterval = null;
 
 function setDiagnosticsPending() {
 	lastDiagnosticsState = 'pending';
 	lastDiagnosticsTime = null;
 	lastDiagnosticsLatency = null;
 	gatewayDot.className = 'w-2 h-2 rounded-full bg-warning';
-	gatewayStatusText.textContent = 'Gateway...';
+	gatewayStatusText.textContent = 'API...';
 	gatewayMeta.textContent = 'Warte...';
 	clearExpiry();
 }
@@ -159,64 +157,13 @@ function updateDiagnostics({ ok, latencyMs, at }) {
 
 	if (ok) {
 		gatewayDot.className = 'w-2 h-2 rounded-full bg-success';
-		gatewayStatusText.textContent = 'Gateway OK';
+		gatewayStatusText.textContent = 'API OK';
 		const latencyText = lastDiagnosticsLatency != null ? lastDiagnosticsLatency + 'ms' : '—';
 		gatewayMeta.textContent = formatTime(lastDiagnosticsTime) + ' · ' + latencyText;
 	} else {
 		gatewayDot.className = 'w-2 h-2 rounded-full bg-error';
-		gatewayStatusText.textContent = 'Gateway!';
+		gatewayStatusText.textContent = 'API Offline';
 		gatewayMeta.textContent = formatTime(lastDiagnosticsTime);
-	}
-}
-
-// Internet connectivity check
-async function checkInternetConnection() {
-	try {
-		// Try to fetch a reliable endpoint with a timeout
-		const controller = new AbortController();
-		const timeoutId = setTimeout(() => controller.abort(), 5000);
-		
-		const response = await fetch('https://www.cloudflare.com/cdn-cgi/trace', {
-			method: 'GET',
-			cache: 'no-cache',
-			signal: controller.signal
-		});
-		
-		clearTimeout(timeoutId);
-		
-		if (response.ok) {
-			updateInternetStatus(true);
-		} else {
-			updateInternetStatus(false);
-		}
-	} catch (error) {
-		updateInternetStatus(false);
-	}
-}
-
-function updateInternetStatus(isConnected) {
-	lastInternetState = isConnected ? 'ok' : 'bad';
-	
-	if (isConnected) {
-		internetDot.className = 'w-2 h-2 rounded-full bg-success';
-		internetStatusText.textContent = 'Internet OK';
-	} else {
-		internetDot.className = 'w-2 h-2 rounded-full bg-error';
-		internetStatusText.textContent = 'Offline';
-	}
-}
-
-function startInternetCheck() {
-	// Check immediately
-	checkInternetConnection();
-	// Then check every 10 seconds
-	internetCheckInterval = setInterval(checkInternetConnection, 10000);
-}
-
-function stopInternetCheck() {
-	if (internetCheckInterval) {
-		clearInterval(internetCheckInterval);
-		internetCheckInterval = null;
 	}
 }
 

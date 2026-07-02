@@ -184,15 +184,11 @@
 	<!-- Version Badge (fixed position on left) -->
 	<div class="fixed bottom-3 left-3 sm:bottom-4 sm:left-4 badge badge-outline text-[10px] sm:text-xs" id="versionBadge">v{{.Version}}</div>
 
-	<!-- Internet & Gateway Status (fixed position on right, horizontal) -->
+	<!-- API Status (fixed position on right) -->
 	<div class="fixed bottom-3 right-3 sm:bottom-4 sm:right-4 flex flex-row gap-1.5 sm:gap-2 flex-wrap justify-end max-w-[calc(100vw-6rem)] sm:max-w-[calc(100vw-8rem)]" id="diagnosticsBadges">
 		<div class="flex items-center gap-1.5 sm:gap-2 text-[10px] sm:text-xs badge badge-outline">
-			<div class="w-2 h-2 rounded-full bg-warning" id="internetDot"></div>
-			<span id="internetStatusText">Internet...</span>
-		</div>
-		<div class="flex items-center gap-1.5 sm:gap-2 text-[10px] sm:text-xs badge badge-outline">
 			<div class="w-2 h-2 rounded-full bg-warning" id="gatewayDot"></div>
-			<span id="gatewayStatusText">Gateway...</span>
+			<span id="gatewayStatusText">API...</span>
 		</div>
 		<div class="text-[10px] sm:text-xs text-base-content/60 badge badge-ghost">
 			<span id="gatewayMeta">...</span>

@@ -287,13 +287,12 @@ function checkDeviceStatus() {
 			deviceCommandOverlay.classList.add('hidden');
 		})
 		.finally(() => {
-			deviceStatusTimer = setTimeout(checkDeviceStatus, 1000);
+			deviceStatusTimer = setTimeout(checkDeviceStatus, 2000);
 		});
 }
 
 function start() {
 	setDiagnosticsPending();
-	startInternetCheck();
 	checkDeviceStatus();
 }
 
