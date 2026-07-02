@@ -686,8 +686,11 @@ func TestActuatorLockPreventsRaceConditions(t *testing.T) {
 	// Test that two goroutines try to acquire lock sequentially
 	var lockOrder []int
 	var orderMutex sync.Mutex
+	var wg sync.WaitGroup
 
+	wg.Add(1)
 	go func() {
+		defer wg.Done()
 		client.actuatorMutex.Lock()
 		defer client.actuatorMutex.Unlock()
 		orderMutex.Lock()
@@ -698,7 +701,9 @@ func TestActuatorLockPreventsRaceConditions(t *testing.T) {
 
 	time.Sleep(10 * time.Millisecond) // Ensure first goroutine gets lock first
 
+	wg.Add(1)
 	go func() {
+		defer wg.Done()
 		client.actuatorMutex.Lock()
 		defer client.actuatorMutex.Unlock()
 		orderMutex.Lock()
@@ -706,13 +711,17 @@ func TestActuatorLockPreventsRaceConditions(t *testing.T) {
 		orderMutex.Unlock()
 	}()
 
-	time.Sleep(150 * time.Millisecond) // Wait for both to complete
+	wg.Wait()
+
+	orderMutex.Lock()
+	orderSnapshot := append([]int(nil), lockOrder...)
+	orderMutex.Unlock()
 
 	// Verify order: first goroutine should get lock first
-	if len(lockOrder) != 2 {
-		t.Errorf("expected 2 lock acquisitions, got %d", len(lockOrder))
-	} else if lockOrder[0] != 1 || lockOrder[1] != 2 {
-		t.Errorf("expected lock order [1, 2], got %v", lockOrder)
+	if len(orderSnapshot) != 2 {
+		t.Errorf("expected 2 lock acquisitions, got %d", len(orderSnapshot))
+	} else if orderSnapshot[0] != 1 || orderSnapshot[1] != 2 {
+		t.Errorf("expected lock order [1, 2], got %v", orderSnapshot)
 	}
 }
 

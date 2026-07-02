@@ -42,6 +42,7 @@ type Config struct {
 	ColorSensorStableSamples                  int     `yaml:"COLOR_SENSOR_STABLE_SAMPLES"`
 	ColorSensorSettleDelayMs                  int     `yaml:"COLOR_SENSOR_SETTLE_DELAY_MS"`
 	ColorSensorDebugLogging                   bool    `yaml:"COLOR_SENSOR_DEBUG_LOGGING"`
+	DebugBypassBallDetection                  bool    `yaml:"DEBUG_BYPASS_BALL_DETECTION"`
 	ColorSensorVibrateIntensity               float64 `yaml:"COLOR_SENSOR_VIBRATE_INTENSITY"`
 	ColorSensorVibrateDurationMs              int     `yaml:"COLOR_SENSOR_VIBRATE_DURATION_MS"`
 	ColorSensorVibrateBursts                  int     `yaml:"COLOR_SENSOR_VIBRATE_BURSTS"`

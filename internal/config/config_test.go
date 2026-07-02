@@ -78,6 +78,9 @@ func TestSetDefaultsAppliesValues(t *testing.T) {
 	if cfg.ColorSensorSettleDelayMs != 200 {
 		t.Fatalf("ColorSensorSettleDelayMs default not set, got %d", cfg.ColorSensorSettleDelayMs)
 	}
+	if cfg.DebugBypassBallDetection {
+		t.Fatal("DebugBypassBallDetection should be disabled by default")
+	}
 	if cfg.BreakBeamPin != "GPIO10" {
 		t.Fatalf("BreakBeamPin default not set, got %q", cfg.BreakBeamPin)
 	}
@@ -114,6 +117,7 @@ func TestSetDefaultsPreservesValues(t *testing.T) {
 		ColorSensorStableSamples:                  3,
 		ColorSensorSettleDelayMs:                  350,
 		ColorSensorDebugLogging:                   true,
+		DebugBypassBallDetection:                  true,
 		BreakBeamEnabled:                          true,
 		BreakBeamPin:                              "GPIO11",
 		BreakBeamPollIntervalMs:                   6,
@@ -121,7 +125,7 @@ func TestSetDefaultsPreservesValues(t *testing.T) {
 	}
 	cfg.SetDefaults()
 
-	if cfg.DefaultAmount != 123 || cfg.SuccessOverlayMs != 5000 || !cfg.HTTPRequestLogging || !cfg.LogShippingEnabled || cfg.LogShippingFlushIntervalMs != 1234 || cfg.LogShippingBatchLines != 55 || cfg.LogShippingMaxQueueLines != 777 || cfg.LogShippingMaxLineBytes != 4444 || cfg.LogShippingMaxRequestBytes != 99999 || cfg.ActuatorMovement != 3 || cfg.ActuatorPause != 5 || !cfg.ColorSensorEnabled || cfg.ColorSensorI2CBus != 3 || cfg.ColorSensorI2CAddress != "0x30" || cfg.ColorSensorMovementThreshold != 1000 || !cfg.ColorSensorClearBandEnabled || cfg.ColorSensorClearJamMax != 510 || cfg.ColorSensorClearBallMin != 540 || cfg.ColorSensorClearBandWindowMs != 320 || cfg.ColorSensorPresenceTolerance != 7 || cfg.ColorSensorReferenceMaxDrift != 44 || cfg.ColorSensorReferenceResampleAfterAttempts != 3 || cfg.ColorSensorPollIntervalMs != 250 || cfg.ColorSensorStableSamples != 3 || cfg.ColorSensorSettleDelayMs != 350 || !cfg.ColorSensorDebugLogging || !cfg.BreakBeamEnabled || cfg.BreakBeamPin != "GPIO11" || cfg.BreakBeamPollIntervalMs != 6 || !cfg.BreakBeamDebugLogging {
+	if cfg.DefaultAmount != 123 || cfg.SuccessOverlayMs != 5000 || !cfg.HTTPRequestLogging || !cfg.LogShippingEnabled || cfg.LogShippingFlushIntervalMs != 1234 || cfg.LogShippingBatchLines != 55 || cfg.LogShippingMaxQueueLines != 777 || cfg.LogShippingMaxLineBytes != 4444 || cfg.LogShippingMaxRequestBytes != 99999 || cfg.ActuatorMovement != 3 || cfg.ActuatorPause != 5 || !cfg.ColorSensorEnabled || cfg.ColorSensorI2CBus != 3 || cfg.ColorSensorI2CAddress != "0x30" || cfg.ColorSensorMovementThreshold != 1000 || !cfg.ColorSensorClearBandEnabled || cfg.ColorSensorClearJamMax != 510 || cfg.ColorSensorClearBallMin != 540 || cfg.ColorSensorClearBandWindowMs != 320 || cfg.ColorSensorPresenceTolerance != 7 || cfg.ColorSensorReferenceMaxDrift != 44 || cfg.ColorSensorReferenceResampleAfterAttempts != 3 || cfg.ColorSensorPollIntervalMs != 250 || cfg.ColorSensorStableSamples != 3 || cfg.ColorSensorSettleDelayMs != 350 || !cfg.ColorSensorDebugLogging || !cfg.DebugBypassBallDetection || !cfg.BreakBeamEnabled || cfg.BreakBeamPin != "GPIO11" || cfg.BreakBeamPollIntervalMs != 6 || !cfg.BreakBeamDebugLogging {
 		t.Fatalf("values should be preserved: %+v", cfg)
 	}
 }
