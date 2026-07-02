@@ -111,7 +111,6 @@ function updateExpiryCountdown() {
 	const remaining = expiryAt - Date.now();
 	if (remaining <= 0) {
 		clearExpiry();
-		start();
 		return;
 	}
 	

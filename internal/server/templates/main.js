@@ -13,6 +13,7 @@ const successOverlayMs = {{ .SuccessOverlayMs }};
 let deviceStatusTimer = null;
 let consecutiveStatusFailures = 0;
 const maxStatusFailuresBeforeOffline = 3;
+let pollingStarted = false;
 
 const stateUi = {
 	starting: {
@@ -309,6 +310,10 @@ function checkDeviceStatus() {
 }
 
 function start() {
+	if (pollingStarted) {
+		return;
+	}
+	pollingStarted = true;
 	setDiagnosticsPending();
 	checkDeviceStatus();
 }
