@@ -153,6 +153,79 @@ function renderPaymentExpiry(payment, state) {
 	clearExpiry();
 }
 
+function paymentPhase(payment) {
+	if (!payment) {
+		return '';
+	}
+
+	return String(payment.payment_phase || payment.paymentPhase || '').toLowerCase().trim();
+}
+
+function hasAmountSelectionExpiry(payment) {
+	if (!payment) {
+		return false;
+	}
+
+	return Boolean(payment.amount_selection_expires_at || payment.amount_selection_expiresAt);
+}
+
+function shouldShowAmountSelectionWaiting(state, payment) {
+	if (state !== 'ball_detected') {
+		return false;
+	}
+
+	const phase = paymentPhase(payment);
+	return phase === 'waiting_for_amount' || hasAmountSelectionExpiry(payment);
+}
+
+function getAmountSelectionExpiryMs(payment) {
+	if (!payment) {
+		return null;
+	}
+
+	const raw = payment.amount_selection_expires_at || payment.amount_selection_expiresAt;
+	if (!raw) {
+		return null;
+	}
+
+	const parsed = Date.parse(raw);
+	if (Number.isNaN(parsed)) {
+		return null;
+	}
+
+	return parsed;
+}
+
+function getPaymentExpiryMs(payment) {
+	if (!payment) {
+		return null;
+	}
+
+	const raw = payment.payment_expires_at || payment.payment_expiresAt;
+	if (!raw) {
+		return null;
+	}
+
+	const parsed = Date.parse(raw);
+	if (Number.isNaN(parsed)) {
+		return null;
+	}
+
+	return parsed;
+}
+
+function formatRemainingLabel(expiryMs) {
+	if (!expiryMs) {
+		return '--:--';
+	}
+
+	const remainingMs = Math.max(0, expiryMs - Date.now());
+	const totalSeconds = Math.floor(remainingMs / 1000);
+	const mins = Math.floor(totalSeconds / 60);
+	const secs = totalSeconds % 60;
+	return String(mins).padStart(2, '0') + ':' + String(secs).padStart(2, '0');
+}
+
 function renderDeviceState(data) {
 	const state = (data.state || '').toLowerCase();
 	const ui = mapStateUi(state);
@@ -167,11 +240,40 @@ function renderDeviceState(data) {
 	paymentDescriptionEl.textContent = ui.description;
 	renderPaymentExpiry(data.payment, state);
 
-	if (data.payment && state === 'ball_detected') {
+	const showAmountSelectionWaiting = shouldShowAmountSelectionWaiting(state, data.payment);
+	const amountSelectionExpiryMs = getAmountSelectionExpiryMs(data.payment);
+	const paymentExpiryMs = getPaymentExpiryMs(data.payment);
+
+	if (data.payment && state === 'ball_detected' && !showAmountSelectionWaiting) {
 		renderQr(data.payment);
+	} else if (showAmountSelectionWaiting) {
+		const remainingLabel = formatRemainingLabel(amountSelectionExpiryMs);
+		renderQrPlaceholder('Betrag wird ausgewählt', 'Bitte wähle den Betrag auf dem Smartphone. Verbleibend: ' + remainingLabel);
+	} else if (state === 'awaiting_payment') {
+		const remainingLabel = formatRemainingLabel(paymentExpiryMs);
+		renderQrPlaceholder('Warte auf Zahlung', 'Bitte zahle jetzt. Verbleibend: ' + remainingLabel);
 	} else {
 		renderQrPlaceholder(ui.placeholderTitle, ui.placeholderSubtitle);
 	}
+
+	if (!data.executing_command && showAmountSelectionWaiting) {
+		setCommandOverlay({ command: 'message', message: 'Warte auf Betragsauswahl · ' + formatRemainingLabel(amountSelectionExpiryMs) }, message);
+		return;
+	}
+
+	if (state === 'awaiting_payment') {
+		const paymentOverlayMessage = 'Warte auf Zahlung · ' + formatRemainingLabel(paymentExpiryMs);
+		if (data.executing_command && data.executing_command.command) {
+			setCommandOverlay({
+				...data.executing_command,
+				message: paymentOverlayMessage
+			}, message);
+			return;
+		}
+		setCommandOverlay({ command: 'message', message: paymentOverlayMessage }, message);
+		return;
+	}
+
 	setCommandOverlay(data.executing_command, message);
 }
 

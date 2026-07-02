@@ -120,7 +120,7 @@ function updateExpiryCountdown() {
 	if (!expiryMeta) {
 		return;
 	}
-	expiryMeta.textContent = expiryLabel + ': ' + String(mins).padStart(2, '0') + ':' + String(secs).padStart(2, '0') + ' (bis ' + formatExpiryDate(expiryAt) + ')';
+	expiryMeta.textContent = expiryLabel + ' · ' + String(mins).padStart(2, '0') + ':' + String(secs).padStart(2, '0');
 }
 
 function clearExpiry() {
@@ -131,7 +131,7 @@ function clearExpiry() {
 	expiryAt = null;
 	expiryLabel = '';
 	if (expiryMeta) {
-		expiryMeta.textContent = 'Warte auf Aktion: --:--';
+		expiryMeta.textContent = 'Gültig für --:--';
 	}
 }
 

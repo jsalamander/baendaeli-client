@@ -139,8 +139,14 @@ func TestServeMainTemplate_SubstitutesConfig(t *testing.T) {
     if !strings.Contains(body, "payment.amount_selection_expires_at") {
         t.Fatalf("main.js should read amount_selection_expires_at for ball_detected, body: %s", body)
     }
+    if !strings.Contains(body, "payment.payment_phase") {
+        t.Fatalf("main.js should read payment_phase for ball_detected waiting logic, body: %s", body)
+    }
     if !strings.Contains(body, "payment.payment_expires_at") {
         t.Fatalf("main.js should read payment_expires_at for awaiting_payment, body: %s", body)
+    }
+    if !strings.Contains(body, "Warte auf Betragsauswahl") {
+        t.Fatalf("main.js should show amount-selection overlay text when waiting_for_amount starts, body: %s", body)
     }
     if strings.Contains(body, "payment.expires_at") || strings.Contains(body, "payment.expiration_at") {
         t.Fatalf("main.js should not reference removed expires_at fields, body: %s", body)
