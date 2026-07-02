@@ -238,12 +238,19 @@ function renderDeviceState(data) {
 	if (data.payment && state === 'ball_detected' && !showAmountSelectionWaiting) {
 		renderQr(data.payment);
 	} else if (showAmountSelectionWaiting) {
-		const remainingLabel = formatRemainingLabel(amountSelectionExpiryMs);
-		renderQrPlaceholder('Betrag wird ausgewählt', 'Bitte wähle den Betrag auf dem Smartphone. Verbleibend: ' + remainingLabel);
+		renderQrPlaceholder('Auswahl läuft', 'Bitte im Smartphone fortfahren.');
 	} else if (state === 'awaiting_payment') {
 		renderQrPlaceholder('Zahlung wird abgeschlossen', 'Bitte schließe die Zahlung auf dem Smartphone ab.');
 	} else {
 		renderQrPlaceholder(ui.placeholderTitle, ui.placeholderSubtitle);
+	}
+
+	if (showAmountSelectionWaiting) {
+		setCommandOverlay(
+			{ command: 'message', message: 'Warte auf Betragsauswahl · ' + formatRemainingLabel(amountSelectionExpiryMs) },
+			message,
+		);
+		return;
 	}
 
 	if (state === 'awaiting_payment') {
