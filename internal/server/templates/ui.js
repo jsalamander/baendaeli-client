@@ -1,8 +1,8 @@
 // UI state management and updates
 
 function updateStatus(text, badgeClass = 'badge-info') {
-	statusEl.innerHTML = '<span class="status status-sm status-success"></span><span>' + text + '</span>';
-	statusEl.className = 'badge badge-dash badge-outline text-base px-4 py-3 ' + badgeClass;
+	statusEl.innerHTML = '<span class="status status-sm status-success"></span><span class="truncate">' + text + '</span>';
+	statusEl.className = 'badge text-xs sm:text-sm md:text-base px-2 sm:px-4 py-2 sm:py-3 max-w-[70vw] lg:max-w-[55vw] overflow-hidden ' + badgeClass;
 }
 
 function showError(message) {

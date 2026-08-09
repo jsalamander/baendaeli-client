@@ -6,6 +6,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -56,6 +57,7 @@ func (s *Server) Router() *chi.Mux {
 	r.Get("/api.js", s.handleServeFile("api.js"))
 	r.Get("/qr.js", s.handleServeFile("qr.js"))
 	r.Get("/main.js", s.handleServeFile("main.js"))
+	r.Get("/fonts/{filename}", s.handleServeFont)
 	r.Post("/api/payment", s.handleCreatePayment)
 	r.Get("/api/payment/{id}", s.handleGetPaymentStatus)
 	r.Post("/api/actuate", s.handleActuate)
@@ -105,6 +107,38 @@ func (s *Server) handleServeFile(filename string) http.HandlerFunc {
 				log.Printf("failed to write %s: %v", filename, err)
 			}
 		}
+	}
+}
+
+func (s *Server) handleServeFont(w http.ResponseWriter, r *http.Request) {
+	filename := chi.URLParam(r, "filename")
+	if filename == "" || strings.Contains(filename, "/") || strings.Contains(filename, "\\") {
+		http.Error(w, "invalid font filename", http.StatusBadRequest)
+		return
+	}
+
+	content, err := GetStaticFile("fonts/" + filename)
+	if err != nil {
+		http.Error(w, "font not found", http.StatusNotFound)
+		return
+	}
+
+	switch strings.ToLower(filepath.Ext(filename)) {
+	case ".woff2":
+		w.Header().Set("Content-Type", "font/woff2")
+	case ".woff":
+		w.Header().Set("Content-Type", "font/woff")
+	case ".ttf":
+		w.Header().Set("Content-Type", "font/ttf")
+	case ".otf":
+		w.Header().Set("Content-Type", "font/otf")
+	default:
+		w.Header().Set("Content-Type", "application/octet-stream")
+	}
+
+	w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+	if _, err := w.Write(content); err != nil {
+		log.Printf("failed to write font %s: %v", filename, err)
 	}
 }
 

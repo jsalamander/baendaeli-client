@@ -7,6 +7,20 @@
 	<script src="https://cdn.tailwindcss.com"></script>
 	<link href="https://cdn.jsdelivr.net/npm/daisyui@4.4.20/dist/full.min.css" rel="stylesheet" type="text/css" />
 	<style>
+		@font-face {
+			font-family: "akzidenz-grotesk-next-extend";
+			src: url("/fonts/AkzidenzGroteskBlack.ttf") format("truetype");
+			font-weight: 900;
+			font-style: normal;
+			font-display: swap;
+		}
+		@font-face {
+			font-family: "AkzidenzGroteskBlack";
+			src: url("/fonts/AkzidenzGroteskBlack.ttf") format("truetype");
+			font-weight: 900;
+			font-style: normal;
+			font-display: swap;
+		}
 		.hidden { display: none; }
 		html, body {
 			height: 100%;
@@ -15,9 +29,38 @@
 		:root {
 			--qr-size: clamp(180px, 52vw, 320px);
 			--qr-padding: clamp(0.75rem, 2vw, 1.25rem);
+			--frame-padding: clamp(0.75rem, 2.4vw, 1.75rem);
 			--bottom-safe-area: 3.5rem;
 			--title-size: clamp(1.25rem, calc(var(--qr-size) / 9), 2rem);
 			--copy-size: clamp(0.9rem, calc(var(--qr-size) / 14), 1.25rem);
+		}
+		body {
+			box-sizing: border-box;
+			padding: var(--frame-padding);
+		}
+		#versionBadge,
+		#diagnosticsBadges {
+			bottom: calc(var(--frame-padding) + 0.75rem);
+		}
+		#versionBadge {
+			left: calc(var(--frame-padding) + 0.75rem);
+		}
+		#diagnosticsBadges {
+			right: calc(var(--frame-padding) + 0.75rem);
+			max-width: calc(100vw - (2 * (var(--frame-padding) + 0.75rem)) - 4rem);
+		}
+		@media (min-width: 640px) {
+			#versionBadge,
+			#diagnosticsBadges {
+				bottom: calc(var(--frame-padding) + 1rem);
+			}
+			#versionBadge {
+				left: calc(var(--frame-padding) + 1rem);
+			}
+			#diagnosticsBadges {
+				right: calc(var(--frame-padding) + 1rem);
+				max-width: calc(100vw - (2 * (var(--frame-padding) + 1rem)) - 5rem);
+			}
 		}
 		#qr {
 			padding: var(--qr-padding);
@@ -35,6 +78,11 @@
 			text-align: center;
 			justify-content: center;
 			width: 100%;
+			color: #fff;
+			font-family: "akzidenz-grotesk-next-extend", "AkzidenzGroteskBlack", "NeueHaasDisplay", sans-serif;
+		}
+		#errorPopupTitle {
+			font-family: "akzidenz-grotesk-next-extend", "AkzidenzGroteskBlack", "NeueHaasDisplay", sans-serif;
 		}
 		#paymentDescription {
 			font-size: var(--copy-size);
@@ -43,6 +91,61 @@
 			margin-left: auto;
 			margin-right: auto;
 			max-width: 34ch;
+			color: #fff;
+		}
+		#status.badge-error {
+			color: #fff;
+		}
+		#status {
+			color: #fff;
+			font-weight: 700;
+			background-color: #334155;
+		}
+		#status.badge-primary {
+			background-color: #1e3a8a;
+			color: #fff;
+		}
+		#status.badge-info {
+			background-color: #0c4a6e;
+			color: #fff;
+		}
+		#status.badge-success {
+			background-color: #14532d;
+			color: #fff;
+		}
+		#status.badge-warning {
+			background-color: #854d0e;
+			color: #fff;
+		}
+		#status.badge-error {
+			background-color: #7f1d1d;
+			color: #fff;
+		}
+		#status .status {
+			background-color: #f8fafc;
+		}
+		#status.badge-primary .status { background-color: #bfdbfe; }
+		#status.badge-info .status { background-color: #bae6fd; }
+		#status.badge-success .status { background-color: #bbf7d0; }
+		#status.badge-warning .status { background-color: #fde68a; }
+		#status.badge-error .status { background-color: #fecaca; }
+		.loader-ring {
+			width: 2.25rem;
+			height: 2.25rem;
+			border-radius: 9999px;
+			border: 0.2rem solid rgba(255, 255, 255, 0.2);
+			border-top-color: #fff;
+			animation: loader-spin 0.85s linear infinite;
+		}
+		.loader-ring-sm {
+			width: 1.5rem;
+			height: 1.5rem;
+			border-width: 0.16rem;
+		}
+		@keyframes loader-spin {
+			to {
+				transform: rotate(360deg);
+			}
 		}
 		#qr svg,
 		#qr img,
@@ -86,25 +189,23 @@
 </head>
 <body class="flex flex-col min-h-screen bg-base-900 overflow-x-hidden">
 	<!-- Navbar with integrated status -->
-	<nav class="navbar bg-base-800 border-b border-base-700 px-3 sm:px-4">
-		<div class="flex-1">
-			<a class="btn btn-ghost text-base sm:text-xl px-2 sm:px-4" href="/">Solibändäli</a>
-		</div>
+	<nav class="navbar bg-base-800 px-3 sm:px-4">
+		<div class="flex-1"></div>
 		<div class="flex-none">
-			<div class="badge badge-dash badge-outline badge-primary text-xs sm:text-sm md:text-base px-2 sm:px-4 py-2 sm:py-3 max-w-[55vw] sm:max-w-none text-center" id="status">
+			<div class="badge badge-primary text-xs sm:text-sm md:text-base px-2 sm:px-4 py-2 sm:py-3 max-w-[70vw] lg:max-w-[55vw] overflow-hidden" id="status">
 				<span class="status status-sm status-success"></span>
-				<span>Zahlung wird erstellt...</span>
+				<span class="truncate">Zahlung wird erstellt...</span>
 			</div>
 		</div>
 	</nav>
 
 	<!-- Main Content -->
 	<main class="flex-1 flex items-center justify-center p-3 sm:p-4 md:p-6" id="mainContent" style="padding-bottom: var(--bottom-safe-area);">
-		<div class="card bg-base-800 border border-base-700 shadow-xl w-full" id="paymentCard">
+		<div class="card bg-base-800 w-full" id="paymentCard">
 			<div class="card-body p-4 sm:p-6 gap-3 sm:gap-4">
 				<!-- Success Banner (hidden by default) -->
 				<div class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur" id="successBanner">
-					<div class="alert alert-success alert-lg shadow-lg max-w-sm">
+					<div class="alert alert-success alert-lg max-w-sm">
 						<svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
 						<span class="font-bold">Danke, dein Solibändeli wird JETZT ausgegeben!</span>
 					</div>
@@ -112,7 +213,7 @@
 
 				<!-- Cancel Banner (hidden by default) -->
 				<div class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur" id="cancelBanner">
-					<div class="alert alert-warning alert-lg shadow-lg max-w-sm">
+					<div class="alert alert-warning alert-lg max-w-sm">
 						<svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v4m0 4h.01M12 3a9 9 0 100 18 9 9 0 000-18z" /></svg>
 						<span class="font-bold" id="cancelBannerMessage">Zahlung wurde vom Operator storniert.</span>
 					</div>
@@ -120,15 +221,15 @@
 
 				<!-- Device Command Overlay (hidden by default) -->
 				<div class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur" id="deviceCommandOverlay">
-					<div class="alert alert-info alert-lg shadow-lg max-w-sm">
-						<svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+					<div class="alert alert-info alert-lg max-w-sm">
+						<div class="loader-ring loader-ring-sm shrink-0" aria-hidden="true"></div>
 						<span class="font-bold" id="deviceCommandMessage">Befehl wird ausgeführt...</span>
 					</div>
 				</div>
 
 				<!-- Error Popup (hidden by default) -->
 				<div class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur" id="errorPopup">
-					<div class="card bg-base-800 border border-error shadow-xl w-full max-w-md mx-4">
+					<div class="card bg-base-800 w-full max-w-md mx-4">
 						<div class="card-body">
 							<div class="flex items-start gap-3">
 								<svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6 text-error" fill="none" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
@@ -152,13 +253,10 @@
 				</div>
 
 				<h2 class="card-title" id="paymentTitle">Spende für ein Solibändeli</h2>
-				<p class="text-base-content/70" id="paymentDescription">Scanne den QR-Code mit deinem Smartphone, um deine Spende für das Solibändeli zu tätigen. Nach Ankunft des Betrags wird das Solibändeli ausgegeben.</p>
-				<div class="bg-base-700 rounded-lg border border-dashed border-base-600 flex items-center justify-center w-full overflow-hidden" id="qr">
+				<p id="paymentDescription">Scanne den QR-Code mit deinem Smartphone, um deine Spende für das Solibändeli zu tätigen. Nach Ankunft des Betrags wird das Solibändeli ausgegeben.</p>
+				<div class="bg-base-700 rounded-lg flex items-center justify-center w-full overflow-hidden" id="qr">
 					<div class="text-center">
-						<svg class="inline-block w-8 h-8 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-							<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-							<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-						</svg>
+						<div class="loader-ring mx-auto" aria-hidden="true"></div>
 						<p class="mt-2 text-sm">Warten auf QR Code...</p>
 					</div>
 				</div>
@@ -173,8 +271,7 @@
 				<button class="btn btn-primary w-full hidden" id="retry">Try again</button>
 
 				<!-- Expiry Countdown -->
-				<div class="divider my-2"></div>
-				<div class="text-xs text-base-content/60 text-center">
+				<div class="text-xs text-white text-center">
 					<span id="expiryMeta">Gültig für --:--</span>
 				</div>
 			</div>
@@ -182,15 +279,15 @@
 	</main>
 
 	<!-- Version Badge (fixed position on left) -->
-	<div class="fixed bottom-3 left-3 sm:bottom-4 sm:left-4 badge badge-outline text-[10px] sm:text-xs" id="versionBadge">v{{.Version}}</div>
+	<div class="fixed badge text-[10px] sm:text-xs" id="versionBadge">v{{.Version}}</div>
 
 	<!-- API Status (fixed position on right) -->
-	<div class="fixed bottom-3 right-3 sm:bottom-4 sm:right-4 flex flex-row gap-1.5 sm:gap-2 flex-wrap justify-end max-w-[calc(100vw-6rem)] sm:max-w-[calc(100vw-8rem)]" id="diagnosticsBadges">
-		<div class="flex items-center gap-1.5 sm:gap-2 text-[10px] sm:text-xs badge badge-outline">
+	<div class="fixed flex flex-row gap-1.5 sm:gap-2 flex-wrap justify-end" id="diagnosticsBadges">
+		<div class="flex items-center gap-1.5 sm:gap-2 text-[10px] sm:text-xs badge">
 			<div class="w-2 h-2 rounded-full bg-warning" id="gatewayDot"></div>
 			<span id="gatewayStatusText">API...</span>
 		</div>
-		<div class="text-[10px] sm:text-xs text-base-content/60 badge badge-ghost">
+		<div class="text-[10px] sm:text-xs text-white badge badge-ghost">
 			<span id="gatewayMeta">...</span>
 		</div>
 	</div>
