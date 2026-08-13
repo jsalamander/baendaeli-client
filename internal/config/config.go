@@ -56,6 +56,8 @@ type Config struct {
 	VibrationIN4Pin                           string  `yaml:"VIBRATOR_IN4_PIN"`
 	VibrationENBPin                           string  `yaml:"VIBRATOR_ENB_PIN"`
 	CameraEnabled                             bool    `yaml:"CAMERA_ENABLED"`
+	PrinterEnabled                            bool    `yaml:"PRINTER_ENABLED"`
+	PrinterDevicePath                         string  `yaml:"PRINTER_DEVICE_PATH"`
 }
 
 func Load(filename string) (*Config, error) {
@@ -137,6 +139,9 @@ func (c *Config) SetDefaults() {
 	}
 	if c.ColorSensorReferenceResampleAfterAttempts == 0 {
 		c.ColorSensorReferenceResampleAfterAttempts = 2
+	}
+	if c.PrinterDevicePath == "" {
+		c.PrinterDevicePath = "/dev/usb/lp0"
 	}
 	if c.ColorSensorPollIntervalMs == 0 {
 		c.ColorSensorPollIntervalMs = 100

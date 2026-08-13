@@ -47,6 +47,39 @@ func (s *stubBreakBeamSensor) Close() error {
 	return nil
 }
 
+type stubTicketPrinter struct {
+	startupCalls atomic.Int32
+	paymentCalls atomic.Int32
+	lastAmount   int64
+	lastCount    int
+	paymentErr   error
+	startupErr   error
+}
+
+func (s *stubTicketPrinter) IsEnabled() bool {
+	return true
+}
+
+func (s *stubTicketPrinter) Init(_ *config.Config) error {
+	return nil
+}
+
+func (s *stubTicketPrinter) Close() error {
+	return nil
+}
+
+func (s *stubTicketPrinter) PrintPaymentTicket(amountCents int64, dispensedCount int) error {
+	s.paymentCalls.Add(1)
+	s.lastAmount = amountCents
+	s.lastCount = dispensedCount
+	return s.paymentErr
+}
+
+func (s *stubTicketPrinter) PrintStartupMessage() error {
+	s.startupCalls.Add(1)
+	return s.startupErr
+}
+
 func TestReportStatus(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -1583,9 +1616,9 @@ func TestRunStateMachineCycleDebugBypassBallDetectionCreatesPayment(t *testing.T
 	defer server.Close()
 
 	client := New(&config.Config{
-		BaendaeliURL:              server.URL,
-		BaendaeliAPIKey:           "test-key",
-		DebugBypassBallDetection:  true,
+		BaendaeliURL:             server.URL,
+		BaendaeliAPIKey:          "test-key",
+		DebugBypassBallDetection: true,
 	})
 
 	handled := client.runStateMachineCycle()
@@ -1744,5 +1777,104 @@ func TestStartSetsDetectingState(t *testing.T) {
 	snapshot := client.GetStateSnapshot()
 	if snapshot.State != string(StateDetectingBall) {
 		t.Fatalf("expected start state detecting_ball, got %q", snapshot.State)
+	}
+}
+
+func TestStartPrintsStartupTicketOnce(t *testing.T) {
+	client := New(&config.Config{})
+	stub := &stubTicketPrinter{}
+	client.printer = stub
+
+	client.Start()
+	defer client.Stop()
+
+	time.Sleep(20 * time.Millisecond)
+
+	if got := stub.startupCalls.Load(); got != 1 {
+		t.Fatalf("expected startup ticket to print exactly once, got %d", got)
+	}
+}
+
+func TestRunStateMachineCyclePaymentSuccessPrintsTicketOnce(t *testing.T) {
+	var statusReportFail atomic.Bool
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost && r.URL.Path == "/api/v1/device/status" {
+			if statusReportFail.Load() {
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`{"success": true}`))
+			return
+		}
+		if r.Method == http.MethodGet && strings.Contains(r.URL.Path, "/api/v1/payment/") {
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`{"status":"success","amount_cents":2000}`))
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer server.Close()
+
+	client := New(&config.Config{BaendaeliURL: server.URL, BaendaeliAPIKey: "test-key"})
+	stub := &stubTicketPrinter{}
+	client.printer = stub
+	client.SetPaymentID("pay-500")
+
+	// First cycle: dispense succeeds and prints, but reportStatus fails so the
+	// payment id is retained and the cycle is retried.
+	statusReportFail.Store(true)
+	if !client.runStateMachineCycle() {
+		t.Fatal("expected paid payment cycle to be handled")
+	}
+	if got := stub.paymentCalls.Load(); got != 1 {
+		t.Fatalf("expected ticket to print exactly once, got %d", got)
+	}
+	if stub.lastAmount != 2000 {
+		t.Fatalf("expected amount_cents=2000, got %d", stub.lastAmount)
+	}
+
+	// Second cycle: reportStatus now succeeds. The already-dispensed payment
+	// must not print another ticket.
+	statusReportFail.Store(false)
+	client.runStateMachineCycle()
+	if got := stub.paymentCalls.Load(); got != 1 {
+		t.Fatalf("expected ticket print to stay at 1 after retry cycle, got %d", got)
+	}
+}
+
+func TestRunStateMachineCyclePaymentSuccessSurvivesTicketPrintFailure(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost && r.URL.Path == "/api/v1/device/status" {
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`{"success": true}`))
+			return
+		}
+		if r.Method == http.MethodGet && strings.Contains(r.URL.Path, "/api/v1/payment/") {
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`{"status":"success","amount_cents":500}`))
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer server.Close()
+
+	client := New(&config.Config{BaendaeliURL: server.URL, BaendaeliAPIKey: "test-key"})
+	stub := &stubTicketPrinter{paymentErr: fmt.Errorf("printer offline")}
+	client.printer = stub
+	client.SetPaymentID("pay-600")
+
+	handled := client.runStateMachineCycle()
+	if !handled {
+		t.Fatal("expected paid payment cycle to be handled despite print failure")
+	}
+	if got := client.GetPaymentID(); got != "" {
+		t.Fatalf("expected payment id to be cleared even if ticket print failed, got %q", got)
+	}
+
+	snapshot := client.GetStateSnapshot()
+	if snapshot.State != string(StateDetectingBall) {
+		t.Fatalf("expected state detecting_ball despite print failure, got %q", snapshot.State)
 	}
 }

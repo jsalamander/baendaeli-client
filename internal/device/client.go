@@ -20,6 +20,7 @@ import (
 	"github.com/jsalamander/baendaeli-client/internal/camera"
 	"github.com/jsalamander/baendaeli-client/internal/colorsensor"
 	"github.com/jsalamander/baendaeli-client/internal/config"
+	"github.com/jsalamander/baendaeli-client/internal/printer"
 	"github.com/jsalamander/baendaeli-client/internal/version"
 	"github.com/jsalamander/baendaeli-client/internal/vibrator"
 )
@@ -113,6 +114,14 @@ type breakBeamSensor interface {
 	Close() error
 }
 
+type ticketPrinter interface {
+	IsEnabled() bool
+	Init(cfg *config.Config) error
+	Close() error
+	PrintPaymentTicket(amountCents int64, dispensedCount int) error
+	PrintStartupMessage() error
+}
+
 // Client polls the device API and executes commands
 type Client struct {
 	config           *config.Config
@@ -128,6 +137,7 @@ type Client struct {
 	running          atomic.Bool
 	colorSensor      *colorsensor.Sensor
 	breakBeamSensor  breakBeamSensor
+	printer          ticketPrinter
 	jammed           atomic.Bool
 
 	// Command execution status
@@ -157,6 +167,7 @@ func New(cfg *config.Config) *Client {
 		pollInterval:    7 * time.Second,
 		colorSensor:     colorsensor.New(cfg),
 		breakBeamSensor: breakbeam.New(cfg),
+		printer:         printer.New(cfg),
 		state:           StateStarting,
 	}
 	c.logShipper = newLogShipper(ctx, c, c.httpClient, io.Discard)
@@ -371,6 +382,12 @@ func (c *Client) Start() {
 	if err := c.breakBeamSensor.Init(c.config); err != nil {
 		log.Printf("Device client: break-beam sensor init failed: %v", err)
 	}
+	if err := c.printer.Init(c.config); err != nil {
+		log.Printf("Device client: printer init failed: %v", err)
+	}
+	if err := c.printer.PrintStartupMessage(); err != nil {
+		log.Printf("Device client: startup ticket print failed: %v", err)
+	}
 
 	if c.config.ActuatorEnabled {
 		if err := c.runStartupExtractorCycle(); err != nil {
@@ -405,6 +422,9 @@ func (c *Client) Stop() {
 	}
 	if err := c.breakBeamSensor.Close(); err != nil {
 		log.Printf("Device client: failed to close break-beam sensor: %v", err)
+	}
+	if err := c.printer.Close(); err != nil {
+		log.Printf("Device client: failed to close printer: %v", err)
 	}
 	log.Println("Device client stopped")
 }
@@ -569,6 +589,7 @@ func (c *Client) runStateMachineCycle() bool {
 				log.Printf("Device client: dispense failed after successful payment: %v", err)
 				return true
 			}
+			c.printTicketForPayment(paymentID, payment)
 		} else if c.config.BreakBeamDebugLogging {
 			log.Printf("Device client: payment %s already dispensed (pending_count=%d), skipping repeated dispense", paymentID, *pending)
 		}
@@ -1541,6 +1562,32 @@ func (c *Client) dispenseAndWaitForBallLocked() (int, error) {
 	}
 
 	return totalMs, nil
+}
+
+// printTicketForPayment prints the payment ticket after a successful dispense.
+// Printing failures never block the payment flow: they are logged and surfaced
+// as a brief transient notification instead.
+func (c *Client) printTicketForPayment(paymentID string, payment map[string]any) {
+	dispensedCount := 0
+	if pending := c.pendingDispensedCount(paymentID); pending != nil {
+		dispensedCount = *pending
+	}
+
+	var amountCents int64
+	if payment != nil {
+		if v, ok := payment["amount_cents"].(float64); ok {
+			amountCents = int64(v)
+		}
+	}
+
+	if err := c.printer.PrintPaymentTicket(amountCents, dispensedCount); err != nil {
+		log.Printf("Device client: ticket print failed for payment %s: %v", paymentID, err)
+		c.setExecutingCommand(&CommandResponse{
+			Command: "message",
+			Message: "Ticket-Druck fehlgeschlagen",
+		})
+		time.Sleep(500 * time.Millisecond)
+	}
 }
 
 func cloneMap(input map[string]any) map[string]any {

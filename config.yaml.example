@@ -55,3 +55,6 @@ VIBRATOR_IN4_PIN: "GPIO20"
 VIBRATOR_ENB_PIN: "GPIO18"
 # Camera (Raspberry Pi Camera Module 3, requires libcamera-still or rpicam-still)
 CAMERA_ENABLED: true
+# Receipt printer (ESC/POS, raw device writes)
+PRINTER_ENABLED: false
+PRINTER_DEVICE_PATH: "/dev/usb/lp0"
