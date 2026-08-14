@@ -19,6 +19,7 @@ import (
 	"github.com/jsalamander/baendaeli-client/internal/colorsensor"
 	"github.com/jsalamander/baendaeli-client/internal/config"
 	"github.com/jsalamander/baendaeli-client/internal/device"
+	"github.com/jsalamander/baendaeli-client/internal/printer"
 	"github.com/jsalamander/baendaeli-client/internal/server"
 	"github.com/jsalamander/baendaeli-client/internal/vibrator"
 )
@@ -41,6 +42,9 @@ func main() {
 			return
 		case "vibrate":
 			runVibrateCommand()
+			return
+		case "print":
+			runPrintCommand()
 			return
 		case "color-debug":
 			runColorDebugCommand()
@@ -192,6 +196,7 @@ func printUsage() {
 	fmt.Println("  baendaeli-client retract <ms>       Retract actuator for specified milliseconds")
 	fmt.Println("  baendaeli-client home               Bring actuator to home position")
 	fmt.Println("  baendaeli-client vibrate <percent> <ms>  Vibrate at strength for milliseconds")
+	fmt.Println("  baendaeli-client print <text>       Print text on the receipt printer")
 	fmt.Println("  baendaeli-client color-debug [ms]   Print live TCS34725 C/R/G/B readings")
 	fmt.Println("  baendaeli-client state-calibrate [n] Measure ball-present and manual-jam states")
 	fmt.Println("  baendaeli-client help               Show this help message")
@@ -202,11 +207,13 @@ func printUsage() {
 	fmt.Println("  baendaeli-client retract 1500       Retract for 1.5 seconds")
 	fmt.Println("  baendaeli-client home               Retract fully to home position")
 	fmt.Println("  baendaeli-client vibrate 50 1500    Vibrate at 50% strength for 1.5 seconds")
+	fmt.Println("  baendaeli-client print 'Hello'      Print 'Hello' on the printer")
 	fmt.Println("  baendaeli-client color-debug 300    Print color values every 300ms")
 	fmt.Println("  baendaeli-client state-calibrate 5  Measure 5 ball/jam state pairs")
 	fmt.Println()
 	fmt.Println("Note: Actuator commands require ACTUATOR_ENABLED: true in config.yaml")
 	fmt.Println("Note: Vibrate commands require VIBRATOR_ENABLED: true in config.yaml")
+	fmt.Println("Note: Print commands require PRINTER_ENABLED: true in config.yaml")
 }
 
 // runColorDebugCommand prints live color sensor readings for threshold calibration.
@@ -557,6 +564,43 @@ func initVibratorForCommand() error {
 	}
 
 	return nil
+}
+
+func runPrintCommand() {
+	if len(os.Args) < 3 {
+		fmt.Println("Error: print command requires text argument")
+		fmt.Println("Usage: baendaeli-client print <text>")
+		fmt.Println("Example: baendaeli-client print 'Hello World'")
+		os.Exit(1)
+	}
+
+	text := os.Args[2]
+
+	cfg, err := config.Load("config.yaml")
+	if err != nil {
+		fmt.Printf("Error: failed to load config: %v\n", err)
+		os.Exit(1)
+	}
+
+	if !cfg.PrinterEnabled {
+		fmt.Println("Error: printer is disabled in config.yaml. Set PRINTER_ENABLED: true to use print commands")
+		os.Exit(1)
+	}
+
+	p := printer.New(cfg)
+	if err := p.Init(cfg); err != nil {
+		fmt.Printf("Error: printer initialization failed: %v\n", err)
+		os.Exit(1)
+	}
+	defer p.Close()
+
+	fmt.Printf("Printing: %q\n", text)
+	if err := p.PrintText(text); err != nil {
+		fmt.Printf("Error printing: %v\n", err)
+		os.Exit(1)
+	}
+
+	fmt.Println("Print complete")
 }
 
 // initActuatorForCommand initializes the actuator for testing commands

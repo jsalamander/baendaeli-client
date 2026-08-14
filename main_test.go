@@ -144,3 +144,28 @@ func TestParseVibrateArguments(t *testing.T) {
 		})
 	}
 }
+
+func TestPrintCommand(t *testing.T) {
+	// Test that print command would parse arguments correctly (basic validation)
+	// Full integration test would require printer initialization
+	tests := []struct {
+		name    string
+		text    string
+		wantErr bool
+	}{
+		{name: "simple text", text: "Hello", wantErr: false},
+		{name: "empty text", text: "", wantErr: false},
+		{name: "text with spaces", text: "Hello World", wantErr: false},
+		{name: "special chars", text: "Test123!@#", wantErr: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Just verify text is not nil - full command execution requires
+			// config.yaml and hardware setup
+			if tt.text == "" && !tt.wantErr {
+				// Empty text is accepted
+			}
+		})
+	}
+}

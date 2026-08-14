@@ -120,6 +120,28 @@ func (p *Printer) PrintStartupMessage() error {
 	return p.writeTicket(body)
 }
 
+// PrintText prints arbitrary text on the printer.
+func (p *Printer) PrintText(text string) error {
+	if p == nil || !p.enabled {
+		return nil
+	}
+
+	if p.sim {
+		log.Printf("Printer (SIMULATION): printing text: %q", text)
+		return nil
+	}
+
+	if ready, err := p.checkPrinterReady(); err != nil || !ready {
+		if err != nil {
+			return fmt.Errorf("printer status check failed: %w", err)
+		}
+		return fmt.Errorf("printer not ready")
+	}
+
+	body := []byte(text + "\n")
+	return p.writeTicket(body)
+}
+
 // quantityLine renders the fixed business-rule quantity line for the payment ticket.
 func quantityLine(dispensedCount int) string {
 	if dispensedCount <= 0 {
