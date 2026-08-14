@@ -56,8 +56,13 @@ type Config struct {
 	VibrationIN4Pin                           string  `yaml:"VIBRATOR_IN4_PIN"`
 	VibrationENBPin                           string  `yaml:"VIBRATOR_ENB_PIN"`
 	CameraEnabled                             bool    `yaml:"CAMERA_ENABLED"`
-	PrinterEnabled                            bool    `yaml:"PRINTER_ENABLED"`
+	PrinterEnabled                            *bool   `yaml:"PRINTER_ENABLED"`
 	PrinterDevicePath                         string  `yaml:"PRINTER_DEVICE_PATH"`
+}
+
+// IsPrinterEnabled reports whether receipt printing is on. Absent config means enabled.
+func (c *Config) IsPrinterEnabled() bool {
+	return c != nil && (c.PrinterEnabled == nil || *c.PrinterEnabled)
 }
 
 func Load(filename string) (*Config, error) {

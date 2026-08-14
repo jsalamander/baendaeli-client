@@ -41,22 +41,36 @@ func TestFormatAmount(t *testing.T) {
 	}
 }
 
-func TestInitSimulationFallbackWhenDisabled(t *testing.T) {
-	p := New(&config.Config{PrinterEnabled: false, PrinterDevicePath: "/dev/does-not-exist"})
-	if err := p.Init(&config.Config{PrinterEnabled: false, PrinterDevicePath: "/dev/does-not-exist"}); err != nil {
+func TestInitDisabledPrinterDoesNotPrint(t *testing.T) {
+	disabled := false
+	cfg := &config.Config{PrinterEnabled: &disabled, PrinterDevicePath: "/dev/does-not-exist"}
+
+	p := New(cfg)
+	if err := p.Init(cfg); err != nil {
 		t.Fatalf("Init returned error: %v", err)
-	}
-	if p.IsSimulation() {
-		t.Error("disabled printer should not be marked as simulation")
 	}
 	if p.IsEnabled() {
 		t.Error("printer should be disabled")
 	}
+	if err := p.PrintPaymentTicket(2000, 1); err != nil {
+		t.Errorf("disabled PrintPaymentTicket returned error: %v", err)
+	}
+}
+
+func TestPrinterEnabledByDefault(t *testing.T) {
+	cfg := &config.Config{PrinterDevicePath: "/dev/does-not-exist"}
+
+	p := New(cfg)
+	if !p.IsEnabled() {
+		t.Fatal("printer should be enabled when PRINTER_ENABLED is absent")
+	}
 }
 
 func TestInitSimulationFallbackWhenDeviceMissing(t *testing.T) {
-	p := New(&config.Config{PrinterEnabled: true, PrinterDevicePath: "/dev/does-not-exist"})
-	if err := p.Init(&config.Config{PrinterEnabled: true, PrinterDevicePath: "/dev/does-not-exist"}); err != nil {
+	cfg := &config.Config{PrinterDevicePath: "/dev/does-not-exist"}
+
+	p := New(cfg)
+	if err := p.Init(cfg); err != nil {
 		t.Fatalf("Init returned error: %v", err)
 	}
 	if !p.IsSimulation() {

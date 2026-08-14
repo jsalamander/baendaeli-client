@@ -106,7 +106,7 @@ function formatExpiryDate(ts) {
 }
 
 function updateExpiryCountdown() {
-	if (!expiryAt) return;
+	if (!expiryAt || !expiryMeta) return;
 	
 	const remaining = expiryAt - Date.now();
 	if (remaining <= 0) {
@@ -116,9 +116,6 @@ function updateExpiryCountdown() {
 	
 	const mins = Math.floor(remaining / 60_000);
 	const secs = Math.floor((remaining % 60_000) / 1_000);
-	if (!expiryMeta) {
-		return;
-	}
 	expiryMeta.textContent = expiryLabel + ' · ' + String(mins).padStart(2, '0') + ':' + String(secs).padStart(2, '0');
 }
 
@@ -130,7 +127,7 @@ function clearExpiry() {
 	expiryAt = null;
 	expiryLabel = '';
 	if (expiryMeta) {
-		expiryMeta.textContent = 'Gültig für --:--';
+		expiryMeta.textContent = '';
 	}
 }
 

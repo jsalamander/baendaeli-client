@@ -42,7 +42,13 @@ create_service_user() {
     echo "[INFO] Adding ${service_user} to gpio group" >&2
     usermod -a -G gpio "$service_user"
   fi
-  
+
+  # Add to lp group for receipt printer access (/dev/usb/lp0)
+  if getent group lp >/dev/null 2>&1; then
+    echo "[INFO] Adding ${service_user} to lp group" >&2
+    usermod -a -G lp "$service_user"
+  fi
+
   echo "[INFO] Service user: ${service_user}" >&2
 }
 

@@ -582,7 +582,7 @@ func runPrintCommand() {
 		os.Exit(1)
 	}
 
-	if !cfg.PrinterEnabled {
+	if !cfg.IsPrinterEnabled() {
 		fmt.Println("Error: printer is disabled in config.yaml. Set PRINTER_ENABLED: true to use print commands")
 		os.Exit(1)
 	}

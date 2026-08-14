@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/jsalamander/baendaeli-client/internal/config"
@@ -14,6 +15,8 @@ import (
 const (
 	feedLinesBefore = 12
 	feedLinesAfter  = 12
+
+	defaultDevicePath = "/dev/usb/lp0"
 
 	itemName = "Solibändeli"
 )
@@ -40,7 +43,7 @@ func New(cfg *config.Config) *Printer {
 		return &Printer{}
 	}
 	return &Printer{
-		enabled:    cfg.PrinterEnabled,
+		enabled:    cfg.IsPrinterEnabled(),
 		devicePath: cfg.PrinterDevicePath,
 	}
 }
@@ -59,18 +62,29 @@ func (p *Printer) Init(cfg *config.Config) error {
 		return nil
 	}
 	if cfg != nil {
-		p.enabled = cfg.PrinterEnabled
+		p.enabled = cfg.IsPrinterEnabled()
 		if cfg.PrinterDevicePath != "" {
 			p.devicePath = cfg.PrinterDevicePath
 		}
 	}
 	if !p.enabled {
+		log.Println("Printer: disabled via PRINTER_ENABLED, receipts will not be printed")
 		return nil
 	}
-	if _, err := os.Stat(p.devicePath); err != nil {
-		log.Printf("Printer: device %s not available, running in simulation mode: %v", p.devicePath, err)
-		p.sim = true
+	if p.devicePath == "" {
+		p.devicePath = defaultDevicePath
 	}
+
+	// Open here so permission problems surface at startup rather than at print time.
+	f, err := os.OpenFile(p.devicePath, os.O_WRONLY, 0)
+	if err != nil {
+		log.Printf("Printer: device %s unusable, running in simulation mode: %v", p.devicePath, err)
+		p.sim = true
+		return nil
+	}
+	f.Close()
+
+	log.Printf("Printer: initialised on %s", p.devicePath)
 	return nil
 }
 
@@ -80,7 +94,8 @@ func (p *Printer) Close() error {
 
 // PrintPaymentTicket prints a ticket for a completed payment.
 func (p *Printer) PrintPaymentTicket(amountCents int64, dispensedCount int) error {
-	if p == nil || !p.enabled || p.sim {
+	if skipped := p.skipReason(); skipped != "" {
+		log.Printf("Printer: skipping payment ticket (%s)", skipped)
 		return nil
 	}
 
@@ -99,12 +114,18 @@ func (p *Printer) PrintPaymentTicket(amountCents int64, dispensedCount int) erro
 	body = append(body, []byte(formatAmount(amountCents)+"\n\n")...)
 	body = append(body, []byte(formatTimestamp()+"\n")...)
 
-	return p.writeTicket(body)
+	if err := p.writeTicket(body); err != nil {
+		return err
+	}
+
+	log.Printf("Printer: payment ticket printed amount_cents=%d dispensed_count=%d", amountCents, dispensedCount)
+	return nil
 }
 
 // PrintStartupMessage prints a short greeting ticket once when the client starts.
 func (p *Printer) PrintStartupMessage() error {
-	if p == nil || !p.enabled || p.sim {
+	if skipped := p.skipReason(); skipped != "" {
+		log.Printf("Printer: skipping startup ticket (%s)", skipped)
 		return nil
 	}
 
@@ -115,20 +136,18 @@ func (p *Printer) PrintStartupMessage() error {
 		return fmt.Errorf("printer not ready")
 	}
 
-	body := []byte("Solibändeli <3\n")
+	if err := p.writeTicket([]byte("Solibändeli <3\n")); err != nil {
+		return err
+	}
 
-	return p.writeTicket(body)
+	log.Println("Printer: startup ticket printed")
+	return nil
 }
 
-// PrintText prints arbitrary text on the printer.
+// PrintText prints arbitrary text, used by the `print` CLI command for diagnostics.
 func (p *Printer) PrintText(text string) error {
-	if p == nil || !p.enabled {
-		return nil
-	}
-
-	if p.sim {
-		log.Printf("Printer (SIMULATION): printing text: %q", text)
-		return nil
+	if skipped := p.skipReason(); skipped != "" {
+		return fmt.Errorf("printing skipped: %s", skipped)
 	}
 
 	if ready, err := p.checkPrinterReady(); err != nil || !ready {
@@ -138,8 +157,25 @@ func (p *Printer) PrintText(text string) error {
 		return fmt.Errorf("printer not ready")
 	}
 
-	body := []byte(text + "\n")
-	return p.writeTicket(body)
+	if !strings.HasSuffix(text, "\n") {
+		text += "\n"
+	}
+
+	return p.writeTicket([]byte(text))
+}
+
+// skipReason returns a non-empty explanation when printing should be skipped.
+func (p *Printer) skipReason() string {
+	switch {
+	case p == nil:
+		return "printer not configured"
+	case !p.enabled:
+		return "disabled via PRINTER_ENABLED"
+	case p.sim:
+		return "simulation mode, device " + p.devicePath + " unusable"
+	default:
+		return ""
+	}
 }
 
 // quantityLine renders the fixed business-rule quantity line for the payment ticket.
