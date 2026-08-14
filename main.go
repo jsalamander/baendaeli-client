@@ -39,6 +39,9 @@ func main() {
 		case "home":
 			runHomeCommand()
 			return
+		case "vibrate":
+			runVibrateCommand()
+			return
 		case "color-debug":
 			runColorDebugCommand()
 			return
@@ -188,6 +191,7 @@ func printUsage() {
 	fmt.Println("  baendaeli-client extract <ms>       Alias for extend (same behavior)")
 	fmt.Println("  baendaeli-client retract <ms>       Retract actuator for specified milliseconds")
 	fmt.Println("  baendaeli-client home               Bring actuator to home position")
+	fmt.Println("  baendaeli-client vibrate <percent> <ms>  Vibrate at strength for milliseconds")
 	fmt.Println("  baendaeli-client color-debug [ms]   Print live TCS34725 C/R/G/B readings")
 	fmt.Println("  baendaeli-client state-calibrate [n] Measure ball-present and manual-jam states")
 	fmt.Println("  baendaeli-client help               Show this help message")
@@ -197,10 +201,12 @@ func printUsage() {
 	fmt.Println("  baendaeli-client extract 2000       Extend for 2 seconds (alias)")
 	fmt.Println("  baendaeli-client retract 1500       Retract for 1.5 seconds")
 	fmt.Println("  baendaeli-client home               Retract fully to home position")
+	fmt.Println("  baendaeli-client vibrate 50 1500    Vibrate at 50% strength for 1.5 seconds")
 	fmt.Println("  baendaeli-client color-debug 300    Print color values every 300ms")
 	fmt.Println("  baendaeli-client state-calibrate 5  Measure 5 ball/jam state pairs")
 	fmt.Println()
 	fmt.Println("Note: Actuator commands require ACTUATOR_ENABLED: true in config.yaml")
+	fmt.Println("Note: Vibrate commands require VIBRATOR_ENABLED: true in config.yaml")
 }
 
 // runColorDebugCommand prints live color sensor readings for threshold calibration.
@@ -481,6 +487,76 @@ func runHomeCommand() {
 
 	actuator.Home()
 	fmt.Println("✓ Homing complete")
+}
+
+func runVibrateCommand() {
+	if len(os.Args) < 4 {
+		fmt.Println("Error: vibrate command requires strength percent and duration in milliseconds")
+		fmt.Println("Usage: baendaeli-client vibrate <percent> <ms>")
+		fmt.Println("Example: baendaeli-client vibrate 50 1500")
+		os.Exit(1)
+	}
+
+	percent, durationMs, err := parseVibrateArguments(os.Args[2], os.Args[3])
+	if err != nil {
+		fmt.Printf("Error: %v\n", err)
+		os.Exit(1)
+	}
+
+	printStopCommandsIfServerActive()
+
+	if err := initVibratorForCommand(); err != nil {
+		printStopCommandsIfServerActive()
+		fmt.Printf("Error: %v\n", err)
+		os.Exit(1)
+	}
+	defer vibrator.Cleanup()
+
+	duration := time.Duration(durationMs) * time.Millisecond
+	fmt.Printf("Vibrating at %d%% strength for %v...\n", percent, duration)
+	if err := vibrator.Buzz(float64(percent)/100, duration); err != nil {
+		printStopCommandsIfServerActive()
+		fmt.Printf("Error vibrating: %v\n", err)
+		os.Exit(1)
+	}
+
+	fmt.Println("Vibration complete")
+}
+
+func parseVibrateArguments(percentArg, durationArg string) (int, int, error) {
+	percent, err := strconv.Atoi(percentArg)
+	if err != nil || percent < 1 || percent > 100 {
+		return 0, 0, fmt.Errorf("invalid strength '%s'. Must be an integer between 1 and 100 (percent)", percentArg)
+	}
+
+	durationMs, err := strconv.Atoi(durationArg)
+	if err != nil || durationMs < 100 || durationMs > 60000 {
+		return 0, 0, fmt.Errorf("invalid duration '%s'. Must be an integer between 100 and 60000 (milliseconds)", durationArg)
+	}
+
+	return percent, durationMs, nil
+}
+
+func initVibratorForCommand() error {
+	cfg, err := config.Load("config.yaml")
+	if err != nil {
+		return fmt.Errorf("failed to load config: %w", err)
+	}
+
+	if !cfg.VibrationEnabled {
+		return fmt.Errorf("vibrator is disabled in config.yaml. Set VIBRATOR_ENABLED: true to use vibrate commands")
+	}
+
+	if err := vibrator.Init(vibrator.Config{
+		Enabled: true,
+		IN3Pin:  cfg.VibrationIN3Pin,
+		IN4Pin:  cfg.VibrationIN4Pin,
+		ENBPin:  cfg.VibrationENBPin,
+	}); err != nil {
+		return fmt.Errorf("vibrator initialization failed: %w", err)
+	}
+
+	return nil
 }
 
 // initActuatorForCommand initializes the actuator for testing commands

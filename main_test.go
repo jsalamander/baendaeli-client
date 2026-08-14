@@ -112,3 +112,35 @@ func TestWaitForCalibrationInputRetryNotAllowedFallsBackToConfirm(t *testing.T) 
 		t.Fatalf("expected calibrationInputConfirm after invalid input, got %v", action)
 	}
 }
+
+func TestParseVibrateArguments(t *testing.T) {
+	tests := []struct {
+		name         string
+		percent      string
+		durationMs   string
+		wantPercent  int
+		wantDuration int
+		wantErr      bool
+	}{
+		{name: "valid", percent: "50", durationMs: "1500", wantPercent: 50, wantDuration: 1500},
+		{name: "minimums", percent: "1", durationMs: "100", wantPercent: 1, wantDuration: 100},
+		{name: "maximums", percent: "100", durationMs: "60000", wantPercent: 100, wantDuration: 60000},
+		{name: "zero strength", percent: "0", durationMs: "100", wantErr: true},
+		{name: "strength too high", percent: "101", durationMs: "100", wantErr: true},
+		{name: "duration too short", percent: "50", durationMs: "99", wantErr: true},
+		{name: "duration too long", percent: "50", durationMs: "60001", wantErr: true},
+		{name: "non numeric", percent: "half", durationMs: "100", wantErr: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			percent, durationMs, err := parseVibrateArguments(tt.percent, tt.durationMs)
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("parseVibrateArguments() error = %v, wantErr %v", err, tt.wantErr)
+			}
+			if err == nil && (percent != tt.wantPercent || durationMs != tt.wantDuration) {
+				t.Fatalf("parseVibrateArguments() = (%d, %d), want (%d, %d)", percent, durationMs, tt.wantPercent, tt.wantDuration)
+			}
+		})
+	}
+}
