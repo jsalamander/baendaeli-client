@@ -96,6 +96,14 @@ const stateUi = {
 		placeholderTitle: 'Stau detektiert',
 		placeholderSubtitle: 'Bitte rufe eine Techniker*in.'
 	},
+	sold_out: {
+		status: 'Ausverkauft',
+		badge: 'badge-error',
+		title: 'Ausverkauft',
+		description: 'Die Solibändeli sind momentan ausverkauft. Bitte später erneut versuchen.',
+		placeholderTitle: 'Ausverkauft',
+		placeholderSubtitle: 'Bitte später erneut versuchen.'
+	},
 	error: {
 		status: 'Fehlerzustand',
 		badge: 'badge-error',

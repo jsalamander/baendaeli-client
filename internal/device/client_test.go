@@ -1641,6 +1641,56 @@ func TestRunStateMachineCycleDebugBypassBallDetectionCreatesPayment(t *testing.T
 	}
 }
 
+func TestRunStateMachineCycleSoldOutStopsPaymentCreation(t *testing.T) {
+	var paymentAttempts int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost && strings.Contains(r.URL.Path, "/api/v1/payment") {
+			atomic.AddInt32(&paymentAttempts, 1)
+			w.WriteHeader(http.StatusConflict)
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte(`{"message":"The machine is currently sold out. Please try again later.","error":"sold_out","remaining_balls":0}`))
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer server.Close()
+
+	client := New(&config.Config{
+		BaendaeliURL:             server.URL,
+		BaendaeliAPIKey:          "test-key",
+		DebugBypassBallDetection: true,
+	})
+
+	handled := client.runStateMachineCycle()
+	if !handled {
+		t.Fatal("expected state machine cycle to handle sold-out response")
+	}
+	if got := client.GetPaymentID(); got != "" {
+		t.Fatalf("expected no payment id after sold-out response, got %q", got)
+	}
+
+	snapshot := client.GetStateSnapshot()
+	if snapshot.State != string(StateSoldOut) {
+		t.Fatalf("expected state sold_out, got %q", snapshot.State)
+	}
+	if snapshot.Message != "The machine is currently sold out. Please try again later." {
+		t.Fatalf("expected sold-out message to be surfaced, got %q", snapshot.Message)
+	}
+
+	// A subsequent cycle within the backoff window must not retry payment creation.
+	handled = client.runStateMachineCycle()
+	if !handled {
+		t.Fatal("expected sold-out backoff cycle to be handled")
+	}
+	if attempts := atomic.LoadInt32(&paymentAttempts); attempts != 1 {
+		t.Fatalf("expected exactly 1 payment creation attempt during sold-out backoff, got %d", attempts)
+	}
+	snapshot = client.GetStateSnapshot()
+	if snapshot.State != string(StateSoldOut) {
+		t.Fatalf("expected state to remain sold_out during backoff, got %q", snapshot.State)
+	}
+}
+
 func TestRunStateMachineCycleWaitingForAmountStaysBallDetected(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodGet && strings.Contains(r.URL.Path, "/api/v1/payment/") {

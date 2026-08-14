@@ -19,6 +19,8 @@ stateDiagram-v2
     detecting_ball --> ball_on_sensor: ball detected at sensor
     ball_on_sensor --> ball_detected: payment created
     detecting_ball --> error: payment create failed
+    detecting_ball --> sold_out: payment create returned 409 sold_out
+    sold_out --> detecting_ball: retry backoff elapsed
 
     ball_detected --> ball_detected: payment waiting/open/pending + phase=waiting_for_amount
     ball_detected --> awaiting_payment: payment waiting/open/pending + phase=waiting_for_payment

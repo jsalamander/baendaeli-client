@@ -5,9 +5,11 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
+	"net"
 	"net/http"
 	"sort"
 	"strings"
@@ -79,6 +81,18 @@ type paymentStatusResponse struct {
 	Status string `json:"status"`
 }
 
+// soldOutError indicates the payment API rejected creation because stock is depleted.
+type soldOutError struct {
+	message string
+}
+
+func (e *soldOutError) Error() string {
+	return e.message
+}
+
+// soldOutRetryBackoff limits how often payment creation is retried after a sold-out response.
+const soldOutRetryBackoff = 30 * time.Second
+
 type RuntimeState string
 
 const (
@@ -95,6 +109,7 @@ const (
 	StateIdle             RuntimeState = "idle"
 	StateCommandExecuting RuntimeState = "command_executing"
 	StateError            RuntimeState = "error"
+	StateSoldOut          RuntimeState = "sold_out"
 )
 
 type StateSnapshot struct {
@@ -151,6 +166,8 @@ type Client struct {
 	dispenseMutex    sync.Mutex
 	pendingDispense  *pendingDispense
 	logShipper       *logShipper
+	soldOutRetryAt   atomic.Int64 // unix nano; zero means not sold out
+	soldOutMessage   atomic.Value // string
 
 	// Actuator lock to prevent concurrent commands
 	actuatorMutex sync.Mutex
@@ -535,6 +552,13 @@ func (c *Client) poll() {
 func (c *Client) runStateMachineCycle() bool {
 	paymentID := c.GetPaymentID()
 	if paymentID == "" {
+		if retryAt := c.soldOutRetryAt.Load(); retryAt != 0 {
+			if time.Now().UnixNano() < retryAt {
+				c.setRuntimeState(StateSoldOut, c.currentSoldOutMessage())
+				return true
+			}
+			c.soldOutRetryAt.Store(0)
+		}
 		c.setRuntimeState(StateDetectingBall, "Warte auf Ball")
 		referenceBaseline := c.consumePendingBallReference()
 		if err := c.waitForBallReady(true, true, referenceBaseline); err != nil {
@@ -543,6 +567,14 @@ func (c *Client) runStateMachineCycle() bool {
 		}
 		c.setRuntimeState(StateBallOnSensor, "Ball auf Sensor erkannt")
 		if _, err := c.createPayment(); err != nil {
+			var soldOut *soldOutError
+			if errors.As(err, &soldOut) {
+				c.soldOutMessage.Store(soldOut.message)
+				c.soldOutRetryAt.Store(time.Now().Add(soldOutRetryBackoff).UnixNano())
+				c.setRuntimeState(StateSoldOut, c.currentSoldOutMessage())
+				log.Printf("Device client: payment creation refused, sold out: %s", soldOut.message)
+				return true
+			}
 			c.setRuntimeState(StateError, "Payment konnte nicht erstellt werden")
 			log.Printf("Device client: failed to create payment after ball detection: %v", err)
 			return false
@@ -663,7 +695,7 @@ func (c *Client) reportStatus(paymentID string) error {
 	httpReq.Header.Set("Content-Type", "application/json")
 	httpReq.Header.Set("Accept", "application/json")
 
-	resp, err := c.httpClient.Do(httpReq)
+	resp, err := c.doRequest(httpReq)
 	if err != nil {
 		return fmt.Errorf("request failed: %w", err)
 	}
@@ -785,7 +817,7 @@ func (c *Client) getCommand() (*CommandResponse, error) {
 	c.setAuthHeader(httpReq)
 	httpReq.Header.Set("Accept", "application/json")
 
-	resp, err := c.httpClient.Do(httpReq)
+	resp, err := c.doRequest(httpReq)
 	if err != nil {
 		return nil, fmt.Errorf("request failed: %w", err)
 	}
@@ -840,7 +872,7 @@ func (c *Client) createPayment() (string, error) {
 	httpReq.Header.Set("Content-Type", "application/json")
 	httpReq.Header.Set("Accept", "application/json")
 
-	resp, err := c.httpClient.Do(httpReq)
+	resp, err := c.doRequest(httpReq)
 	if err != nil {
 		return "", fmt.Errorf("request failed: %w", err)
 	}
@@ -848,6 +880,22 @@ func (c *Client) createPayment() (string, error) {
 
 	if resp.StatusCode == http.StatusUnauthorized {
 		return "", fmt.Errorf("unauthorized: invalid or missing API key")
+	}
+
+	if resp.StatusCode == http.StatusConflict {
+		body, _ := io.ReadAll(resp.Body)
+		var soldOutBody struct {
+			Error   string `json:"error"`
+			Message string `json:"message"`
+		}
+		if jsonErr := decodeJSONResponse(body, &soldOutBody, resp.Header.Get("Content-Type")); jsonErr == nil && soldOutBody.Error == "sold_out" {
+			msg := soldOutBody.Message
+			if msg == "" {
+				msg = "Ausverkauft - bitte später erneut versuchen"
+			}
+			return "", &soldOutError{message: msg}
+		}
+		return "", fmt.Errorf("unexpected status code %d: %s", resp.StatusCode, string(body))
 	}
 
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
@@ -897,7 +945,7 @@ func (c *Client) getPaymentStatus(paymentID string) (string, map[string]any, err
 	c.setAuthHeader(httpReq)
 	httpReq.Header.Set("Accept", "application/json")
 
-	resp, err := c.httpClient.Do(httpReq)
+	resp, err := c.doRequest(httpReq)
 	if err != nil {
 		return "", nil, fmt.Errorf("request failed: %w", err)
 	}
@@ -1155,7 +1203,7 @@ func (c *Client) ackCommand(commandID int, execErr error, imageData string) erro
 	httpReq.Header.Set("Content-Type", "application/json")
 	httpReq.Header.Set("Accept", "application/json")
 
-	resp, err := c.httpClient.Do(httpReq)
+	resp, err := c.doRequest(httpReq)
 	if err != nil {
 		return fmt.Errorf("request failed: %w", err)
 	}
@@ -1202,6 +1250,53 @@ func (c *Client) buildURL(path string) string {
 // setAuthHeader adds the authorization header to the request
 func (c *Client) setAuthHeader(req *http.Request) {
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", c.config.BaendaeliAPIKey))
+}
+
+const httpRetryAttempts = 3
+
+// doRequest sends the request and retries transient network failures such as
+// short-lived DNS outages on the Pi's uplink.
+func (c *Client) doRequest(req *http.Request) (*http.Response, error) {
+	var lastErr error
+	for attempt := 1; attempt <= httpRetryAttempts; attempt++ {
+		if attempt > 1 && req.GetBody != nil {
+			body, err := req.GetBody()
+			if err != nil {
+				return nil, err
+			}
+			req.Body = body
+		}
+
+		resp, err := c.httpClient.Do(req)
+		if err == nil {
+			return resp, nil
+		}
+		lastErr = err
+
+		if attempt == httpRetryAttempts || c.ctx.Err() != nil || !isTransientNetworkError(err) {
+			break
+		}
+
+		log.Printf("Device client: transient network error on %s %s (attempt %d/%d): %v", req.Method, req.URL.Path, attempt, httpRetryAttempts, err)
+		select {
+		case <-c.ctx.Done():
+			return nil, lastErr
+		case <-time.After(time.Duration(attempt) * 500 * time.Millisecond):
+		}
+	}
+	return nil, lastErr
+}
+
+func isTransientNetworkError(err error) bool {
+	if err == nil {
+		return false
+	}
+	var dnsErr *net.DNSError
+	if errors.As(err, &dnsErr) {
+		return true
+	}
+	var netErr net.Error
+	return errors.As(err, &netErr)
 }
 
 func decodeJSONResponse(body []byte, target interface{}, contentType string) error {
@@ -1722,6 +1817,14 @@ func (c *Client) isActuationCommandState() bool {
 
 func (c *Client) currentPaymentPhase() string {
 	return paymentPhase(c.getCurrentPayment())
+}
+
+// currentSoldOutMessage returns the last message reported by a sold-out response.
+func (c *Client) currentSoldOutMessage() string {
+	if msg, ok := c.soldOutMessage.Load().(string); ok && msg != "" {
+		return msg
+	}
+	return "Ausverkauft - bitte später erneut versuchen"
 }
 
 type vibratorAdapter struct{}
