@@ -123,7 +123,7 @@ func (p *Printer) PrintPaymentTicket(paymentID string, amountCents int64, dispen
 	return nil
 }
 
-// PrintStartupMessage prints a short greeting ticket once when the client starts.
+// PrintStartupMessage prints the printer-ready ticket once when the client starts.
 func (p *Printer) PrintStartupMessage() error {
 	if skipped := p.skipReason(); skipped != "" {
 		log.Printf("Printer: skipping startup ticket (%s)", skipped)
@@ -137,7 +137,14 @@ func (p *Printer) PrintStartupMessage() error {
 		return fmt.Errorf("printer not ready")
 	}
 
-	if err := p.writeTicket(printerText("Solibändeli <3\n")); err != nil {
+	body := []byte{}
+	body = append(body, 0x1d, '!', 0x11)
+	body = append(body, []byte("NBNN\n\n")...)
+	body = append(body, 0x1d, '!', 0x00)
+	body = append(body, []byte(formatTimestamp()+"\n")...)
+	body = append(body, []byte("Solibändeli Ready!!\n")...)
+
+	if err := p.writeTicket(body); err != nil {
 		return err
 	}
 
