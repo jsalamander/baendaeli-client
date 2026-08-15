@@ -15,6 +15,8 @@ import (
 const (
 	contentFeedLinesBefore = 4
 	feedLinesAfter         = 12
+	paymentFeedLinesBefore = 1
+	paymentFeedLinesAfter  = 15
 
 	defaultDevicePath = "/dev/usb/lp0"
 
@@ -115,7 +117,7 @@ func (p *Printer) PrintPaymentTicket(paymentID string, amountCents int64, dispen
 	body = append(body, []byte(formatTimestamp()+"\n\n")...)
 	body = append(body, []byte(paymentID+"\n")...)
 
-	if err := p.writeTicket(body); err != nil {
+	if err := p.writePaymentTicket(body); err != nil {
 		return err
 	}
 
@@ -170,6 +172,10 @@ func (p *Printer) PrintText(text string) error {
 	}
 
 	return p.writeTicket([]byte(text))
+}
+
+func (p *Printer) writePaymentTicket(body []byte) error {
+	return p.writeTicketWithMargins(body, paymentFeedLinesBefore, paymentFeedLinesAfter, true)
 }
 
 // skipReason returns a non-empty explanation when printing should be skipped.
@@ -237,6 +243,10 @@ func (p *Printer) checkPrinterReady() (bool, error) {
 
 // writeTicket initialises the printer, feeds tear margins around the body, and flushes.
 func (p *Printer) writeTicket(body []byte) error {
+	return p.writeTicketWithMargins(body, contentFeedLinesBefore, feedLinesAfter, false)
+}
+
+func (p *Printer) writeTicketWithMargins(body []byte, leadingLines, trailingLines int, withFooter bool) error {
 	f, err := os.OpenFile(p.devicePath, os.O_WRONLY, 0)
 	if err != nil {
 		return fmt.Errorf("failed to open printer: %w", err)
@@ -255,7 +265,7 @@ func (p *Printer) writeTicket(body []byte) error {
 	if _, err := f.Write([]byte{0x1b, 'E', 0x01}); err != nil { // bold on
 		return fmt.Errorf("failed to enable bold font: %w", err)
 	}
-	if _, err := f.Write([]byte(strings.Repeat("\n", contentFeedLinesBefore))); err != nil {
+	if _, err := f.Write([]byte(strings.Repeat("\n", leadingLines))); err != nil {
 		return fmt.Errorf("failed to feed before ticket content: %w", err)
 	}
 	if _, err := f.Write(printerText(string(body))); err != nil {
@@ -264,11 +274,13 @@ func (p *Printer) writeTicket(body []byte) error {
 	if _, err := f.Write([]byte{0x1b, 'E', 0x00, 0x1d, '!', 0x00}); err != nil { // bold off, reset font size
 		return fmt.Errorf("failed to reset printer formatting: %w", err)
 	}
-	if _, err := f.Write([]byte(strings.Repeat("\n", feedLinesAfter))); err != nil {
+	if _, err := f.Write([]byte(strings.Repeat("\n", trailingLines))); err != nil {
 		return fmt.Errorf("failed to feed after ticket: %w", err)
 	}
-	if _, err := f.Write([]byte("<3\n")); err != nil {
-		return fmt.Errorf("failed to write ticket footer: %w", err)
+	if withFooter {
+		if _, err := f.Write([]byte("<3\n")); err != nil {
+			return fmt.Errorf("failed to write ticket footer: %w", err)
+		}
 	}
 
 	return nil
