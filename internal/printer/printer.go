@@ -16,7 +16,7 @@ const (
 	contentFeedLinesBefore = 4
 	feedLinesAfter         = 12
 	paymentFeedLinesBefore = 1
-	paymentFeedLinesAfter  = 15
+	paymentFeedLinesAfter  = 24
 
 	defaultDevicePath = "/dev/usb/lp0"
 
