@@ -61,7 +61,7 @@ func TestInitDisabledPrinterDoesNotPrint(t *testing.T) {
 	if p.IsEnabled() {
 		t.Error("printer should be disabled")
 	}
-	if err := p.PrintPaymentTicket(2000, 1); err != nil {
+	if err := p.PrintPaymentTicket("test-payment", 2000, 1); err != nil {
 		t.Errorf("disabled PrintPaymentTicket returned error: %v", err)
 	}
 }
@@ -87,7 +87,7 @@ func TestInitSimulationFallbackWhenDeviceMissing(t *testing.T) {
 	}
 
 	// Simulated printer must no-op instead of failing.
-	if err := p.PrintPaymentTicket(2000, 1); err != nil {
+	if err := p.PrintPaymentTicket("test-payment", 2000, 1); err != nil {
 		t.Errorf("PrintPaymentTicket in simulation mode returned error: %v", err)
 	}
 	if err := p.PrintStartupMessage(); err != nil {

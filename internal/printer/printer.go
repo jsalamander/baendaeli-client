@@ -93,7 +93,7 @@ func (p *Printer) Close() error {
 }
 
 // PrintPaymentTicket prints a ticket for a completed payment.
-func (p *Printer) PrintPaymentTicket(amountCents int64, dispensedCount int) error {
+func (p *Printer) PrintPaymentTicket(paymentID string, amountCents int64, dispensedCount int) error {
 	if skipped := p.skipReason(); skipped != "" {
 		log.Printf("Printer: skipping payment ticket (%s)", skipped)
 		return nil
@@ -113,12 +113,13 @@ func (p *Printer) PrintPaymentTicket(amountCents int64, dispensedCount int) erro
 	body = append(body, []byte(quantityLine(dispensedCount)+"\n")...)
 	body = append(body, []byte(formatAmount(amountCents)+"\n\n")...)
 	body = append(body, []byte(formatTimestamp()+"\n")...)
+	body = append(body, []byte(paymentID+"\n")...)
 
 	if err := p.writeTicket(body); err != nil {
 		return err
 	}
 
-	log.Printf("Printer: payment ticket printed amount_cents=%d dispensed_count=%d", amountCents, dispensedCount)
+	log.Printf("Printer: payment ticket printed payment_id=%s amount_cents=%d dispensed_count=%d", paymentID, amountCents, dispensedCount)
 	return nil
 }
 

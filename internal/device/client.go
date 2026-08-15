@@ -133,7 +133,7 @@ type ticketPrinter interface {
 	IsEnabled() bool
 	Init(cfg *config.Config) error
 	Close() error
-	PrintPaymentTicket(amountCents int64, dispensedCount int) error
+	PrintPaymentTicket(paymentID string, amountCents int64, dispensedCount int) error
 	PrintStartupMessage() error
 }
 
@@ -1675,7 +1675,7 @@ func (c *Client) printTicketForPayment(paymentID string, payment map[string]any)
 		}
 	}
 
-	if err := c.printer.PrintPaymentTicket(amountCents, dispensedCount); err != nil {
+	if err := c.printer.PrintPaymentTicket(paymentID, amountCents, dispensedCount); err != nil {
 		log.Printf("Device client: ticket print failed for payment %s: %v", paymentID, err)
 		c.setExecutingCommand(&CommandResponse{
 			Command: "message",

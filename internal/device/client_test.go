@@ -68,7 +68,7 @@ func (s *stubTicketPrinter) Close() error {
 	return nil
 }
 
-func (s *stubTicketPrinter) PrintPaymentTicket(amountCents int64, dispensedCount int) error {
+func (s *stubTicketPrinter) PrintPaymentTicket(_ string, amountCents int64, dispensedCount int) error {
 	s.paymentCalls.Add(1)
 	s.lastAmount = amountCents
 	s.lastCount = dispensedCount
