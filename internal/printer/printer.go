@@ -112,7 +112,7 @@ func (p *Printer) PrintPaymentTicket(paymentID string, amountCents int64, dispen
 	body = append(body, 0x1d, '!', 0x00) // normal font
 	body = append(body, []byte(quantityLine(dispensedCount)+"\n")...)
 	body = append(body, []byte(formatAmount(amountCents)+"\n\n")...)
-	body = append(body, []byte(formatTimestamp()+"\n")...)
+	body = append(body, []byte(formatTimestamp()+"\n\n")...)
 	body = append(body, []byte(paymentID+"\n")...)
 
 	if err := p.writeTicket(body); err != nil {
@@ -266,6 +266,9 @@ func (p *Printer) writeTicket(body []byte) error {
 	}
 	if _, err := f.Write([]byte(strings.Repeat("\n", feedLinesAfter))); err != nil {
 		return fmt.Errorf("failed to feed after ticket: %w", err)
+	}
+	if _, err := f.Write([]byte("<3\n")); err != nil {
+		return fmt.Errorf("failed to write ticket footer: %w", err)
 	}
 
 	return nil
