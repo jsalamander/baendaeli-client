@@ -136,7 +136,7 @@ func (p *Printer) PrintStartupMessage() error {
 		return fmt.Errorf("printer not ready")
 	}
 
-	if err := p.writeTicket([]byte("Solibändeli <3\n")); err != nil {
+	if err := p.writeTicket(printerText("Solibändeli <3\n")); err != nil {
 		return err
 	}
 
@@ -235,21 +235,34 @@ func (p *Printer) writeTicket(body []byte) error {
 	}
 	defer f.Close()
 
-	var out []byte
-	out = append(out, 0x1b, '@') // initialise printer
-	for i := 0; i < feedLinesBefore; i++ {
-		out = append(out, '\n')
+	if _, err := f.Write([]byte{0x1b, '@'}); err != nil { // initialise printer
+		return fmt.Errorf("failed to initialise printer: %w", err)
 	}
-	out = append(out, 0x1b, 'a', 0x01) // centre align
-	out = append(out, body...)
-	out = append(out, 0x1d, '!', 0x00) // reset font size
-	for i := 0; i < feedLinesAfter; i++ {
-		out = append(out, '\n')
+	if _, err := f.Write([]byte(strings.Repeat("\n", feedLinesBefore))); err != nil {
+		return fmt.Errorf("failed to feed before ticket: %w", err)
 	}
-
-	if _, err := f.Write(out); err != nil {
+	if _, err := f.Write([]byte{0x1b, 't', 0x00}); err != nil { // select CP437
+		return fmt.Errorf("failed to select printer code page: %w", err)
+	}
+	if _, err := f.Write([]byte{0x1b, 'a', 0x01}); err != nil { // centre align
+		return fmt.Errorf("failed to centre ticket: %w", err)
+	}
+	if _, err := f.Write([]byte{0x1b, 'E', 0x01}); err != nil { // bold on
+		return fmt.Errorf("failed to enable bold font: %w", err)
+	}
+	if _, err := f.Write(printerText(string(body))); err != nil {
 		return fmt.Errorf("failed to write ticket: %w", err)
+	}
+	if _, err := f.Write([]byte{0x1b, 'E', 0x00, 0x1d, '!', 0x00}); err != nil { // bold off, reset font size
+		return fmt.Errorf("failed to reset printer formatting: %w", err)
+	}
+	if _, err := f.Write([]byte(strings.Repeat("\n", feedLinesAfter))); err != nil {
+		return fmt.Errorf("failed to feed after ticket: %w", err)
 	}
 
 	return nil
+}
+
+func printerText(text string) []byte {
+	return []byte(strings.ReplaceAll(text, "ä", string([]byte{0x84})))
 }

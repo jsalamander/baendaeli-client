@@ -41,6 +41,15 @@ func TestFormatAmount(t *testing.T) {
 	}
 }
 
+func TestPrinterTextUsesSingleByteUmlaut(t *testing.T) {
+	got := printerText("Solibändeli")
+	want := []byte{'S', 'o', 'l', 'i', 'b', 0x84, 'n', 'd', 'e', 'l', 'i'}
+
+	if string(got) != string(want) {
+		t.Errorf("printerText() = %v, want %v", got, want)
+	}
+}
+
 func TestInitDisabledPrinterDoesNotPrint(t *testing.T) {
 	disabled := false
 	cfg := &config.Config{PrinterEnabled: &disabled, PrinterDevicePath: "/dev/does-not-exist"}
