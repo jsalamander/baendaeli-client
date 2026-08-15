@@ -13,8 +13,8 @@ import (
 )
 
 const (
-	feedLinesBefore = 12
-	feedLinesAfter  = 12
+	contentFeedLinesBefore = 4
+	feedLinesAfter         = 12
 
 	defaultDevicePath = "/dev/usb/lp0"
 
@@ -246,9 +246,6 @@ func (p *Printer) writeTicket(body []byte) error {
 	if _, err := f.Write([]byte{0x1b, '@'}); err != nil { // initialise printer
 		return fmt.Errorf("failed to initialise printer: %w", err)
 	}
-	if _, err := f.Write([]byte(strings.Repeat("\n", feedLinesBefore))); err != nil {
-		return fmt.Errorf("failed to feed before ticket: %w", err)
-	}
 	if _, err := f.Write([]byte{0x1b, 't', 0x00}); err != nil { // select CP437
 		return fmt.Errorf("failed to select printer code page: %w", err)
 	}
@@ -257,6 +254,9 @@ func (p *Printer) writeTicket(body []byte) error {
 	}
 	if _, err := f.Write([]byte{0x1b, 'E', 0x01}); err != nil { // bold on
 		return fmt.Errorf("failed to enable bold font: %w", err)
+	}
+	if _, err := f.Write([]byte(strings.Repeat("\n", contentFeedLinesBefore))); err != nil {
+		return fmt.Errorf("failed to feed before ticket content: %w", err)
 	}
 	if _, err := f.Write(printerText(string(body))); err != nil {
 		return fmt.Errorf("failed to write ticket: %w", err)
