@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="de">
+
+<head>
+	<meta charset="utf-8">
+	<title>Solibändeli – Anleitung</title>
+	<style>
+		@page {
+			size: A4 portrait;
+			margin: 0;
+		}
+
+		* {
+			box-sizing: border-box;
+		}
+
+		body {
+			margin: 0;
+			padding: 15mm;
+			font-family: Arial, Helvetica, sans-serif;
+			color: #111;
+			line-height: 1.35;
+		}
+
+		header {
+			border-bottom: 3pt solid #111;
+			padding-bottom: 7mm;
+			text-align: center;
+		}
+
+		.eyebrow {
+			font-size: 10pt;
+			font-weight: 700;
+			letter-spacing: 0.16em;
+			margin: 0 0 3mm;
+			text-transform: uppercase;
+		}
+
+		h1 {
+			font-size: 29pt;
+			line-height: 1.05;
+			margin: 0;
+		}
+
+		p.lead {
+			font-size: 14pt;
+			font-weight: 700;
+			margin: 4mm 0 0;
+		}
+
+		ol {
+			list-style: none;
+			counter-reset: step;
+			margin: 10mm 0 0;
+			padding: 0;
+		}
+
+		li {
+			counter-increment: step;
+			display: flex;
+			gap: 6mm;
+			align-items: flex-start;
+			padding: 5mm 0 6mm;
+			border-top: 1pt solid #777;
+		}
+
+		li:first-child {
+			border-top: 0;
+		}
+
+		li::before {
+			content: counter(step);
+			background: #111;
+			border-radius: 50%;
+			color: #fff;
+			font-size: 17pt;
+			font-weight: 700;
+			line-height: 11mm;
+			min-width: 11mm;
+			height: 11mm;
+			text-align: center;
+		}
+
+		b {
+			display: block;
+			font-size: 16pt;
+			line-height: 1.15;
+			margin: 1mm 0 2mm;
+		}
+
+		span {
+			font-size: 12pt;
+			display: block;
+		}
+
+		span+span {
+			margin-top: 2mm;
+		}
+
+		span i {
+			font-style: normal;
+			font-weight: 700;
+		}
+
+		footer {
+			border-top: 1pt solid #777;
+			font-size: 11.5pt;
+			font-weight: 700;
+			margin-top: 7mm;
+			padding: 4mm 0 0;
+			text-align: center;
+		}
+
+		@media print {
+			li::before {
+				background: transparent;
+				border: 1.5pt solid #111;
+				color: #111;
+			}
+		}
+	</style>
+</head>
+
+<body>
+	<header>
+		<p class="eyebrow">NBNN 26 · Kurzanleitung</p>
+		<h1>So bekommst du dein Solibändeli</h1>
+		<p class="lead">Spenden. Bändeli entnehmen. Fertig.</p>
+	</header>
+
+	<ol>
+		<li>
+			<div>
+				<b>QR-Code scannen</b>
+				<span>Kamera-App oder QR-Code-Scanner auf den QR-Code am Bildschirm richten und den Link öffnen, der erscheint.</span>
+			</div>
+		</li>
+		<li>
+			<div>
+				<b>Bezahlen</b>
+				<span><i>a) Mit TWINT:</i> Spendenbetrag auswählen oder einen eigenen Betrag eingeben (mindestens 25 CHF), danach auf der Zahlungsseite mit TWINT bezahlen.</span>
+				<span><i>b) Mit Voucher:</i> Am Infostand einen Voucher gegen Bargeld kaufen und den Voucher einlösen – ein Betrag muss dann nicht mehr gewählt werden.</span>
+			</div>
+		</li>
+		<li>
+			<div>
+				<b>Kugel entnehmen</b>
+				<span>Der Bildschirm zeigt «Ausgabe läuft». Die Kugel wird automatisch ausgegeben, unten herausnehmen und öffnen.</span>
+			</div>
+		</li>
+		<li>
+			<div>
+				<b>Quittung abreissen</b>
+				<span>Nach der Zahlung erscheint eine Zahlungsbestätigungsseite. Diese bitte aufbewahren. Danach die Quittung vom Drucker unten abreissen, das Bändeli aus der Kugel nehmen und die leere Kugel zurückgeben.</span>
+			</div>
+		</li>
+	</ol>
+
+	<footer>Klappt etwas nicht? Bitte beim offiziellen Infostand melden. Danke für deine Spende! &lt;3</footer>
+</body>
+
+</html>
