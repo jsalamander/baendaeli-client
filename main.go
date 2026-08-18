@@ -126,7 +126,7 @@ func main() {
 
 	// Start HTTP server in a goroutine
 	go func() {
-		addr := "0.0.0.0:8000"
+		addr := "127.0.0.1:8000"
 		log.Printf("Starting server on %s", buildServerURL(addr))
 		if err := http.ListenAndServe(addr, srv.Router()); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("Server error: %v", err)
