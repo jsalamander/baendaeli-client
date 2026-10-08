@@ -35,8 +35,8 @@ const stateUi = {
 	detecting_ball: {
 		status: 'Warte auf Ball',
 		badge: 'badge-info',
-		title: 'Spende für ein Solibändeli',
-		description: 'Bitte warten. Das System bereitet die Ausgabe vor und erstellt danach automatisch die Zahlung.',
+		title: 'Tombola-Lösli kaufen',
+		description: 'Scanne den QR-Code und bezahle dein Tombola-Lösli. Sobald die Zahlung bestätigt ist, kannst du dein Los entnehmen.',
 		placeholderTitle: 'Bereit für nächsten Ball',
 		placeholderSubtitle: 'Sobald ein Ball erkannt wird, startet die Zahlung automatisch.'
 	},
@@ -76,7 +76,7 @@ const stateUi = {
 		status: 'Ausgabe läuft',
 		badge: 'badge-success',
 		title: 'Ausgabe läuft',
-		description: 'Dein Solibändeli wird ausgegeben.',
+		description: 'Dein Tombola-Gewinn wird ausgegeben.',
 		placeholderTitle: 'Ausgabe läuft',
 		placeholderSubtitle: 'Bitte kurz warten.'
 	},
@@ -100,7 +100,7 @@ const stateUi = {
 		status: 'Ausverkauft',
 		badge: 'badge-error',
 		title: 'Ausverkauft',
-		description: 'Die Solibändeli sind momentan ausverkauft. Bitte später erneut versuchen.',
+		description: 'Die Tombola ist momentan ausverkauft. Bitte später erneut versuchen.',
 		placeholderTitle: 'Ausverkauft',
 		placeholderSubtitle: 'Bitte später erneut versuchen.'
 	},
