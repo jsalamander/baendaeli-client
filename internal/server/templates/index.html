@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" data-theme="dark">
+<html lang="en" data-theme="light">
 <head>
 	<meta charset="UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -21,12 +21,25 @@
 			font-style: normal;
 			font-display: swap;
 		}
+		@font-face {
+			font-family: "Metal Mania";
+			src: url("/fonts/MetalMania-Regular.ttf") format("truetype");
+			font-weight: 400;
+			font-style: normal;
+			font-display: swap;
+		}
 		.hidden { display: none; }
 		html, body {
 			height: 100%;
 			overflow: hidden;
 		}
 		:root {
+			--flyer-surface: #e5e2df;
+			--flyer-white: #ffffff;
+			--flyer-ink: #101010;
+			--flyer-red: #f10d1b;
+			--flyer-red-dark: #a30b15;
+			--flyer-success: #228b22;
 			--qr-size: clamp(180px, 52vw, 320px);
 			--qr-padding: clamp(0.75rem, 2vw, 1.25rem);
 			--frame-padding: clamp(0.75rem, 2.4vw, 1.75rem);
@@ -34,9 +47,47 @@
 			--title-size: clamp(1.25rem, calc(var(--qr-size) / 9), 2rem);
 			--copy-size: clamp(0.9rem, calc(var(--qr-size) / 14), 1.25rem);
 		}
-		body {
+		body.bg-base-100 {
 			box-sizing: border-box;
 			padding: var(--frame-padding);
+			background-color: var(--flyer-surface);
+			color: var(--flyer-ink);
+			isolation: isolate;
+		}
+		#flyerDoodles {
+			position: fixed;
+			inset: 0;
+			z-index: 0;
+			width: 100%;
+			height: 100%;
+			pointer-events: none;
+			opacity: 0.16;
+		}
+		nav,
+		#mainContent {
+			position: relative;
+			z-index: 1;
+		}
+		#versionBadge,
+		#diagnosticsBadges {
+			z-index: 2;
+		}
+		.navbar.bg-base-100 {
+			background-color: var(--flyer-surface);
+		}
+		#paymentCard,
+		#errorPopup .card {
+			background-color: var(--flyer-surface);
+			color: var(--flyer-ink);
+		}
+		#paymentCard {
+			background-color: transparent;
+		}
+		#qr {
+			background-color: var(--flyer-surface);
+		}
+		#errorPopup .bg-base-200 {
+			background-color: var(--flyer-surface);
 		}
 		#versionBadge,
 		#diagnosticsBadges {
@@ -78,11 +129,21 @@
 			text-align: center;
 			justify-content: center;
 			width: 100%;
-			color: #fff;
+			color: var(--flyer-ink);
 			font-family: "akzidenz-grotesk-next-extend", "AkzidenzGroteskBlack", "NeueHaasDisplay", sans-serif;
 		}
 		#errorPopupTitle {
 			font-family: "akzidenz-grotesk-next-extend", "AkzidenzGroteskBlack", "NeueHaasDisplay", sans-serif;
+		}
+		#tombolaBrand {
+			margin: 0;
+			color: var(--flyer-red);
+			font-family: "Metal Mania", "akzidenz-grotesk-next-extend", sans-serif;
+			font-size: 3.5rem;
+			font-weight: 400;
+			line-height: 1;
+			text-align: center;
+			text-shadow: 2px 2px 0 var(--flyer-ink);
 		}
 		#paymentDescription {
 			font-size: var(--copy-size);
@@ -91,51 +152,77 @@
 			margin-left: auto;
 			margin-right: auto;
 			max-width: 34ch;
-			color: #fff;
-		}
-		#status.badge-error {
-			color: #fff;
+			color: var(--flyer-ink);
 		}
 		#status {
-			color: #fff;
+			color: var(--flyer-white);
 			font-weight: 700;
-			background-color: #334155;
-		}
-		#status.badge-primary {
-			background-color: #1e3a8a;
-			color: #fff;
-		}
-		#status.badge-info {
-			background-color: #0c4a6e;
-			color: #fff;
-		}
-		#status.badge-success {
-			background-color: #14532d;
-			color: #fff;
-		}
-		#status.badge-warning {
-			background-color: #854d0e;
-			color: #fff;
-		}
-		#status.badge-error {
-			background-color: #7f1d1d;
-			color: #fff;
+			border: 1px solid var(--flyer-red);
+			border-radius: 0.5rem;
+			background-color: var(--flyer-red);
 		}
 		#status .status {
-			background-color: #f8fafc;
+			background-color: var(--flyer-white);
 		}
-		#status.badge-primary .status { background-color: #bfdbfe; }
-		#status.badge-info .status { background-color: #bae6fd; }
-		#status.badge-success .status { background-color: #bbf7d0; }
-		#status.badge-warning .status { background-color: #fde68a; }
-		#status.badge-error .status { background-color: #fecaca; }
+		.alert.alert-info {
+			border: 1px solid var(--flyer-red);
+			border-radius: 0.5rem;
+			background-color: var(--flyer-red);
+			color: var(--flyer-white);
+		}
+		.alert.alert-info .loader-ring {
+			border-color: rgba(255, 255, 255, 0.25);
+			border-top-color: var(--flyer-white);
+		}
+		.btn.btn-primary {
+			border-color: var(--flyer-red);
+			background-color: var(--flyer-red);
+			color: var(--flyer-white);
+		}
+		.alert.alert-success {
+			border-color: var(--flyer-red);
+			background-color: var(--flyer-red);
+			color: var(--flyer-white);
+		}
+		.alert.alert-warning {
+			border-color: var(--flyer-surface);
+			background-color: var(--flyer-surface);
+			color: var(--flyer-ink);
+		}
+		.alert.alert-error {
+			border-color: var(--flyer-red-dark);
+			background-color: var(--flyer-red-dark);
+			color: var(--flyer-white);
+		}
+		.text-error {
+			color: var(--flyer-red-dark);
+		}
+		#diagnosticsBadges .bg-warning {
+			background-color: var(--flyer-surface);
+		}
+		#diagnosticsBadges .bg-success {
+			background-color: var(--flyer-success);
+		}
+		#diagnosticsBadges .bg-error {
+			background-color: var(--flyer-red-dark);
+		}
 		.loader-ring {
 			width: 2.25rem;
 			height: 2.25rem;
 			border-radius: 9999px;
-			border: 0.2rem solid rgba(255, 255, 255, 0.2);
-			border-top-color: #fff;
+			border: 0.2rem solid rgba(16, 16, 16, 0.2);
+			border-top-color: var(--flyer-red);
 			animation: loader-spin 0.85s linear infinite;
+		}
+		.startup-power-icon {
+			color: var(--flyer-red);
+			animation: startup-pulse 1.8s ease-in-out infinite;
+		}
+		@keyframes startup-pulse {
+			50% { opacity: 0.55; transform: scale(0.94); }
+		}
+		@media (prefers-reduced-motion: reduce) {
+			.startup-power-icon { animation: none; }
 		}
 		.loader-ring-sm {
 			width: 1.5rem;
@@ -187,9 +274,22 @@
 		}
 	</style>
 </head>
-<body class="flex flex-col min-h-screen bg-base-900 overflow-x-hidden">
+<body class="flex flex-col min-h-screen bg-base-100 overflow-x-hidden">
+	<svg id="flyerDoodles" viewBox="0 0 1440 900" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+		<defs>
+			<path id="flyerRosette" d="M0-72 C18-79 24-53 38-61 C56-71 72-53 58-36 C82-24 76-7 59 0 C78 18 66 38 45 34 C45 57 23 66 8 46 C-5 70-27 64-26 42 C-49 57-69 36-50 17 C-76 5-69-19-45-23 C-64-43-43-61-22-49 C-18-68-7-78 0-72Z" />
+		</defs>
+		<g fill="none" stroke="var(--flyer-red)" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
+			<use href="#flyerRosette" transform="translate(150 175) scale(0.8) rotate(-12)" />
+			<use href="#flyerRosette" transform="translate(1280 205) scale(0.55) rotate(18)" />
+			<use href="#flyerRosette" transform="translate(95 700) scale(0.65) rotate(8)" />
+			<use href="#flyerRosette" transform="translate(1320 735) scale(0.78) rotate(-16)" />
+			<path d="M-40 430 C105 310 80 555 220 480 S365 366 405 472 C451 596 286 627 300 501 C316 360 557 299 603 430" />
+			<path d="M1010 60 C882 136 1064 206 1180 143 S1389 88 1480 195 M880 806 C1015 705 1084 862 1200 791 S1370 672 1490 752" />
+		</g>
+	</svg>
 	<!-- Navbar with integrated status -->
-	<nav class="navbar bg-base-800 px-3 sm:px-4">
+	<nav class="navbar bg-base-100 px-3 sm:px-4">
 		<div class="flex-1"></div>
 		<div class="flex-none">
 			<div class="badge badge-primary text-xs sm:text-sm md:text-base px-2 sm:px-4 py-2 sm:py-3 max-w-[70vw] lg:max-w-[55vw] overflow-hidden" id="status">
@@ -201,7 +301,7 @@
 
 	<!-- Main Content -->
 	<main class="flex-1 flex items-center justify-center p-3 sm:p-4 md:p-6" id="mainContent" style="padding-bottom: var(--bottom-safe-area);">
-		<div class="card bg-base-800 w-full" id="paymentCard">
+		<div class="card bg-base-100 w-full" id="paymentCard">
 			<div class="card-body p-4 sm:p-6 gap-3 sm:gap-4">
 				<!-- Success Banner (hidden by default) -->
 				<div class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur" id="successBanner">
@@ -229,14 +329,14 @@
 
 				<!-- Error Popup (hidden by default) -->
 				<div class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur" id="errorPopup">
-					<div class="card bg-base-800 w-full max-w-md mx-4">
+					<div class="card bg-base-100 w-full max-w-md mx-4">
 						<div class="card-body">
 							<div class="flex items-start gap-3">
 								<svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6 text-error" fill="none" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
 								<div class="flex-1">
 									<h3 class="font-bold text-lg text-error mb-2" id="errorPopupTitle">Fehler</h3>
 									<p class="text-base mb-2" id="errorPopupMessage"></p>
-									<div class="bg-base-900 rounded p-3 mb-3">
+									<div class="bg-base-200 rounded p-3 mb-3">
 										<p class="text-xs text-base-content/70 mb-1">Fehlercode:</p>
 										<p class="text-sm font-mono" id="errorPopupCode"></p>
 										<p class="text-xs text-base-content/70 mt-2 mb-1">Details:</p>
@@ -252,9 +352,10 @@
 					</div>
 				</div>
 
-				<h2 class="card-title" id="paymentTitle">Tombola-Lösli kaufen</h2>
+				<h1 id="tombolaBrand">TOMBOLA</h1>
+				<h2 class="card-title hidden" id="paymentTitle"></h2>
 				<p id="paymentDescription">Scanne den QR-Code und bezahle dein Tombola-Lösli. Sobald die Zahlung bestätigt ist, kannst du dein Los entnehmen.</p>
-				<div class="bg-base-700 rounded-lg flex items-center justify-center w-full overflow-hidden" id="qr">
+				<div class="bg-base-200 rounded-lg flex items-center justify-center w-full overflow-hidden" id="qr">
 					<div class="text-center">
 						<div class="loader-ring mx-auto" aria-hidden="true"></div>
 						<p class="mt-2 text-sm">Warten auf QR Code...</p>
@@ -282,7 +383,7 @@
 			<div class="w-2 h-2 rounded-full bg-warning" id="gatewayDot"></div>
 			<span id="gatewayStatusText">API...</span>
 		</div>
-		<div class="text-[10px] sm:text-xs text-white badge badge-ghost">
+		<div class="text-[10px] sm:text-xs text-base-content badge">
 			<span id="gatewayMeta">...</span>
 		</div>
 	</div>

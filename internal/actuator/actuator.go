@@ -66,7 +66,7 @@ func Init(config Config) error {
 		// GPIO not available - enable simulation mode
 		log.Printf("Warning: GPIO not available, running in simulation mode: %v", err)
 		actuator = &Actuator{
-			enabled:      true,  // Enable simulation
+			enabled:      true, // Enable simulation
 			enaPin:       nil,
 			in1Pin:       nil,
 			in2Pin:       nil,
@@ -149,7 +149,7 @@ func (a *Actuator) stopMotor() error {
 		time.Sleep(settlingDelay)
 		return nil
 	}
-	
+
 	if err := a.in1Pin.Out(gpio.Low); err != nil {
 		return fmt.Errorf("failed to set IN1 low: %w", err)
 	}
@@ -178,7 +178,7 @@ func Home() {
 	// Retract to shortest position on startup (home position)
 	// Run for fixed 10 seconds to ensure full retraction regardless of starting position
 	log.Println("Actuator: retracting to home position...")
-	
+
 	// If pins are nil, we're in simulation mode
 	if actuator.in1Pin == nil || actuator.in2Pin == nil {
 		log.Printf("Actuator (SIMULATION): homing for %v", homingDuration)
@@ -187,7 +187,7 @@ func Home() {
 		log.Println("Actuator (SIMULATION): homing complete - now at home position")
 		return
 	}
-	
+
 	if err := actuator.in1Pin.Out(gpio.Low); err != nil {
 		log.Printf("Actuator homing error: failed to set IN1 low: %v", err)
 		return
@@ -196,11 +196,11 @@ func Home() {
 		log.Printf("Actuator homing error: failed to set IN2 high: %v", err)
 		return
 	}
-	
+
 	// Run retract for fixed duration to guarantee full retraction
 	log.Printf("Actuator: homing for %v", homingDuration)
 	time.Sleep(homingDuration)
-	
+
 	// Stop: both LOW
 	if err := actuator.in1Pin.Out(gpio.Low); err != nil {
 		log.Printf("Actuator homing error: failed to set IN1 low after homing: %v", err)
@@ -213,7 +213,7 @@ func Home() {
 
 	// Wait for motor to fully stop (settling time)
 	time.Sleep(settlingDelay)
-	
+
 	actuator.isHome = true
 	log.Println("Actuator: homing complete - now at home position")
 }
@@ -242,7 +242,7 @@ func (a *Actuator) Trigger() (int, error) {
 		a.isHome = true
 
 		totalMs := int(time.Since(start).Milliseconds())
-		log.Printf("Actuator (SIMULATION) cycle complete: extend=%v, retract=%v, total=%dms", 
+		log.Printf("Actuator (SIMULATION) cycle complete: extend=%v, retract=%v, total=%dms",
 			a.movementTime, a.movementTime+retractExtra, totalMs)
 		return totalMs, nil
 	}
@@ -288,7 +288,7 @@ func (a *Actuator) Trigger() (int, error) {
 	a.isHome = true
 
 	totalMs := int(time.Since(start).Milliseconds())
-	log.Printf("Actuator cycle complete: extend=%v, retract=%v, total=%dms", 
+	log.Printf("Actuator cycle complete: extend=%v, retract=%v, total=%dms",
 		a.movementTime, a.movementTime+retractExtra, totalMs)
 	return totalMs, nil
 }
@@ -300,7 +300,7 @@ func Extend(duration time.Duration) error {
 	}
 
 	log.Printf("Actuator: extending for %v...", duration)
-	
+
 	// If pins are nil, we're in simulation mode
 	if actuator.in1Pin == nil || actuator.in2Pin == nil {
 		log.Printf("Actuator (SIMULATION): would extend for %v", duration)
@@ -309,7 +309,7 @@ func Extend(duration time.Duration) error {
 		actuator.isHome = false
 		return nil
 	}
-	
+
 	// Extend: IN1 HIGH, IN2 LOW
 	if err := actuator.in1Pin.Out(gpio.High); err != nil {
 		return fmt.Errorf("failed to set IN1 high: %w", err)
@@ -337,7 +337,7 @@ func Retract(duration time.Duration) error {
 	}
 
 	log.Printf("Actuator: retracting for %v...", duration)
-	
+
 	// If pins are nil, we're in simulation mode
 	if actuator.in1Pin == nil || actuator.in2Pin == nil {
 		log.Printf("Actuator (SIMULATION): would retract for %v", duration)
@@ -345,7 +345,7 @@ func Retract(duration time.Duration) error {
 		log.Println("Actuator (SIMULATION): retract complete")
 		return nil
 	}
-	
+
 	// Retract: IN1 LOW, IN2 HIGH
 	if err := actuator.in1Pin.Out(gpio.Low); err != nil {
 		return fmt.Errorf("failed to set IN1 low: %w", err)
@@ -377,11 +377,20 @@ func Trigger() (int, error) {
 
 // Cleanup closes GPIO resources
 func Cleanup() {
-	if actuator != nil {
+	if actuator == nil {
+		return
+	}
+	if actuator.enaPin != nil {
 		actuator.enaPin.Out(gpio.Low)
 		actuator.enaPin.Halt()
+	}
+	if actuator.in1Pin != nil {
 		actuator.in1Pin.Halt()
+	}
+	if actuator.in2Pin != nil {
 		actuator.in2Pin.Halt()
+	}
+	if actuator.enaPin != nil || actuator.in1Pin != nil || actuator.in2Pin != nil {
 		log.Println("Actuator GPIO cleaned up")
 	}
 }

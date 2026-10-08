@@ -579,7 +579,7 @@ func (c *Client) runStateMachineCycle() bool {
 			log.Printf("Device client: failed to create payment after ball detection: %v", err)
 			return false
 		}
-		c.setRuntimeState(StateBallDetected, "Bitte QR-Code scannen und Betrag wählen")
+		c.setRuntimeState(StateBallDetected, "Bitte QR-Code scannen und zahlen")
 		return true
 	}
 
@@ -603,7 +603,7 @@ func (c *Client) runStateMachineCycle() bool {
 			})
 			return true
 		}
-		c.setRuntimeState(StateBallDetected, "Bitte QR-Code scannen und Betrag wählen")
+		c.setRuntimeState(StateBallDetected, "Bitte QR-Code scannen und zahlen")
 		c.clearExecutingCommand()
 		return true
 	case "success", "paid", "completed":

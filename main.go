@@ -67,6 +67,9 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to load config: %v", err)
 	}
+	if apiURL := os.Getenv("BAENDAELI_URL"); apiURL != "" {
+		cfg.BaendaeliURL = apiURL
+	}
 
 	// Apply defaults
 	cfg.SetDefaults()

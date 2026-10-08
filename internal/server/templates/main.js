@@ -19,7 +19,8 @@ const stateUi = {
 	starting: {
 		status: 'Gerät startet...',
 		badge: 'badge-primary',
-		title: 'Gerät startet',
+		hideStatus: true,
+		title: '',
 		description: 'Die Ausgabe wird vorbereitet. Bitte kurz warten.',
 		placeholderTitle: 'Systemstart läuft',
 		placeholderSubtitle: 'Bitte einen Moment Geduld.'
@@ -35,7 +36,7 @@ const stateUi = {
 	detecting_ball: {
 		status: 'Warte auf Ball',
 		badge: 'badge-info',
-		title: 'Tombola-Lösli kaufen',
+		title: '',
 		description: 'Scanne den QR-Code und bezahle dein Tombola-Lösli. Sobald die Zahlung bestätigt ist, kannst du dein Los entnehmen.',
 		placeholderTitle: 'Bereit für nächsten Ball',
 		placeholderSubtitle: 'Sobald ein Ball erkannt wird, startet die Zahlung automatisch.'
@@ -51,8 +52,8 @@ const stateUi = {
 	ball_detected: {
 		status: 'Ball erkannt',
 		badge: 'badge-warning',
-		title: 'QR scannen und Betrag wählen',
-		description: 'Bitte scanne den QR-Code und wähle danach den Betrag auf dem Gerät.',
+		title: '',
+		description: 'Scanne QR Code und zahle mit Twint oder Voucher',
 		placeholderTitle: 'Zahlung wird vorbereitet',
 		placeholderSubtitle: 'QR-Code wird geladen...'
 	},
@@ -248,22 +249,23 @@ function renderDeviceState(data) {
 	}
 
 	updateStatus(statusMessage, ui.badge);
+	statusEl.classList.toggle('hidden', Boolean(ui.hideStatus));
 	paymentTitleEl.textContent = ui.title;
+	paymentTitleEl.classList.toggle('hidden', !ui.title);
 	paymentDescriptionEl.textContent = ui.description;
 	renderPaymentExpiry(data.payment, state);
 
 	const showAmountSelectionWaiting = shouldShowAmountSelectionWaiting(state, data.payment);
 	const amountSelectionExpiryMs = getAmountSelectionExpiryMs(data.payment);
 	const paymentExpiryMs = getPaymentExpiryMs(data.payment);
+	const startupPlaceholder = state === 'starting' || state === 'startup_cycle';
 
-	if (data.payment && state === 'ball_detected' && !showAmountSelectionWaiting) {
+	if (data.payment && state === 'ball_detected') {
 		renderQr(data.payment);
-	} else if (showAmountSelectionWaiting) {
-		renderQrPlaceholder('Auswahl läuft', 'Bitte im Smartphone fortfahren.');
 	} else if (state === 'awaiting_payment') {
 		renderQrPlaceholder('Zahlung wird abgeschlossen', 'Bitte schließe die Zahlung auf dem Smartphone ab.');
 	} else {
-		renderQrPlaceholder(ui.placeholderTitle, ui.placeholderSubtitle);
+		renderQrPlaceholder(ui.placeholderTitle, ui.placeholderSubtitle, startupPlaceholder ? 'power' : 'qr');
 	}
 
 	if (showAmountSelectionWaiting) {

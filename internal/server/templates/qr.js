@@ -128,14 +128,15 @@ if (window.visualViewport) {
 
 document.addEventListener('DOMContentLoaded', scheduleResponsiveQrSizeUpdate);
 
-function renderQrPlaceholder(title, subtitle) {
+function renderQrPlaceholder(title, subtitle, icon = 'qr') {
 	// Reset the cache so the next renderQr() call always re-renders fresh.
 	lastQrKey = null;
+	const iconMarkup = icon === 'power'
+		? '<svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 startup-power-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" d="M12 2v10m7.07-7.07a10 10 0 1 1-14.14 0" /></svg>'
+		: '<svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 opacity-70" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 3h6a2 2 0 012 2v6m0 2v6a2 2 0 01-2 2H9a2 2 0 01-2-2v-6m0-2V5a2 2 0 012-2zm-2 8h10m-5-5v10" /></svg>';
 	qrEl.innerHTML =
 		'<div class="mx-auto flex max-w-xs flex-col items-center justify-center gap-3 text-center text-base-content/80">' +
-		'<svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 opacity-70" fill="none" viewBox="0 0 24 24" stroke="currentColor">' +
-		'<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 3h6a2 2 0 012 2v6m0 2v6a2 2 0 01-2 2H9a2 2 0 01-2-2v-6m0-2V5a2 2 0 012-2zm-2 8h10m-5-5v10" />' +
-		'</svg>' +
+		iconMarkup +
 		'<p class="text-sm font-semibold">' + title + '</p>' +
 		'<p class="text-xs text-base-content/60">' + subtitle + '</p>' +
 		'</div>';

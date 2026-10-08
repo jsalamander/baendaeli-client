@@ -1,57 +1,65 @@
 package actuator
 
 import (
-    "testing"
-    "time"
+	"testing"
+	"time"
 )
 
 // ensure Init is a no-op when disabled and does not set the global actuator
 func TestInitDisabledLeavesActuatorNil(t *testing.T) {
-    prev := actuator
-    actuator = nil
-    defer func() { actuator = prev }()
+	prev := actuator
+	actuator = nil
+	defer func() { actuator = prev }()
 
-    cfg := Config{Enabled: false}
-    if err := Init(cfg); err != nil {
-        t.Fatalf("Init returned error for disabled config: %v", err)
-    }
-    if actuator != nil {
-        t.Fatalf("actuator should remain nil when disabled")
-    }
+	cfg := Config{Enabled: false}
+	if err := Init(cfg); err != nil {
+		t.Fatalf("Init returned error for disabled config: %v", err)
+	}
+	if actuator != nil {
+		t.Fatalf("actuator should remain nil when disabled")
+	}
 }
 
 // validate Trigger uses mock timing path when actuator is disabled
 func TestTriggerWithDisabledActuatorUsesConfiguredDurations(t *testing.T) {
-    prev := actuator
-    actuator = &Actuator{
-        enabled:      false,
-        movementTime: 10 * time.Millisecond,
-        pause:        5 * time.Millisecond,
-    }
-    defer func() { actuator = prev }()
+	prev := actuator
+	actuator = &Actuator{
+		enabled:      false,
+		movementTime: 10 * time.Millisecond,
+		pause:        5 * time.Millisecond,
+	}
+	defer func() { actuator = prev }()
 
-    start := time.Now()
-    totalMs, err := Trigger()
-    elapsed := time.Since(start)
+	start := time.Now()
+	totalMs, err := Trigger()
+	elapsed := time.Since(start)
 
-    if err != nil {
-        t.Fatalf("Trigger returned error: %v", err)
-    }
+	if err != nil {
+		t.Fatalf("Trigger returned error: %v", err)
+	}
 
-    // expected ~1225ms (10ms extend + 1010ms retract + 5ms pause + 2x 100ms settling); allow buffer for scheduling
-    if totalMs < 1100 || totalMs > 1500 {
-        t.Fatalf("unexpected reported duration: %dms", totalMs)
-    }
-    if elapsed < 1100*time.Millisecond || elapsed > 1800*time.Millisecond {
-        t.Fatalf("unexpected elapsed wall time: %v", elapsed)
-    }
+	// expected ~1225ms (10ms extend + 1010ms retract + 5ms pause + 2x 100ms settling); allow buffer for scheduling
+	if totalMs < 1100 || totalMs > 1500 {
+		t.Fatalf("unexpected reported duration: %dms", totalMs)
+	}
+	if elapsed < 1100*time.Millisecond || elapsed > 1800*time.Millisecond {
+		t.Fatalf("unexpected elapsed wall time: %v", elapsed)
+	}
 }
 
 // ensure Cleanup tolerates nil actuator without panicking
 func TestCleanupNilSafe(t *testing.T) {
-    prev := actuator
-    actuator = nil
-    defer func() { actuator = prev }()
+	prev := actuator
+	actuator = nil
+	defer func() { actuator = prev }()
 
-    Cleanup() // should not panic
+	Cleanup() // should not panic
+}
+
+func TestCleanupSimulationSafe(t *testing.T) {
+	prev := actuator
+	actuator = &Actuator{enabled: true}
+	defer func() { actuator = prev }()
+
+	Cleanup()
 }

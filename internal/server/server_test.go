@@ -133,6 +133,9 @@ func TestServeMainTemplate_SubstitutesConfig(t *testing.T) {
     if !strings.Contains(body, "renderQr(data.payment)") {
         t.Fatalf("main.js should render QR from device status payment payload, body: %s", body)
     }
+    if !strings.Contains(body, "if (data.payment && state === 'ball_detected') {") {
+        t.Fatalf("main.js should keep the QR visible while waiting for amount selection, body: %s", body)
+    }
     if !strings.Contains(body, "renderPaymentExpiry(data.payment, state)") {
         t.Fatalf("main.js should pass state into renderPaymentExpiry, body: %s", body)
     }
