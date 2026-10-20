@@ -115,6 +115,10 @@ func TestLeverFreeDispenseRetainsPaymentAndDoesNotCountAsPaid(t *testing.T) {
 		if snapshot.State != string(StateDispensing) || snapshot.PaymentID != "pending-payment" {
 			t.Errorf("unexpected free-dispense snapshot: %+v", snapshot)
 		}
+		if snapshot.Message != "Ausgabe laeuft" || snapshot.ExecutingCommand == nil ||
+			snapshot.ExecutingCommand.Message != "Ausgabe läuft" {
+			t.Errorf("unexpected dispense text: %+v", snapshot)
+		}
 		return 1, nil
 	}
 	request, eligible := c.currentLeverRequest()
@@ -276,7 +280,7 @@ func TestLeverDispenseFailureKeepsPendingPayment(t *testing.T) {
 	request, _ := c.currentLeverRequest()
 	c.handleLeverRequest(request)
 	snapshot := c.GetStateSnapshot()
-	if snapshot.State != string(StateError) || snapshot.Message != "Gratis-Ausgabe fehlgeschlagen" {
+	if snapshot.State != string(StateError) || snapshot.Message != "Ausgabe fehlgeschlagen" {
 		t.Fatalf("dispense failure must be surfaced: %+v", snapshot)
 	}
 	if snapshot.PaymentID != request.paymentID || c.pendingDispensedCount(request.paymentID) != nil {

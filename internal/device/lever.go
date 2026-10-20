@@ -119,16 +119,16 @@ func (c *Client) handleLeverRequest(request leverRequest) {
 
 	log.Printf("Device client: lever free dispense for pending payment %s", request.paymentID)
 	resumeState := RuntimeState(c.GetStateSnapshot().State)
-	c.setRuntimeState(StateDispensing, "Gratis-Ausgabe laeuft")
+	c.setRuntimeState(StateDispensing, "Ausgabe laeuft")
 	c.setExecutingCommand(&CommandResponse{
 		Command: "message",
-		Message: "Gratis-Ausgabe läuft",
+		Message: "Ausgabe läuft",
 	})
 
 	// A free ball must not mark the retained payment as already dispensed.
 	if _, err := c.dispenseAndWaitForBallForPaymentLocked(""); err != nil {
 		if !c.jammed.Load() {
-			c.setRuntimeState(StateError, "Gratis-Ausgabe fehlgeschlagen")
+			c.setRuntimeState(StateError, "Ausgabe fehlgeschlagen")
 			c.clearExecutingCommand()
 		}
 		log.Printf("Device client: lever free dispense failed: %v", err)
