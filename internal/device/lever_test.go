@@ -1,15 +1,36 @@
 package device
 
 import (
+	"bytes"
 	"errors"
+	"log"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/jsalamander/baendaeli-client/internal/config"
 )
+
+func TestLeverLogsIgnoredBusyStatePress(t *testing.T) {
+	var output bytes.Buffer
+	previous := log.Writer()
+	log.SetOutput(&output)
+	defer log.SetOutput(previous)
+
+	c := newLeverTestClient(t)
+	request, _ := c.currentLeverRequest()
+	c.setRuntimeState(StateCommandExecuting, "busy")
+	c.handleLeverRequest(request)
+	text := output.String()
+	for _, expected := range []string{"lever press ignored", "state=command_executing", "requires ball_detected or awaiting_payment"} {
+		if !strings.Contains(text, expected) {
+			t.Errorf("expected %q in ignored press log: %s", expected, text)
+		}
+	}
+}
 
 type stubLeverSwitch struct {
 	enabled    bool
@@ -124,6 +145,45 @@ func TestLeverFreeDispenseRetainsPaymentAndDoesNotCountAsPaid(t *testing.T) {
 	}
 }
 
+func TestLeverQRScreenDispensesAndRestoresSameQR(t *testing.T) {
+	c := newLeverTestClient(t)
+	c.setCurrentPayment("pending-payment", map[string]any{
+		"payment_phase": "waiting_for_amount",
+	})
+	c.setRuntimeState(StateBallDetected, "Bitte QR-Code scannen und zahlen")
+	triggers := 0
+	c.triggerActuator = func() (int, error) {
+		triggers++
+		if c.GetStateSnapshot().State != string(StateDispensing) {
+			t.Error("free dispense must expose dispensing state")
+		}
+		return 1, nil
+	}
+	for i := 0; i < 2; i++ {
+		request, eligible := c.currentLeverRequest()
+		if !eligible {
+			t.Fatal("QR screen must accept a fresh lever request before scanning")
+		}
+		c.handleLeverRequest(request)
+		c.handleLeverRequest(request)
+		snapshot := c.GetStateSnapshot()
+		if snapshot.State != string(StateBallDetected) || snapshot.ExecutingCommand != nil {
+			t.Fatalf("must restore QR screen without an overlay: %+v", snapshot)
+		}
+		if snapshot.PaymentID != "pending-payment" ||
+			snapshot.Payment["qr_code_url"] != "https://example.com/qr/pending-payment" ||
+			snapshot.Payment["payment_phase"] != "waiting_for_amount" {
+			t.Fatalf("must retain the same unscanned payment and QR: %+v", snapshot)
+		}
+		if c.pendingDispensedCount("pending-payment") != nil {
+			t.Fatal("free ball must not consume the pending payment")
+		}
+	}
+	if triggers != 2 || c.printer.(*stubTicketPrinter).paymentCalls.Load() != 0 {
+		t.Fatalf("expected two free dispenses without receipts, got triggers=%d", triggers)
+	}
+}
+
 func TestLeverRetainedPaymentCanDispenseWhenPaid(t *testing.T) {
 	var reports atomic.Int32
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -163,7 +223,7 @@ func TestLeverRetainedPaymentCanDispenseWhenPaid(t *testing.T) {
 func TestLeverIgnoredOutsideAwaitingPayment(t *testing.T) {
 	for _, state := range []RuntimeState{
 		StateStarting, StateStartupCycle, StateDetectingBall, StateBallOnSensor,
-		StateBallDetected, StateBallStuckFunnel, StateDispensing, StatePaymentFailed,
+		StateBallStuckFunnel, StateDispensing, StatePaymentFailed,
 		StateJam, StateIdle, StateCommandExecuting, StateError, StateSoldOut,
 	} {
 		t.Run(string(state), func(t *testing.T) {
@@ -285,7 +345,7 @@ func TestLeverMonitorRequiresNewMovementInEligibleState(t *testing.T) {
 		}
 	}
 	assertNoRequest()
-	c.setRuntimeState(StateBallDetected, "QR")
+	c.setRuntimeState(StateCommandExecuting, "busy")
 	sw.active.Store(false)
 	time.Sleep(2 * leverDebounce)
 	sw.active.Store(true)

@@ -13,9 +13,12 @@ import (
 
 // Switch reads the two active-low KN3C-223 contacts.
 type Switch struct {
-	enabled bool
-	up      gpio.PinIn
-	down    gpio.PinIn
+	enabled  bool
+	up       gpio.PinIn
+	down     gpio.PinIn
+	read     bool
+	lastUp   gpio.Level
+	lastDown gpio.Level
 }
 
 func New(cfg *config.Config) *Switch {
@@ -85,7 +88,12 @@ func (s *Switch) ReadActive() (bool, error) {
 	if s.up == nil || s.down == nil {
 		return false, fmt.Errorf("lever: GPIO inputs are not initialized")
 	}
-	return s.up.Read() == gpio.Low || s.down.Read() == gpio.Low, nil
+	up, down := s.up.Read(), s.down.Read()
+	if !s.read || up != s.lastUp || down != s.lastDown {
+		log.Printf("Lever: contacts UP=%s DOWN=%s (Low=active, High=neutral)", up, down)
+		s.read, s.lastUp, s.lastDown = true, up, down
+	}
+	return up == gpio.Low || down == gpio.Low, nil
 }
 
 func (s *Switch) Close() error {
@@ -98,5 +106,6 @@ func (s *Switch) Close() error {
 		}
 	}
 	s.up, s.down = nil, nil
+	s.read = false
 	return errors.Join(errs...)
 }

@@ -31,6 +31,7 @@ stateDiagram-v2
     ball_detected --> dispensing: payment success/paid/completed
     awaiting_payment --> dispensing: payment success/paid/completed
     awaiting_payment --> dispensing: enabled lever UP/DOWN (free ball)
+    ball_detected --> dispensing: enabled lever UP/DOWN (free ball)
 
     ball_detected --> payment_failed: payment failure/failed/cancelled/expired/timeout
     awaiting_payment --> payment_failed: payment failure/failed/cancelled/expired/timeout
@@ -39,6 +40,7 @@ stateDiagram-v2
 
     dispensing --> detecting_ball: dispense + next-ball check OK
     dispensing --> awaiting_payment: free dispense + next-ball check OK; retain payment
+    dispensing --> ball_detected: free dispense from QR screen + next-ball check OK; retain payment
     dispensing --> error: dispense failed
 
     state "Operator Command Scheduler" as cmd {
@@ -101,9 +103,9 @@ Both contacts are inputs with internal pull-ups; closing either contact to GND
 is active-low. The HAT must leave these GPIOs available. No supply connection
 is needed for the switch contacts.
 
-- Only `awaiting_payment` accepts lever movements. The QR/amount-selection state
-  (`ball_detected`), startup, ball detection, dispensing, commands, errors, jams,
-  and sold-out states ignore them.
+- Both the QR/amount-selection state (`ball_detected`) and `awaiting_payment`
+  accept lever movements. Startup, ball detection, dispensing, commands, errors,
+  jams, and sold-out states ignore them.
 - Inputs are sampled every 10 ms and debounced for 50 ms. One movement triggers
   one free dispense. Both contacts must stay neutral for 50 ms before re-arming,
   including after startup. Switching directions without a neutral interval
@@ -115,7 +117,8 @@ is needed for the switch contacts.
   finishes before the event is handled, and actuator access remains locked.
 - A free dispense uses the normal extractor, break-beam monitoring, and next-ball
   readiness checks. Failures surface through the existing error/jam states.
-- After a successful free dispense, the machine returns to `awaiting_payment`
+- After a successful free dispense, the machine returns to its previous payment
+  state (`ball_detected` with QR visible, or `awaiting_payment`)
   with the **same pending payment ID and QR payload**. It does not create, cancel,
   replace, or mark that payment paid. If it later succeeds, it dispenses the next
   ball normally; expiry/failure still follows the normal payment reset flow.
@@ -129,3 +132,26 @@ is needed for the switch contacts.
 The browser remains display-only and consumes `GET /api/device/status`. This
 hardware-only branch is the explicit exception to payment-authorized dispensing;
 it adds no browser dispense controls or payment orchestration.
+
+### Troubleshooting the lever
+
+Watch the logs from the current boot:
+
+```bash
+sudo journalctl -u baendaeli-client.service -b -f | grep --line-buffered -i lever
+```
+
+- Startup logs state whether the lever is enabled or disabled. Enabled hardware
+  logs GPIO initialization success or an explicit initialization failure.
+- Contact logs show the initial `UP`/`DOWN` levels and changes only, not every
+  poll. `High` is neutral/open; `Low` is active/closed to GND.
+- `lever neutral; armed for next movement` confirms a stable neutral position.
+  If either contact stays low, the lever cannot re-arm.
+- A debounced press outside the allowed state logs `lever press ignored` with
+  the current state. Both `ball_detected` (QR visible, before scanning) and
+  `awaiting_payment` (QR hidden) accept lever presses.
+- Accepted requests log queueing, dispense start, and completion or failure.
+- If there are no lever startup logs at all, verify the installed binary
+  includes this feature and the service uses the expected configuration. A
+  reboot does not install a newer binary. The deployed service loads
+  `/opt/baendaeli-client/config.yaml` by default.

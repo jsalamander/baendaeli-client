@@ -47,6 +47,7 @@ func (c *Client) monitorLever() {
 	var debouncer leverDebouncer
 	var press leverRequest
 	var pressEligible bool
+	log.Println("Device client: lever monitor started; return lever to neutral to arm (ball_detected and awaiting_payment accept presses)")
 
 	for {
 		select {
@@ -61,20 +62,33 @@ func (c *Client) monitorLever() {
 			if active && !debouncer.rawActive {
 				press, pressEligible = c.currentLeverRequest()
 			}
-			if !debouncer.update(active, time.Now()) {
+			wasArmed := debouncer.armed
+			fired := debouncer.update(active, time.Now())
+			if !wasArmed && debouncer.armed {
+				log.Println("Device client: lever neutral; armed for next movement")
+			}
+			if !fired {
 				continue
 			}
 			request, eligible := c.currentLeverRequest()
 			if !pressEligible || !eligible || request != press {
+				c.logIgnoredLeverRequest("not eligible at press or state/payment changed")
 				continue
 			}
 			select {
 			case c.leverRequests <- request:
+				log.Println("Device client: lever press accepted; free dispense queued")
 			default:
 				log.Println("Device client: lever request ignored; a request is already pending")
 			}
 		}
 	}
+}
+
+func (c *Client) logIgnoredLeverRequest(reason string) {
+	snapshot := c.GetStateSnapshot()
+	log.Printf("Device client: lever press ignored: %s (state=%s jammed=%t payment_present=%t; requires ball_detected or awaiting_payment)",
+		reason, snapshot.State, snapshot.Jammed, snapshot.PaymentID != "")
 }
 
 func (c *Client) currentLeverRequest() (leverRequest, bool) {
@@ -86,7 +100,7 @@ func (c *Client) currentLeverRequest() (leverRequest, bool) {
 	c.paymentIDMutex.Lock()
 	defer c.paymentIDMutex.Unlock()
 
-	if c.state != StateAwaitingPayment || c.currentPaymentID == "" ||
+	if (c.state != StateBallDetected && c.state != StateAwaitingPayment) || c.currentPaymentID == "" ||
 		c.pendingDispensedCount(c.currentPaymentID) != nil {
 		return leverRequest{}, false
 	}
@@ -99,10 +113,12 @@ func (c *Client) handleLeverRequest(request leverRequest) {
 	defer c.actuatorMutex.Unlock()
 	current, eligible := c.currentLeverRequest()
 	if !eligible || current != request || c.ctx.Err() != nil {
+		c.logIgnoredLeverRequest("queued request no longer eligible or client stopping")
 		return
 	}
 
 	log.Printf("Device client: lever free dispense for pending payment %s", request.paymentID)
+	resumeState := RuntimeState(c.GetStateSnapshot().State)
 	c.setRuntimeState(StateDispensing, "Gratis-Ausgabe laeuft")
 	c.setExecutingCommand(&CommandResponse{
 		Command: "message",
@@ -119,9 +135,15 @@ func (c *Client) handleLeverRequest(request leverRequest) {
 		return
 	}
 
-	c.setRuntimeState(StateAwaitingPayment, "Warten auf Zahlung")
-	c.setExecutingCommand(&CommandResponse{
-		Command: "message",
-		Message: "Warten auf Zahlung",
-	})
+	if resumeState == StateBallDetected {
+		c.setRuntimeState(StateBallDetected, "Bitte QR-Code scannen und zahlen")
+		c.clearExecutingCommand()
+	} else {
+		c.setRuntimeState(StateAwaitingPayment, "Warten auf Zahlung")
+		c.setExecutingCommand(&CommandResponse{
+			Command: "message",
+			Message: "Warten auf Zahlung",
+		})
+	}
+	log.Printf("Device client: lever free dispense complete; state=%s with existing payment retained", resumeState)
 }

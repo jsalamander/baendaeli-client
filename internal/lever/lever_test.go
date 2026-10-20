@@ -1,12 +1,53 @@
 package lever
 
 import (
+	"bytes"
 	"errors"
+	"log"
+	"strings"
 	"testing"
 
 	"github.com/jsalamander/baendaeli-client/internal/config"
 	"periph.io/x/conn/v3/gpio"
 )
+
+func TestSwitchLogsInitialContactsAndChangesOnly(t *testing.T) {
+	var output bytes.Buffer
+	previous := log.Writer()
+	log.SetOutput(&output)
+	defer log.SetOutput(previous)
+
+	up := &stubPin{name: "GPIO26", number: 26, level: gpio.High}
+	down := &stubPin{name: "GPIO21", number: 21, level: gpio.High}
+	s := New(&config.Config{LeverEnabled: true})
+	if err := s.configurePins(up, down); err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 10; i++ {
+		if _, err := s.ReadActive(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, levels := range [][2]gpio.Level{
+		{gpio.Low, gpio.High},
+		{gpio.High, gpio.Low},
+		{gpio.High, gpio.High},
+	} {
+		up.level, down.level = levels[0], levels[1]
+		if _, err := s.ReadActive(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	text := output.String()
+	if strings.Count(text, "Lever: contacts") != 4 {
+		t.Fatalf("expected initial reading plus three changes, not a log per poll: %s", text)
+	}
+	for _, expected := range []string{"UP=High DOWN=High", "UP=Low DOWN=High", "UP=High DOWN=Low"} {
+		if !strings.Contains(text, expected) {
+			t.Errorf("missing %q in contact logs: %s", expected, text)
+		}
+	}
+}
 
 type stubPin struct {
 	gpio.PinIn

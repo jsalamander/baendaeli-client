@@ -438,12 +438,15 @@ func (c *Client) Start() {
 	}
 
 	if c.leverSwitch.IsEnabled() {
+		log.Println("Device client: lever enabled; initializing GPIO inputs")
 		if err := c.leverSwitch.Init(c.config); err != nil {
 			log.Printf("Device client: lever initialization failed; free dispense unavailable: %v", err)
 		} else {
 			c.wg.Add(1)
 			go c.monitorLever()
 		}
+	} else {
+		log.Println("Device client: lever disabled via LEVER_ENABLED")
 	}
 	c.wg.Add(1)
 	go c.pollLoop()

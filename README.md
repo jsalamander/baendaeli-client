@@ -89,7 +89,7 @@ Optional GPIO actuator settings:
 - `COLOR_SENSOR_MAX_ATTEMPTS`: Max detect/retry attempts before declaring a jam
 
 Optional lever settings (disabled by default):
-- `LEVER_ENABLED`: Enable free dispensing only in `awaiting_payment`
+- `LEVER_ENABLED`: Enable free dispensing while the QR is shown (`ball_detected`) or in `awaiting_payment`
 - `LEVER_UP_PIN`: UP contact, default `GPIO26` (physical pin 37)
 - `LEVER_DOWN_PIN`: DOWN contact, default `GPIO21` (physical pin 40)
 
