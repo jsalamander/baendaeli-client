@@ -51,6 +51,9 @@ type Config struct {
 	BreakBeamPin                              string  `yaml:"BREAKBEAM_PIN"`
 	BreakBeamPollIntervalMs                   int     `yaml:"BREAKBEAM_POLL_INTERVAL_MS"`
 	BreakBeamDebugLogging                     bool    `yaml:"BREAKBEAM_DEBUG_LOGGING"`
+	LeverEnabled                              bool    `yaml:"LEVER_ENABLED"`
+	LeverUpPin                                string  `yaml:"LEVER_UP_PIN"`
+	LeverDownPin                              string  `yaml:"LEVER_DOWN_PIN"`
 	VibrationEnabled                          bool    `yaml:"VIBRATOR_ENABLED"`
 	VibrationIN3Pin                           string  `yaml:"VIBRATOR_IN3_PIN"`
 	VibrationIN4Pin                           string  `yaml:"VIBRATOR_IN4_PIN"`
@@ -177,6 +180,12 @@ func (c *Config) SetDefaults() {
 	}
 	if c.BreakBeamPollIntervalMs == 0 {
 		c.BreakBeamPollIntervalMs = 10
+	}
+	if c.LeverUpPin == "" {
+		c.LeverUpPin = "GPIO26"
+	}
+	if c.LeverDownPin == "" {
+		c.LeverDownPin = "GPIO21"
 	}
 	if c.VibrationIN3Pin == "" {
 		c.VibrationIN3Pin = "GPIO16"

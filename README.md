@@ -8,6 +8,7 @@ The client for Baendae.li
 - **Real-time Status**: Live payment status tracking with visual feedback
 - **Internet Monitoring**: Real-time connectivity status display
 - **GPIO Actuator Support**: Optional linear actuator control via Raspberry Pi GPIO
+- **Free-Dispense Lever**: Optional KN3C-223 UP/DOWN switch for a free ball while awaiting payment
 - **Kiosk Mode**: Chromium fullscreen display for unattended operation
 - **Secure Deployment**: Runs as dedicated system user with minimal privileges
 - **Auto-updates**: Manual update script for easy maintenance
@@ -86,6 +87,17 @@ Optional GPIO actuator settings:
 - `COLOR_SENSOR_VIBRATE_DURATION_MS`: Duration of each jam-clear burst
 - `COLOR_SENSOR_VIBRATE_BURSTS`: Number of bursts per failed detection attempt
 - `COLOR_SENSOR_MAX_ATTEMPTS`: Max detect/retry attempts before declaring a jam
+
+Optional lever settings (disabled by default):
+- `LEVER_ENABLED`: Enable free dispensing only in `awaiting_payment`
+- `LEVER_UP_PIN`: UP contact, default `GPIO26` (physical pin 37)
+- `LEVER_DOWN_PIN`: DOWN contact, default `GPIO21` (physical pin 40)
+
+Connect the switch common to GND. Both contacts are active-low with internal
+pull-ups. Each movement dispenses once and requires returning to neutral before
+another trigger. The pending payment is retained for the next ball; free balls
+do not print payment receipts. See [Device State Machine](docs/device-state-machine.md#optional-free-dispense-lever)
+for wiring and behavior details.
 
 See [Actuator Calibration Guide](docs/actuator-calibration.md) for detailed setup instructions.
 After each dispense cycle, the client checks for ball movement using the color sensor. If no movement is detected after configured vibration retries, it shows: `Stau detektiert. Rufe eine Techniker*in.`

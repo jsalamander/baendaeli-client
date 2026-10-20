@@ -22,6 +22,7 @@ import (
 	"github.com/jsalamander/baendaeli-client/internal/camera"
 	"github.com/jsalamander/baendaeli-client/internal/colorsensor"
 	"github.com/jsalamander/baendaeli-client/internal/config"
+	"github.com/jsalamander/baendaeli-client/internal/lever"
 	"github.com/jsalamander/baendaeli-client/internal/printer"
 	"github.com/jsalamander/baendaeli-client/internal/version"
 	"github.com/jsalamander/baendaeli-client/internal/vibrator"
@@ -137,6 +138,13 @@ type ticketPrinter interface {
 	PrintStartupMessage() error
 }
 
+type leverSwitch interface {
+	IsEnabled() bool
+	Init(cfg *config.Config) error
+	ReadActive() (bool, error)
+	Close() error
+}
+
 // Client polls the device API and executes commands
 type Client struct {
 	config           *config.Config
@@ -153,6 +161,9 @@ type Client struct {
 	colorSensor      *colorsensor.Sensor
 	breakBeamSensor  breakBeamSensor
 	printer          ticketPrinter
+	leverSwitch      leverSwitch
+	leverRequests    chan leverRequest
+	triggerActuator  func() (int, error)
 	jammed           atomic.Bool
 
 	// Command execution status
@@ -161,6 +172,7 @@ type Client struct {
 	pendingCommand   *CommandResponse
 	pendingBallRef   *uint16
 	state            RuntimeState
+	stateGeneration  uint64
 	stateMessage     string
 	lastCommandError string // Error from last command execution
 	dispenseMutex    sync.Mutex
@@ -185,6 +197,9 @@ func New(cfg *config.Config) *Client {
 		colorSensor:     colorsensor.New(cfg),
 		breakBeamSensor: breakbeam.New(cfg),
 		printer:         printer.New(cfg),
+		leverSwitch:     lever.New(cfg),
+		leverRequests:   make(chan leverRequest, 1),
+		triggerActuator: actuator.Trigger,
 		state:           StateStarting,
 	}
 	c.logShipper = newLogShipper(ctx, c, c.httpClient, io.Discard)
@@ -300,6 +315,9 @@ func (c *Client) setExecutingCommand(cmd *CommandResponse) {
 func (c *Client) setRuntimeState(state RuntimeState, message string) {
 	c.statusMutex.Lock()
 	defer c.statusMutex.Unlock()
+	if c.state != state {
+		c.stateGeneration++
+	}
 	c.state = state
 	c.stateMessage = message
 }
@@ -419,6 +437,14 @@ func (c *Client) Start() {
 		c.logShipper.start()
 	}
 
+	if c.leverSwitch.IsEnabled() {
+		if err := c.leverSwitch.Init(c.config); err != nil {
+			log.Printf("Device client: lever initialization failed; free dispense unavailable: %v", err)
+		} else {
+			c.wg.Add(1)
+			go c.monitorLever()
+		}
+	}
 	c.wg.Add(1)
 	go c.pollLoop()
 	log.Println("Device client started")
@@ -442,6 +468,9 @@ func (c *Client) Stop() {
 	}
 	if err := c.printer.Close(); err != nil {
 		log.Printf("Device client: failed to close printer: %v", err)
+	}
+	if err := c.leverSwitch.Close(); err != nil {
+		log.Printf("Device client: failed to close lever: %v", err)
 	}
 	log.Println("Device client stopped")
 }
@@ -476,6 +505,11 @@ func (c *Client) pollLoop() {
 			return
 		case <-ticker.C:
 			c.poll()
+		case request := <-c.leverRequests:
+			if c.ctx.Err() != nil {
+				return
+			}
+			c.handleLeverRequest(request)
 		}
 	}
 }
@@ -1488,7 +1522,7 @@ func (c *Client) isBreakBeamInterrupted() bool {
 
 func (c *Client) triggerWithBreakBeamCount() (int, int, error) {
 	if c.breakBeamSensor == nil || !c.breakBeamSensor.IsEnabled() {
-		totalMs, err := actuator.Trigger()
+		totalMs, err := c.triggerActuator()
 		return totalMs, 1, err
 	}
 
@@ -1499,7 +1533,7 @@ func (c *Client) triggerWithBreakBeamCount() (int, int, error) {
 
 	resultCh := make(chan triggerResult, 1)
 	go func() {
-		totalMs, err := actuator.Trigger()
+		totalMs, err := c.triggerActuator()
 		resultCh <- triggerResult{totalMs: totalMs, err: err}
 	}()
 
@@ -1635,8 +1669,10 @@ func (c *Client) DispenseAndWaitForBall() (int, error) {
 }
 
 func (c *Client) dispenseAndWaitForBallLocked() (int, error) {
+	return c.dispenseAndWaitForBallForPaymentLocked(c.GetPaymentID())
+}
 
-	paymentID := c.GetPaymentID()
+func (c *Client) dispenseAndWaitForBallForPaymentLocked(paymentID string) (int, error) {
 	referenceBaseline := c.sampleBallReferenceBaseline("post-dispense")
 
 	totalMs, beamCuts, err := c.triggerWithBreakBeamCount()

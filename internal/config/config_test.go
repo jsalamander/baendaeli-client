@@ -1,6 +1,10 @@
 package config
 
-import "testing"
+import (
+	"os"
+	"path/filepath"
+	"testing"
+)
 
 func TestSetDefaultsAppliesValues(t *testing.T) {
 	cfg := &Config{}
@@ -86,6 +90,29 @@ func TestSetDefaultsAppliesValues(t *testing.T) {
 	}
 	if cfg.BreakBeamPollIntervalMs != 10 {
 		t.Fatalf("BreakBeamPollIntervalMs default not set, got %d", cfg.BreakBeamPollIntervalMs)
+	}
+	if cfg.LeverEnabled || cfg.LeverUpPin != "GPIO26" || cfg.LeverDownPin != "GPIO21" {
+		t.Fatalf("unexpected lever defaults: enabled=%t up=%s down=%s", cfg.LeverEnabled, cfg.LeverUpPin, cfg.LeverDownPin)
+	}
+}
+
+func TestLoadLeverConfiguration(t *testing.T) {
+	for _, enabled := range []string{"true", "false"} {
+		t.Run(enabled, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "config.yaml")
+			data := "LEVER_ENABLED: " + enabled + "\nLEVER_UP_PIN: GPIO6\nLEVER_DOWN_PIN: GPIO13\n"
+			if err := os.WriteFile(path, []byte(data), 0600); err != nil {
+				t.Fatal(err)
+			}
+			cfg, err := Load(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			cfg.SetDefaults()
+			if cfg.LeverEnabled != (enabled == "true") || cfg.LeverUpPin != "GPIO6" || cfg.LeverDownPin != "GPIO13" {
+				t.Fatalf("configured lever settings were not preserved: enabled=%t up=%s down=%s", cfg.LeverEnabled, cfg.LeverUpPin, cfg.LeverDownPin)
+			}
+		})
 	}
 }
 

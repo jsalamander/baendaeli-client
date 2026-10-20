@@ -30,6 +30,7 @@ stateDiagram-v2
 
     ball_detected --> dispensing: payment success/paid/completed
     awaiting_payment --> dispensing: payment success/paid/completed
+    awaiting_payment --> dispensing: enabled lever UP/DOWN (free ball)
 
     ball_detected --> payment_failed: payment failure/failed/cancelled/expired/timeout
     awaiting_payment --> payment_failed: payment failure/failed/cancelled/expired/timeout
@@ -37,6 +38,7 @@ stateDiagram-v2
     payment_failed --> detecting_ball: payment reset
 
     dispensing --> detecting_ball: dispense + next-ball check OK
+    dispensing --> awaiting_payment: free dispense + next-ball check OK; retain payment
     dispensing --> error: dispense failed
 
     state "Operator Command Scheduler" as cmd {
@@ -76,3 +78,54 @@ stateDiagram-v2
 - Transition signal for amount-selection phase split: `payment_phase`
   - `waiting_for_amount` keeps runtime in `ball_detected`
   - `waiting_for_payment` moves runtime to `awaiting_payment`
+
+## Optional Free-Dispense Lever
+
+The KN3C-223 lever is disabled by default. Enable it in `config.yaml`:
+
+```yaml
+LEVER_ENABLED: true
+LEVER_UP_PIN: "GPIO26"
+LEVER_DOWN_PIN: "GPIO21"
+```
+
+Wiring uses BCM GPIO numbering, not physical header numbering:
+
+| Switch terminal | Raspberry Pi connection |
+| --- | --- |
+| Common | GND (for example physical pin 34) |
+| UP | GPIO26 (physical pin 37) |
+| DOWN | GPIO21 (physical pin 40) |
+
+Both contacts are inputs with internal pull-ups; closing either contact to GND
+is active-low. The HAT must leave these GPIOs available. No supply connection
+is needed for the switch contacts.
+
+- Only `awaiting_payment` accepts lever movements. The QR/amount-selection state
+  (`ball_detected`), startup, ball detection, dispensing, commands, errors, jams,
+  and sold-out states ignore them.
+- Inputs are sampled every 10 ms and debounced for 50 ms. One movement triggers
+  one free dispense. Both contacts must stay neutral for 50 ms before re-arming,
+  including after startup. Switching directions without a neutral interval
+  counts as the same movement.
+- A press made outside the eligible state is discarded, not deferred. Queued
+  events also expire if the payment or runtime state changes before handling.
+- Lever events wake the device loop without waiting for its normal API polling
+  tick. Device work remains serialized: an in-progress API call or operation
+  finishes before the event is handled, and actuator access remains locked.
+- A free dispense uses the normal extractor, break-beam monitoring, and next-ball
+  readiness checks. Failures surface through the existing error/jam states.
+- After a successful free dispense, the machine returns to `awaiting_payment`
+  with the **same pending payment ID and QR payload**. It does not create, cancel,
+  replace, or mark that payment paid. If it later succeeds, it dispenses the next
+  ball normally; expiry/failure still follows the normal payment reset flow.
+- The free ball does not count as the retained payment's dispense and does not
+  print a payment receipt. This prevents it from suppressing the later paid
+  dispense or falsely attributing the free ball to a payment.
+- GPIO initialization/read failures are logged and disable lever handling for
+  that process; ordinary payment operation remains available. Restart the
+  service after correcting the hardware/configuration.
+
+The browser remains display-only and consumes `GET /api/device/status`. This
+hardware-only branch is the explicit exception to payment-authorized dispensing;
+it adds no browser dispense controls or payment orchestration.

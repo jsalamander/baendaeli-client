@@ -215,7 +215,7 @@ func TestHandleDeviceStatusWithoutDeviceClient(t *testing.T) {
 }
 
 func TestHandleDeviceStatusWithDeviceClientSnapshot(t *testing.T) {
-    cfg := &config.Config{}
+    cfg := &config.Config{LeverEnabled: true, LeverUpPin: "GPIO26", LeverDownPin: "GPIO21"}
     srv := newTestServer(cfg, nil)
     dc := device.New(cfg)
     dc.SetPaymentID("pay-777")
@@ -241,5 +241,15 @@ func TestHandleDeviceStatusWithDeviceClientSnapshot(t *testing.T) {
     }
     if _, ok := body["jammed"]; !ok {
         t.Fatal("expected jammed field in device snapshot")
+    }
+    if body["state"] != string(device.StateStarting) {
+        t.Fatalf("enabling the lever must not change the initial device state, got %v", body["state"])
+    }
+    for key := range body {
+        switch key {
+        case "state", "message", "payment_id", "payment", "jammed", "executing_command", "pending_command":
+        default:
+            t.Fatalf("lever configuration must preserve the device status response shape, unexpected key %q", key)
+        }
     }
 }

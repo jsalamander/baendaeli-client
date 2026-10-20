@@ -48,6 +48,12 @@ BREAKBEAM_ENABLED: false
 BREAKBEAM_PIN: "GPIO10"
 BREAKBEAM_POLL_INTERVAL_MS: 10
 BREAKBEAM_DEBUG_LOGGING: false
+# Optional KN3C-223 free-dispense lever (BCM GPIO numbers, active-low pull-ups).
+# Common -> GND; UP -> physical pin 37; DOWN -> physical pin 40.
+# Only active in awaiting_payment; retains the pending payment for the next ball.
+LEVER_ENABLED: false
+LEVER_UP_PIN: "GPIO26"
+LEVER_DOWN_PIN: "GPIO21"
 # Vibrator motor (H-bridge driver: IN3/IN4 direction, ENB PWM speed control)
 VIBRATOR_ENABLED: false
 VIBRATOR_IN3_PIN: "GPIO16"
