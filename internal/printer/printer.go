@@ -20,7 +20,7 @@ const (
 
 	defaultDevicePath = "/dev/usb/lp0"
 
-	itemName = "Solibändeli"
+	itemName = "Tombola Los"
 )
 
 var zurich *time.Location
@@ -110,7 +110,7 @@ func (p *Printer) PrintPaymentTicket(paymentID string, amountCents int64, dispen
 
 	body := []byte{}
 	body = append(body, 0x1d, '!', 0x11) // double width/height
-	body = append(body, []byte("NBNN 26\n\n")...)
+	body = append(body, []byte("Reitschule Fest\n\n")...)
 	body = append(body, 0x1d, '!', 0x00) // normal font
 	body = append(body, []byte(quantityLine(dispensedCount)+"\n")...)
 	body = append(body, []byte(formatAmount(amountCents)+"\n\n")...)
@@ -141,10 +141,10 @@ func (p *Printer) PrintStartupMessage() error {
 
 	body := []byte{}
 	body = append(body, 0x1d, '!', 0x11)
-	body = append(body, []byte("NBNN\n\n")...)
+	body = append(body, []byte("Bändäli Automat\n\n")...)
 	body = append(body, 0x1d, '!', 0x00)
 	body = append(body, []byte(formatTimestamp()+"\n")...)
-	body = append(body, []byte("Solibändeli Ready!!\n")...)
+	body = append(body, []byte("Automat ist ready to serve\n")...)
 
 	if err := p.writeTicket(body); err != nil {
 		return err

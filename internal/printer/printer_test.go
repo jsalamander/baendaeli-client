@@ -11,10 +11,10 @@ func TestQuantityLine(t *testing.T) {
 		count int
 		want  string
 	}{
-		{count: 0, want: "0x Solibändeli ERROR"},
-		{count: -1, want: "0x Solibändeli ERROR"},
-		{count: 1, want: "1x Solibändeli"},
-		{count: 3, want: "1x Solibändeli"},
+		{count: 0, want: "0x Tombola Los ERROR"},
+		{count: -1, want: "0x Tombola Los ERROR"},
+		{count: 1, want: "1x Tombola Los"},
+		{count: 3, want: "1x Tombola Los"},
 	}
 
 	for _, tc := range cases {
