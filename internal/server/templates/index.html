@@ -43,7 +43,6 @@
 			--qr-size: clamp(180px, 52vw, 320px);
 			--qr-padding: clamp(0.75rem, 2vw, 1.25rem);
 			--frame-padding: clamp(0.75rem, 2.4vw, 1.75rem);
-			--bottom-safe-area: 3.5rem;
 			--title-size: clamp(1.25rem, calc(var(--qr-size) / 9), 2rem);
 			--copy-size: clamp(0.9rem, calc(var(--qr-size) / 14), 1.25rem);
 		}
@@ -63,10 +62,13 @@
 			pointer-events: none;
 			opacity: 0.16;
 		}
-		nav,
-		#mainContent {
+		nav {
 			position: relative;
 			z-index: 1;
+		}
+		#mainContent {
+			position: relative;
+			z-index: 3;
 		}
 		#versionBadge,
 		#diagnosticsBadges {
@@ -99,6 +101,255 @@
 		#diagnosticsBadges {
 			right: calc(var(--frame-padding) + 0.75rem);
 			max-width: calc(100vw - (2 * (var(--frame-padding) + 0.75rem)) - 4rem);
+		}
+		#animalDecorations {
+			position: fixed;
+			z-index: 2;
+			inset: 0;
+			pointer-events: none;
+		}
+		#successBanner,
+		#cancelBanner,
+		#deviceCommandOverlay,
+		#errorPopup {
+			z-index: 50;
+		}
+		.animal-decoration {
+			position: absolute;
+			width: clamp(2.5rem, 8vw, 7rem);
+			min-width: 0;
+			margin: 0;
+			opacity: 0.72;
+			text-align: center;
+		}
+		.animal-decoration img {
+			display: block;
+			width: 100%;
+			height: clamp(1.75rem, 6vh, 3.5rem);
+			object-fit: contain;
+			margin: 0 auto 0.15rem;
+		}
+		.animal-speech {
+			position: absolute;
+			z-index: 1;
+			width: max-content;
+			max-width: min(7rem, 24vw);
+			padding: 0.3em 0.55em;
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			border: 1px solid var(--flyer-red);
+			border-radius: 999px;
+			background: rgba(255, 255, 255, 0.94);
+			color: var(--flyer-red-dark);
+			font-size: clamp(0.45rem, 0.85vw, 0.65rem);
+			font-weight: 900;
+			line-height: 1.1;
+			text-align: center;
+			text-transform: uppercase;
+			white-space: normal;
+			box-shadow: 0 1px 4px rgba(16, 16, 16, 0.12);
+		}
+		.animal-decoration,
+		.prize-slip {
+			animation-name: animal-flight;
+			animation-timing-function: ease-in-out;
+			animation-iteration-count: infinite;
+		}
+		.animal-decoration:nth-child(1) {
+			top: 9%; left: 5%; transform: rotate(-9deg);
+			--flight-x1: 7vw; --flight-y1: 1vh;
+			--flight-x2: 12vw; --flight-y2: 5vh;
+			--flight-x3: 8vw; --flight-y3: 9vh;
+			--flight-x4: 1vw; --flight-y4: 8vh;
+			--flight-x5: -2vw; --flight-y5: 4vh;
+			--flight-x6: 2vw; --flight-y6: 1vh;
+			animation-duration: 13s; animation-delay: -1s;
+		}
+		.animal-decoration:nth-child(1) .animal-speech { top: 0; left: calc(100% + 0.25rem); }
+		.animal-decoration:nth-child(2) {
+			top: 7%; right: 8%; transform: rotate(8deg);
+			--flight-x1: -5vw; --flight-y1: 5vh;
+			--flight-x2: -12vw; --flight-y2: 9vh;
+			--flight-x3: -15vw; --flight-y3: 3vh;
+			--flight-x4: -8vw; --flight-y4: -1vh;
+			--flight-x5: -2vw; --flight-y5: 2vh;
+			--flight-x6: -3vw; --flight-y6: 7vh;
+			animation-duration: 17s; animation-delay: -6s;
+		}
+		.animal-decoration:nth-child(2) .animal-speech { top: 0; right: calc(100% + 0.25rem); }
+		.animal-decoration:nth-child(3) {
+			top: 34%; left: 2%; transform: rotate(6deg);
+			--flight-x1: 5vw; --flight-y1: -3vh;
+			--flight-x2: 12vw; --flight-y2: 0vh;
+			--flight-x3: 14vw; --flight-y3: 8vh;
+			--flight-x4: 7vw; --flight-y4: 12vh;
+			--flight-x5: 0vw; --flight-y5: 7vh;
+			--flight-x6: 2vw; --flight-y6: 1vh;
+			animation-duration: 10s; animation-delay: -4s;
+		}
+		.animal-decoration:nth-child(3) .animal-speech { top: 0; left: calc(100% + 0.25rem); }
+		.animal-decoration:nth-child(4) {
+			top: 29%; right: 3%; transform: rotate(-7deg);
+			--flight-x1: -8vw; --flight-y1: 2vh;
+			--flight-x2: -14vw; --flight-y2: 6vh;
+			--flight-x3: -11vw; --flight-y3: 12vh;
+			--flight-x4: -3vw; --flight-y4: 10vh;
+			--flight-x5: 0vw; --flight-y5: 4vh;
+			--flight-x6: -4vw; --flight-y6: 0vh;
+			animation-duration: 15s; animation-delay: -8s;
+		}
+		.animal-decoration:nth-child(4) .animal-speech { top: 0; right: calc(100% + 0.25rem); }
+		.animal-decoration:nth-child(5) {
+			bottom: 13%; left: 12%; transform: rotate(7deg);
+			--flight-x1: 5vw; --flight-y1: -5vh;
+			--flight-x2: 13vw; --flight-y2: -2vh;
+			--flight-x3: 15vw; --flight-y3: -8vh;
+			--flight-x4: 9vw; --flight-y4: -11vh;
+			--flight-x5: 1vw; --flight-y5: -7vh;
+			--flight-x6: 0vw; --flight-y6: -1vh;
+			animation-duration: 19s; animation-delay: -3s;
+		}
+		.animal-decoration:nth-child(5) .animal-speech { bottom: 0; left: calc(100% + 0.25rem); }
+		.animal-decoration:nth-child(6) {
+			bottom: 10%; right: 13%; transform: rotate(-8deg);
+			--flight-x1: -6vw; --flight-y1: -3vh;
+			--flight-x2: -13vw; --flight-y2: -8vh;
+			--flight-x3: -14vw; --flight-y3: -12vh;
+			--flight-x4: -7vw; --flight-y4: -9vh;
+			--flight-x5: 0vw; --flight-y5: -5vh;
+			--flight-x6: -1vw; --flight-y6: -1vh;
+			animation-duration: 12s; animation-delay: -7s;
+		}
+		.animal-decoration:nth-child(6) .animal-speech { bottom: 0; right: calc(100% + 0.25rem); }
+		.animal-decoration:nth-child(7) {
+			top: 65%; left: 4%; transform: rotate(-5deg);
+			--flight-x1: 4vw; --flight-y1: -7vh;
+			--flight-x2: 11vw; --flight-y2: -10vh;
+			--flight-x3: 13vw; --flight-y3: -4vh;
+			--flight-x4: 7vw; --flight-y4: 0vh;
+			--flight-x5: 1vw; --flight-y5: -3vh;
+			--flight-x6: 0vw; --flight-y6: -8vh;
+			animation-duration: 16s; animation-delay: -5s;
+		}
+		.animal-decoration:nth-child(7) .animal-speech { top: 0; left: calc(100% + 0.25rem); }
+		.animal-decoration:nth-child(8) {
+			top: 62%; right: 5%; transform: rotate(9deg);
+			--flight-x1: -9vw; --flight-y1: -4vh;
+			--flight-x2: -14vw; --flight-y2: -10vh;
+			--flight-x3: -12vw; --flight-y3: -14vh;
+			--flight-x4: -5vw; --flight-y4: -11vh;
+			--flight-x5: -1vw; --flight-y5: -5vh;
+			--flight-x6: -4vw; --flight-y6: -1vh;
+			animation-duration: 9s; animation-delay: -9s;
+		}
+		.animal-decoration:nth-child(8) .animal-speech { top: 0; right: calc(100% + 0.25rem); }
+		.prize-slip {
+			position: absolute;
+			display: flex;
+			flex-direction: column;
+			align-items: center;
+			justify-content: center;
+			gap: 0.1rem;
+			width: clamp(3.5rem, 9vw, 6rem);
+			aspect-ratio: 1.25;
+			padding: 0.25rem;
+			border: 2px dashed var(--flyer-red);
+			border-radius: 0.2rem;
+			background: rgba(255, 252, 235, 0.94);
+			color: var(--flyer-ink);
+			box-shadow: 0 2px 6px rgba(16, 16, 16, 0.18);
+			text-align: center;
+			opacity: 0.86;
+		}
+		.prize-slip-number {
+			font-size: clamp(1rem, 3vw, 2rem);
+			font-weight: 900;
+			line-height: 1;
+		}
+		.prize-slip-label {
+			color: var(--flyer-red-dark);
+			font-size: clamp(0.55rem, 1.3vw, 0.8rem);
+			font-weight: 900;
+			line-height: 1;
+		}
+		.prize-slip:nth-child(9) {
+			top: 12%; left: 5%; transform: rotate(-8deg);
+			--flight-x1: 1vw; --flight-y1: 0.5vh;
+			--flight-x2: 2vw; --flight-y2: 1.5vh;
+			--flight-x3: 1vw; --flight-y3: 2vh;
+			--flight-x4: -0.5vw; --flight-y4: 1vh;
+			--flight-x5: -1vw; --flight-y5: 0vh;
+			--flight-x6: 0vw; --flight-y6: -0.5vh;
+			animation: prize-flight 8s ease-in-out infinite;
+			animation-delay: -2s;
+		}
+		.prize-slip:nth-child(10) {
+			top: 12%; right: 5%; transform: rotate(7deg);
+			--flight-x1: -1vw; --flight-y1: 0.5vh;
+			--flight-x2: -2vw; --flight-y2: 1.5vh;
+			--flight-x3: -1vw; --flight-y3: 2vh;
+			--flight-x4: 0.5vw; --flight-y4: 1vh;
+			--flight-x5: 1vw; --flight-y5: 0vh;
+			--flight-x6: 0vw; --flight-y6: -0.5vh;
+			animation: prize-flight 11s ease-in-out infinite;
+			animation-delay: -7s;
+		}
+		.prize-slip:nth-child(11) {
+			bottom: 12%; left: 5%; transform: rotate(6deg);
+			--flight-x1: 1vw; --flight-y1: -0.5vh;
+			--flight-x2: 2vw; --flight-y2: -1.5vh;
+			--flight-x3: 1vw; --flight-y3: -2vh;
+			--flight-x4: -0.5vw; --flight-y4: -1vh;
+			--flight-x5: -1vw; --flight-y5: 0vh;
+			--flight-x6: 0vw; --flight-y6: 0.5vh;
+			animation: prize-flight 9s ease-in-out infinite;
+			animation-delay: -5s;
+		}
+		.prize-slip:nth-child(12) {
+			bottom: 12%; right: 5%; transform: rotate(-7deg);
+			--flight-x1: -0.5vw; --flight-y1: -1vh;
+			--flight-x2: -1.5vw; --flight-y2: -2vh;
+			--flight-x3: -2vw; --flight-y3: -1vh;
+			--flight-x4: -1vw; --flight-y4: 0.5vh;
+			--flight-x5: 0vw; --flight-y5: 1vh;
+			--flight-x6: 0.5vw; --flight-y6: 0vh;
+			animation: prize-flight 13s ease-in-out infinite;
+			animation-delay: -9s;
+		}
+		@keyframes animal-flight {
+			0%, 100% { translate: 0 0; }
+			12% { translate: var(--flight-x1) var(--flight-y1); }
+			27% { translate: var(--flight-x2) var(--flight-y2); }
+			42% { translate: var(--flight-x3) var(--flight-y3); }
+			57% { translate: var(--flight-x4) var(--flight-y4); }
+			72% { translate: var(--flight-x5) var(--flight-y5); }
+			87% { translate: var(--flight-x6) var(--flight-y6); }
+		}
+		@keyframes prize-flight {
+			0%, 100% { translate: 0 0; }
+			12% { translate: var(--flight-x1) var(--flight-y1); }
+			27% { translate: var(--flight-x2) var(--flight-y2); }
+			42% { translate: var(--flight-x3) var(--flight-y3); }
+			57% { translate: var(--flight-x4) var(--flight-y4); }
+			72% { translate: var(--flight-x5) var(--flight-y5); }
+			87% { translate: var(--flight-x6) var(--flight-y6); }
+		}
+		@media (prefers-reduced-motion: reduce) {
+			#animalDecorations .animal-decoration,
+			#animalDecorations .prize-slip { animation: none; }
+		}
+		#mainContent {
+			min-height: 0;
+			overflow-y: auto;
+		}
+		@media (max-height: 560px) {
+			#mainContent {
+				align-items: flex-start;
+			}
+			.animal-decoration {
+				width: clamp(2rem, 9vw, 3.5rem);
+			}
 		}
 		@media (min-width: 640px) {
 			#versionBadge,
@@ -135,18 +386,10 @@
 		#errorPopupTitle {
 			font-family: "akzidenz-grotesk-next-extend", "AkzidenzGroteskBlack", "NeueHaasDisplay", sans-serif;
 		}
-		#tombolaBrand {
-			margin: 0;
-			color: var(--flyer-red);
-			font-family: "Metal Mania", "akzidenz-grotesk-next-extend", sans-serif;
-			font-size: 3.5rem;
-			font-weight: 400;
-			line-height: 1;
-			text-align: center;
-			text-shadow: 2px 2px 0 var(--flyer-ink);
-		}
-		#paymentDescription {
+		#paymentDescription,
+		#prizeInstruction {
 			font-size: var(--copy-size);
+			font-weight: 700;
 			line-height: 1.35;
 			text-align: center;
 			margin-left: auto;
@@ -300,59 +543,9 @@
 	</nav>
 
 	<!-- Main Content -->
-	<main class="flex-1 flex items-center justify-center p-3 sm:p-4 md:p-6" id="mainContent" style="padding-bottom: var(--bottom-safe-area);">
+	<main class="flex-1 flex items-center justify-center p-3 sm:p-4 md:p-6" id="mainContent">
 		<div class="card bg-base-100 w-full" id="paymentCard">
 			<div class="card-body p-4 sm:p-6 gap-3 sm:gap-4">
-				<!-- Success Banner (hidden by default) -->
-				<div class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur" id="successBanner">
-					<div class="alert alert-success alert-lg max-w-sm">
-						<svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-						<span class="font-bold">Danke! Dein Tombola Lösli wird JETZT ausgegeben!</span>
-					</div>
-				</div>
-
-				<!-- Cancel Banner (hidden by default) -->
-				<div class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur" id="cancelBanner">
-					<div class="alert alert-warning alert-lg max-w-sm">
-						<svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v4m0 4h.01M12 3a9 9 0 100 18 9 9 0 000-18z" /></svg>
-						<span class="font-bold" id="cancelBannerMessage">Zahlung wurde vom Operator storniert.</span>
-					</div>
-				</div>
-
-				<!-- Device Command Overlay (hidden by default) -->
-				<div class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur" id="deviceCommandOverlay">
-					<div class="alert alert-info alert-lg max-w-sm">
-						<div class="loader-ring loader-ring-sm shrink-0" aria-hidden="true"></div>
-						<span class="font-bold" id="deviceCommandMessage">Befehl wird ausgeführt...</span>
-					</div>
-				</div>
-
-				<!-- Error Popup (hidden by default) -->
-				<div class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur" id="errorPopup">
-					<div class="card bg-base-100 w-full max-w-md mx-4">
-						<div class="card-body">
-							<div class="flex items-start gap-3">
-								<svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6 text-error" fill="none" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-								<div class="flex-1">
-									<h3 class="font-bold text-lg text-error mb-2" id="errorPopupTitle">Fehler</h3>
-									<p class="text-base mb-2" id="errorPopupMessage"></p>
-									<div class="bg-base-200 rounded p-3 mb-3">
-										<p class="text-xs text-base-content/70 mb-1">Fehlercode:</p>
-										<p class="text-sm font-mono" id="errorPopupCode"></p>
-										<p class="text-xs text-base-content/70 mt-2 mb-1">Details:</p>
-										<p class="text-sm" id="errorPopupDetails"></p>
-									</div>
-									<p class="text-sm text-base-content/70">Versuche es erneut in 3 Sekunden...</p>
-								</div>
-							</div>
-							<div class="card-actions justify-end mt-2">
-								<button class="btn btn-sm btn-ghost" id="errorPopupClose">Schließen</button>
-							</div>
-						</div>
-					</div>
-				</div>
-
-				<h1 id="tombolaBrand">TOMBOLA</h1>
 				<h2 class="card-title hidden" id="paymentTitle"></h2>
 				<p id="paymentDescription">Scanne den QR-Code und bezahle dein Tombola-Lösli. Sobald die Zahlung bestätigt ist, kannst du dein Los entnehmen.</p>
 				<div class="bg-base-200 rounded-lg flex items-center justify-center w-full overflow-hidden" id="qr">
@@ -361,6 +554,7 @@
 						<p class="mt-2 text-sm">Warten auf QR Code...</p>
 					</div>
 				</div>
+				<p id="prizeInstruction">Wenn du eine Nummer ziehst, kannst du diese gegen einen Gewinn an der Aussenbar eintauschen.</p>
 
 				<!-- Error Message -->
 				<div class="alert alert-error hidden" id="errorContainer">
@@ -373,6 +567,99 @@
 			</div>
 		</div>
 	</main>
+
+	<div class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur" id="successBanner">
+		<div class="alert alert-success alert-lg max-w-sm">
+			<svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+			<span class="font-bold">Danke! Dein Tombola Lösli wird JETZT ausgegeben!</span>
+		</div>
+	</div>
+	<div class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur" id="cancelBanner">
+		<div class="alert alert-warning alert-lg max-w-sm">
+			<svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v4m0 4h.01M12 3a9 9 0 100 18 9 9 0 000-18z" /></svg>
+			<span class="font-bold" id="cancelBannerMessage">Zahlung wurde vom Operator storniert.</span>
+		</div>
+	</div>
+	<div class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur" id="deviceCommandOverlay">
+		<div class="alert alert-info alert-lg max-w-sm">
+			<div class="loader-ring loader-ring-sm shrink-0" aria-hidden="true"></div>
+			<span class="font-bold" id="deviceCommandMessage">Befehl wird ausgeführt...</span>
+		</div>
+	</div>
+	<div class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur" id="errorPopup">
+		<div class="card bg-base-100 w-full max-w-md mx-4">
+			<div class="card-body">
+				<div class="flex items-start gap-3">
+					<svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6 text-error" fill="none" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+					<div class="flex-1">
+						<h3 class="font-bold text-lg text-error mb-2" id="errorPopupTitle">Fehler</h3>
+						<p class="text-base mb-2" id="errorPopupMessage"></p>
+						<div class="bg-base-200 rounded p-3 mb-3">
+							<p class="text-xs text-base-content/70 mb-1">Fehlercode:</p>
+							<p class="text-sm font-mono" id="errorPopupCode"></p>
+							<p class="text-xs text-base-content/70 mt-2 mb-1">Details:</p>
+							<p class="text-sm" id="errorPopupDetails"></p>
+						</div>
+						<p class="text-sm text-base-content/70">Versuche es erneut in 3 Sekunden...</p>
+					</div>
+				</div>
+				<div class="card-actions justify-end mt-2">
+					<button class="btn btn-sm btn-ghost" id="errorPopupClose">Schließen</button>
+				</div>
+			</div>
+		</div>
+	</div>
+
+	<aside id="animalDecorations" aria-label="Tier- und Gewinndekoration" aria-hidden="true">
+		<figure class="animal-decoration">
+			<img src="/animals/duck-01.png" alt="">
+			<span class="animal-speech">niedliche niete</span>
+		</figure>
+		<figure class="animal-decoration">
+			<img src="/animals/fish-01.png" alt="">
+			<span class="animal-speech">niedliche niete</span>
+		</figure>
+		<figure class="animal-decoration">
+			<img src="/animals/frog-03.png" alt="">
+			<span class="animal-speech">niedliche niete</span>
+		</figure>
+		<figure class="animal-decoration">
+			<img src="/animals/owl-01.png" alt="">
+			<span class="animal-speech">niedliche niete</span>
+		</figure>
+		<figure class="animal-decoration">
+			<img src="/animals/rabbit-01.png" alt="">
+			<span class="animal-speech">niedliche niete</span>
+		</figure>
+		<figure class="animal-decoration">
+			<img src="/animals/turtle-01.png" alt="">
+			<span class="animal-speech">niedliche niete</span>
+		</figure>
+		<figure class="animal-decoration">
+			<img src="/animals/mouse-01.png" alt="">
+			<span class="animal-speech">niedliche niete</span>
+		</figure>
+		<figure class="animal-decoration">
+			<img src="/animals/whale-01.png" alt="">
+			<span class="animal-speech">niedliche niete</span>
+		</figure>
+		<div class="prize-slip" aria-hidden="true">
+			<span class="prize-slip-number">1</span>
+			<span class="prize-slip-label">Gewinn</span>
+		</div>
+		<div class="prize-slip" aria-hidden="true">
+			<span class="prize-slip-number">2</span>
+			<span class="prize-slip-label">Gewinn</span>
+		</div>
+		<div class="prize-slip" aria-hidden="true">
+			<span class="prize-slip-number">3</span>
+			<span class="prize-slip-label">Gewinn</span>
+		</div>
+		<div class="prize-slip" aria-hidden="true">
+			<span class="prize-slip-number">4</span>
+			<span class="prize-slip-label">Gewinn</span>
+		</div>
+	</aside>
 
 	<!-- Version Badge (fixed position on left) -->
 	<div class="fixed badge text-[10px] sm:text-xs" id="versionBadge">v{{.Version}}</div>

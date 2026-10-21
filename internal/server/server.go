@@ -58,6 +58,7 @@ func (s *Server) Router() *chi.Mux {
 	r.Get("/qr.js", s.handleServeFile("qr.js"))
 	r.Get("/main.js", s.handleServeFile("main.js"))
 	r.Get("/fonts/{filename}", s.handleServeFont)
+	r.Get("/animals/{filename}", s.handleServeAnimal)
 	r.Post("/api/payment", s.handleCreatePayment)
 	r.Get("/api/payment/{id}", s.handleGetPaymentStatus)
 	r.Post("/api/actuate", s.handleActuate)
@@ -139,6 +140,26 @@ func (s *Server) handleServeFont(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
 	if _, err := w.Write(content); err != nil {
 		log.Printf("failed to write font %s: %v", filename, err)
+	}
+}
+
+func (s *Server) handleServeAnimal(w http.ResponseWriter, r *http.Request) {
+	filename := chi.URLParam(r, "filename")
+	if filename == "" || strings.Contains(filename, "/") || strings.Contains(filename, "\\") {
+		http.Error(w, "invalid animal filename", http.StatusBadRequest)
+		return
+	}
+
+	content, err := GetStaticFile("animals/" + filename)
+	if err != nil {
+		http.Error(w, "animal image not found", http.StatusNotFound)
+		return
+	}
+
+	w.Header().Set("Content-Type", "image/png")
+	w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+	if _, err := w.Write(content); err != nil {
+		log.Printf("failed to write animal image %s: %v", filename, err)
 	}
 }
 

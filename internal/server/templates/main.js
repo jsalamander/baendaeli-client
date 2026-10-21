@@ -53,7 +53,7 @@ const stateUi = {
 		status: 'Ball erkannt',
 		badge: 'badge-warning',
 		title: '',
-		description: 'Scanne QR Code und zahle mit Twint oder Voucher',
+		description: 'Scanne QR Code mit der KAMERA 📷 und zahle anschliessend mit Twint auf der Webseite',
 		placeholderTitle: 'Zahlung wird vorbereitet',
 		placeholderSubtitle: 'QR-Code wird geladen...'
 	},

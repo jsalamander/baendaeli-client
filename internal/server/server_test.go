@@ -1,6 +1,7 @@
 package server
 
 import (
+    "bytes"
     "encoding/json"
     "io"
     "net/http"
@@ -124,6 +125,9 @@ func TestServeMainTemplate_SubstitutesConfig(t *testing.T) {
     if !strings.Contains(body, "const successOverlayMs = 5555") {
         t.Fatalf("successOverlayMs not substituted: %s", body)
     }
+    if !strings.Contains(body, "Scanne QR Code mit der KAMERA 📷 und zahle anschliessend mit Twint auf der Webseite") {
+        t.Fatalf("main.js should show the updated camera and Twint instructions, body: %s", body)
+    }
     if !strings.Contains(body, "fetch('/api/device/status')") {
         t.Fatalf("main.js should poll device status endpoint, body: %s", body)
     }
@@ -184,6 +188,81 @@ func TestServeStaticJS(t *testing.T) {
     }
     if !strings.Contains(rr.Body.String(), "function updateStatus") {
         t.Fatalf("ui.js content unexpected: %s", rr.Body.String())
+    }
+}
+
+func TestServeAnimalImage(t *testing.T) {
+    srv := newTestServer(&config.Config{}, nil)
+
+    rr := httptest.NewRecorder()
+    req := httptest.NewRequest(http.MethodGet, "/animals/owl-01.png", nil)
+    srv.Router().ServeHTTP(rr, req)
+
+    if rr.Code != http.StatusOK {
+        t.Fatalf("unexpected status: %d", rr.Code)
+    }
+    if got := rr.Header().Get("Content-Type"); got != "image/png" {
+        t.Fatalf("unexpected content type: %q", got)
+    }
+    if !bytes.HasPrefix(rr.Body.Bytes(), []byte{0x89, 'P', 'N', 'G', '\r', '\n', 0x1a, '\n'}) {
+        t.Fatal("animal image response is not a PNG")
+    }
+}
+
+func TestHandleIndexShowsAnimalDecorations(t *testing.T) {
+    srv := newTestServer(&config.Config{}, nil)
+
+    rr := httptest.NewRecorder()
+    req := httptest.NewRequest(http.MethodGet, "/", nil)
+    srv.Router().ServeHTTP(rr, req)
+
+    if rr.Code != http.StatusOK {
+        t.Fatalf("unexpected status: %d", rr.Code)
+    }
+    body := rr.Body.String()
+    qrEnd := strings.Index(body, `id="qr"`)
+    prizeInstruction := strings.Index(body, `id="prizeInstruction">Wenn du eine Nummer ziehst, kannst du diese gegen einen Gewinn an der Aussenbar eintauschen.</p>`)
+    if qrEnd < 0 || prizeInstruction < qrEnd {
+        t.Fatal("prize instruction should appear below the QR code")
+    }
+    if got := strings.Count(body, `src="/animals/`); got != 8 {
+        t.Fatalf("expected 8 animal images, got %d", got)
+    }
+    if got := strings.Count(body, `<span class="animal-speech">niedliche niete</span>`); got != 8 {
+        t.Fatalf("expected 8 animal speech bubbles, got %d", got)
+    }
+    if !strings.Contains(body, "@keyframes animal-flight") || !strings.Contains(body, "prefers-reduced-motion: reduce") {
+        t.Fatal("animal decorations should fly and respect reduced-motion preferences")
+    }
+    if !strings.Contains(body, "animation-duration: 9s; animation-delay: -9s;") ||
+        !strings.Contains(body, "animation-duration: 19s; animation-delay: -3s;") ||
+        !strings.Contains(body, "42% { translate: var(--flight-x3) var(--flight-y3); }") ||
+        !strings.Contains(body, "--flight-y1: 1vh;\n\t\t\t--flight-x2: 12vw; --flight-y2: 5vh;\n\t\t\t--flight-x3: 8vw; --flight-y3: 9vh;\n\t\t\t--flight-x4: 1vw; --flight-y4: 8vh;") {
+        t.Fatal("animals should use varied multi-direction flight paths and speeds")
+    }
+    if !strings.Contains(body, "nav {\n\t\t\tposition: relative;\n\t\t\tz-index: 1;") ||
+        !strings.Contains(body, "#animalDecorations {\n\t\t\tposition: fixed;\n\t\t\tz-index: 2;") ||
+        !strings.Contains(body, "#mainContent {\n\t\t\tposition: relative;\n\t\t\tz-index: 3;") {
+        t.Fatal("animal decorations should appear over the navbar but remain behind main content")
+    }
+    if !strings.Contains(body, "@keyframes prize-flight") ||
+        !strings.Contains(body, "animation: prize-flight 8s") ||
+        !strings.Contains(body, "animation: prize-flight 13s") ||
+        !strings.Contains(body, "top: 12%; left: 5%") ||
+        !strings.Contains(body, "bottom: 12%; right: 5%") {
+        t.Fatal("prize slips should follow varied flight paths around the screen edges")
+    }
+    if got := strings.Count(body, `class="prize-slip" aria-hidden="true"`); got != 4 {
+        t.Fatalf("expected 4 flying prize slips, got %d", got)
+    }
+    if got := strings.Count(body, `<span class="prize-slip-label">Gewinn</span>`); got != 4 {
+        t.Fatalf("expected 4 prize slip labels, got %d", got)
+    }
+    mainEnd := strings.Index(body, "</main>")
+    overlayStart := strings.Index(body, `id="successBanner"`)
+    animalsStart := strings.Index(body, `id="animalDecorations"`)
+    if mainEnd < 0 || overlayStart < mainEnd || animalsStart < overlayStart {
+        t.Fatal("overlays must be outside the main content and above the animal decorations")
     }
 }
 
