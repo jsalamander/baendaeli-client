@@ -34,7 +34,7 @@ const stateUi = {
 		placeholderSubtitle: 'Danach startet die automatische Erkennung.'
 	},
 	detecting_ball: {
-		status: 'Warte auf Ball',
+		status: 'Warten auf Ball',
 		badge: 'badge-info',
 		title: '',
 		description: 'Scanne den QR-Code und bezahle dein Tombola-Lösli. Sobald die Zahlung bestätigt ist, kannst du dein Los entnehmen.',

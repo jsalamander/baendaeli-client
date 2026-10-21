@@ -672,7 +672,7 @@ func TestCommandExecutionPolicy(t *testing.T) {
 		t.Fatal("expected load_test to be executable in idle state")
 	}
 
-	client.setRuntimeState(StateDetectingBall, "Warte auf Ball")
+	client.setRuntimeState(StateDetectingBall, "Warten auf Ball")
 	if !client.canExecuteCommandNow(&CommandResponse{Command: "load_test"}) {
 		t.Fatal("expected load_test to be executable in clean detecting_ball state")
 	}

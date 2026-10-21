@@ -431,7 +431,7 @@ func (c *Client) Start() {
 		}
 	}
 
-	c.setRuntimeState(StateDetectingBall, "Warte auf Ball")
+	c.setRuntimeState(StateDetectingBall, "Warten auf Ball")
 
 	if c.logShipper != nil {
 		c.logShipper.start()
@@ -580,7 +580,7 @@ func (c *Client) poll() {
 			return
 		}
 		if c.GetPaymentID() == "" {
-			c.setRuntimeState(StateDetectingBall, "Warte auf Ball")
+			c.setRuntimeState(StateDetectingBall, "Warten auf Ball")
 		}
 	}
 }
@@ -596,7 +596,7 @@ func (c *Client) runStateMachineCycle() bool {
 			}
 			c.soldOutRetryAt.Store(0)
 		}
-		c.setRuntimeState(StateDetectingBall, "Warte auf Ball")
+		c.setRuntimeState(StateDetectingBall, "Warten auf Ball")
 		referenceBaseline := c.consumePendingBallReference()
 		if err := c.waitForBallReady(true, true, referenceBaseline); err != nil {
 			log.Printf("Device client: ball detection failed: %v", err)
@@ -672,7 +672,7 @@ func (c *Client) runStateMachineCycle() bool {
 
 		c.SetPaymentID("")
 		c.clearExecutingCommand()
-		c.setRuntimeState(StateDetectingBall, "Warte auf Ball")
+		c.setRuntimeState(StateDetectingBall, "Warten auf Ball")
 		return true
 	case "failure", "failed", "cancelled", "canceled", "expired", "timeout":
 		c.setRuntimeState(StatePaymentFailed, "Zahlung fehlgeschlagen")
@@ -683,7 +683,7 @@ func (c *Client) runStateMachineCycle() bool {
 		c.SetPaymentID("")
 		time.Sleep(500 * time.Millisecond)
 		c.clearExecutingCommand()
-		c.setRuntimeState(StateDetectingBall, "Warte auf Ball")
+		c.setRuntimeState(StateDetectingBall, "Warten auf Ball")
 		return true
 	default:
 		c.setRuntimeState(StateError, "Unbekannter Payment-Status")
@@ -1155,7 +1155,7 @@ func (c *Client) executeCommand(cmd *CommandResponse) (string, error) {
 
 			log.Printf("Device client: load test cycle %d/%d verification complete", i, loadTestCycles)
 			c.SetPaymentID("")
-			c.setRuntimeState(StateDetectingBall, "Warte auf Ball")
+			c.setRuntimeState(StateDetectingBall, "Warten auf Ball")
 		}
 
 		avgBeamCuts := 0.0
@@ -1390,7 +1390,7 @@ func (c *Client) waitForBallReady(showWaitingMessage bool, allowVibration bool, 
 	}
 
 	if showWaitingMessage {
-		c.setRuntimeState(StateDetectingBall, "Warte auf Ball")
+		c.setRuntimeState(StateDetectingBall, "Warten auf Ball")
 		c.setExecutingCommand(&CommandResponse{
 			Command: "message",
 			Message: "Waiting for Ball Release",
@@ -1617,7 +1617,7 @@ func (c *Client) restartStateMachine() error {
 		}
 	}
 
-	c.setRuntimeState(StateDetectingBall, "Warte auf Ball")
+	c.setRuntimeState(StateDetectingBall, "Warten auf Ball")
 	return nil
 }
 
