@@ -53,7 +53,7 @@ const stateUi = {
 		status: 'Ball erkannt',
 		badge: 'badge-warning',
 		title: '',
-		description: 'Scanne QR Code mit der KAMERA 📷 und zahle anschliessend mit Twint auf der Webseite',
+		description: 'Scanne QR Code mit der KAMERA und zahle anschliessend mit Twint auf der Webseite',
 		placeholderTitle: 'Zahlung wird vorbereitet',
 		placeholderSubtitle: 'QR-Code wird geladen...'
 	},
@@ -129,6 +129,29 @@ function mapStateUi(state) {
 function updateStatus(text, badgeClass = 'badge-info') {
 	statusEl.innerHTML = '<span class="status status-sm status-success"></span><span class="truncate">' + text + '</span>';
 	statusEl.className = 'badge text-xs sm:text-sm md:text-base px-2 sm:px-4 py-2 sm:py-3 max-w-[70vw] lg:max-w-[55vw] overflow-hidden ' + badgeClass;
+}
+
+function renderPaymentDescription(text, state) {
+	if (state !== 'ball_detected') {
+		paymentDescriptionEl.textContent = text;
+		return;
+	}
+
+	const keyword = 'KAMERA';
+	const keywordIndex = text.indexOf(keyword);
+	if (keywordIndex < 0) {
+		paymentDescriptionEl.textContent = text;
+		return;
+	}
+
+	const highlightedKeyword = document.createElement('span');
+	highlightedKeyword.className = 'camera-highlight';
+	highlightedKeyword.textContent = keyword;
+	paymentDescriptionEl.replaceChildren(
+		document.createTextNode(text.slice(0, keywordIndex)),
+		highlightedKeyword,
+		document.createTextNode(text.slice(keywordIndex + keyword.length)),
+	);
 }
 
 function setCommandOverlay(executingCommand, fallbackMessage) {
@@ -252,7 +275,7 @@ function renderDeviceState(data) {
 	statusEl.classList.toggle('hidden', Boolean(ui.hideStatus));
 	paymentTitleEl.textContent = ui.title;
 	paymentTitleEl.classList.toggle('hidden', !ui.title);
-	paymentDescriptionEl.textContent = ui.description;
+	renderPaymentDescription(ui.description, state);
 	renderPaymentExpiry(data.payment, state);
 
 	const showAmountSelectionWaiting = shouldShowAmountSelectionWaiting(state, data.payment);

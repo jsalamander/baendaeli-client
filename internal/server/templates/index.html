@@ -134,12 +134,13 @@
 			z-index: 1;
 			width: max-content;
 			max-width: min(7rem, 24vw);
-			padding: 0.3em 0.55em;
+			min-height: 1.7rem;
+			padding: 0.35em 0.7em;
 			display: flex;
 			align-items: center;
 			justify-content: center;
-			border: 1px solid var(--flyer-red);
-			border-radius: 999px;
+			border: 2px solid var(--flyer-red);
+			border-radius: 48% 52% 46% 54% / 55% 46% 54% 45%;
 			background: rgba(255, 255, 255, 0.94);
 			color: var(--flyer-red-dark);
 			font-size: clamp(0.45rem, 0.85vw, 0.65rem);
@@ -148,7 +149,46 @@
 			text-align: center;
 			text-transform: uppercase;
 			white-space: normal;
-			box-shadow: 0 1px 4px rgba(16, 16, 16, 0.12);
+			box-shadow: 0 2px 5px rgba(16, 16, 16, 0.18);
+		}
+		.animal-speech::before,
+		.animal-speech::after {
+			position: absolute;
+			top: 50%;
+			width: 0;
+			height: 0;
+			content: "";
+			transform: translateY(-50%);
+		}
+		.animal-speech::before {
+			left: -0.72rem;
+			border-top: 0.42rem solid transparent;
+			border-right: 0.78rem solid var(--flyer-red);
+			border-bottom: 0.18rem solid transparent;
+		}
+		.animal-speech::after {
+			left: -0.49rem;
+			border-top: 0.3rem solid transparent;
+			border-right: 0.58rem solid rgba(255, 255, 255, 0.94);
+			border-bottom: 0.13rem solid transparent;
+		}
+		.animal-decoration:nth-child(1) .animal-speech::before,
+		.animal-decoration:nth-child(4) .animal-speech::before,
+		.animal-decoration:nth-child(7) .animal-speech::before,
+		.animal-decoration:nth-child(8) .animal-speech::before {
+			right: -0.72rem;
+			left: auto;
+			border-right: 0;
+			border-left: 0.78rem solid var(--flyer-red);
+		}
+		.animal-decoration:nth-child(1) .animal-speech::after,
+		.animal-decoration:nth-child(4) .animal-speech::after,
+		.animal-decoration:nth-child(7) .animal-speech::after,
+		.animal-decoration:nth-child(8) .animal-speech::after {
+			right: -0.49rem;
+			left: auto;
+			border-right: 0;
+			border-left: 0.58rem solid rgba(255, 255, 255, 0.94);
 		}
 		.animal-decoration,
 		.prize-slip {
@@ -157,90 +197,90 @@
 			animation-iteration-count: infinite;
 		}
 		.animal-decoration:nth-child(1) {
-			top: 9%; left: 5%; transform: rotate(-9deg);
-			--flight-x1: 7vw; --flight-y1: 1vh;
-			--flight-x2: 12vw; --flight-y2: 5vh;
-			--flight-x3: 8vw; --flight-y3: 9vh;
-			--flight-x4: 1vw; --flight-y4: 8vh;
-			--flight-x5: -2vw; --flight-y5: 4vh;
-			--flight-x6: 2vw; --flight-y6: 1vh;
+			top: 11%; left: 12%; transform: translate(-50%, -50%) rotate(-9deg);
+			--flight-x1: 2vw; --flight-y1: 1vh;
+			--flight-x2: 4vw; --flight-y2: 3vh;
+			--flight-x3: 3vw; --flight-y3: 1vh;
+			--flight-x4: 1vw; --flight-y4: -1vh;
+			--flight-x5: -1vw; --flight-y5: 1vh;
+			--flight-x6: 1vw; --flight-y6: 2vh;
 			animation-duration: 13s; animation-delay: -1s;
 		}
-		.animal-decoration:nth-child(1) .animal-speech { top: 0; left: calc(100% + 0.25rem); }
+		.animal-decoration:nth-child(1) .animal-speech { top: 0; right: calc(100% + 0.25rem); }
 		.animal-decoration:nth-child(2) {
-			top: 7%; right: 8%; transform: rotate(8deg);
-			--flight-x1: -5vw; --flight-y1: 5vh;
-			--flight-x2: -12vw; --flight-y2: 9vh;
-			--flight-x3: -15vw; --flight-y3: 3vh;
-			--flight-x4: -8vw; --flight-y4: -1vh;
-			--flight-x5: -2vw; --flight-y5: 2vh;
-			--flight-x6: -3vw; --flight-y6: 7vh;
+			top: 7%; left: 39%; transform: translate(-50%, -50%) rotate(8deg);
+			--flight-x1: -1vw; --flight-y1: 2vh;
+			--flight-x2: 2vw; --flight-y2: 0vh;
+			--flight-x3: 3vw; --flight-y3: 3vh;
+			--flight-x4: 1vw; --flight-y4: 1vh;
+			--flight-x5: -1vw; --flight-y5: -1vh;
+			--flight-x6: -2vw; --flight-y6: 1vh;
 			animation-duration: 17s; animation-delay: -6s;
 		}
-		.animal-decoration:nth-child(2) .animal-speech { top: 0; right: calc(100% + 0.25rem); }
+		.animal-decoration:nth-child(2) .animal-speech { top: 0; left: calc(100% + 0.25rem); }
 		.animal-decoration:nth-child(3) {
-			top: 34%; left: 2%; transform: rotate(6deg);
-			--flight-x1: 5vw; --flight-y1: -3vh;
-			--flight-x2: 12vw; --flight-y2: 0vh;
-			--flight-x3: 14vw; --flight-y3: 8vh;
-			--flight-x4: 7vw; --flight-y4: 12vh;
-			--flight-x5: 0vw; --flight-y5: 7vh;
-			--flight-x6: 2vw; --flight-y6: 1vh;
+			top: 11%; left: 79%; transform: translate(-50%, -50%) rotate(6deg);
+			--flight-x1: -2vw; --flight-y1: 2vh;
+			--flight-x2: 1vw; --flight-y2: -1vh;
+			--flight-x3: 2vw; --flight-y3: 2vh;
+			--flight-x4: 0vw; --flight-y4: 3vh;
+			--flight-x5: -1vw; --flight-y5: 1vh;
+			--flight-x6: 1vw; --flight-y6: -1vh;
 			animation-duration: 10s; animation-delay: -4s;
 		}
 		.animal-decoration:nth-child(3) .animal-speech { top: 0; left: calc(100% + 0.25rem); }
 		.animal-decoration:nth-child(4) {
-			top: 29%; right: 3%; transform: rotate(-7deg);
-			--flight-x1: -8vw; --flight-y1: 2vh;
-			--flight-x2: -14vw; --flight-y2: 6vh;
-			--flight-x3: -11vw; --flight-y3: 12vh;
-			--flight-x4: -3vw; --flight-y4: 10vh;
-			--flight-x5: 0vw; --flight-y5: 4vh;
-			--flight-x6: -4vw; --flight-y6: 0vh;
+			top: 43%; left: 87%; transform: translate(-50%, -50%) rotate(-7deg);
+			--flight-x1: -2vw; --flight-y1: 1vh;
+			--flight-x2: -3vw; --flight-y2: 3vh;
+			--flight-x3: -1vw; --flight-y3: 2vh;
+			--flight-x4: 1vw; --flight-y4: -1vh;
+			--flight-x5: 2vw; --flight-y5: 1vh;
+			--flight-x6: -1vw; --flight-y6: 2vh;
 			animation-duration: 15s; animation-delay: -8s;
 		}
 		.animal-decoration:nth-child(4) .animal-speech { top: 0; right: calc(100% + 0.25rem); }
 		.animal-decoration:nth-child(5) {
-			bottom: 13%; left: 12%; transform: rotate(7deg);
-			--flight-x1: 5vw; --flight-y1: -5vh;
-			--flight-x2: 13vw; --flight-y2: -2vh;
-			--flight-x3: 15vw; --flight-y3: -8vh;
-			--flight-x4: 9vw; --flight-y4: -11vh;
-			--flight-x5: 1vw; --flight-y5: -7vh;
-			--flight-x6: 0vw; --flight-y6: -1vh;
+			top: 82%; left: 85%; transform: translate(-50%, -50%) rotate(7deg);
+			--flight-x1: 1vw; --flight-y1: -2vh;
+			--flight-x2: 3vw; --flight-y2: -1vh;
+			--flight-x3: 4vw; --flight-y3: -3vh;
+			--flight-x4: 2vw; --flight-y4: -2vh;
+			--flight-x5: 0vw; --flight-y5: -1vh;
+			--flight-x6: -1vw; --flight-y6: -3vh;
 			animation-duration: 19s; animation-delay: -3s;
 		}
 		.animal-decoration:nth-child(5) .animal-speech { bottom: 0; left: calc(100% + 0.25rem); }
 		.animal-decoration:nth-child(6) {
-			bottom: 10%; right: 13%; transform: rotate(-8deg);
-			--flight-x1: -6vw; --flight-y1: -3vh;
-			--flight-x2: -13vw; --flight-y2: -8vh;
-			--flight-x3: -14vw; --flight-y3: -12vh;
-			--flight-x4: -7vw; --flight-y4: -9vh;
-			--flight-x5: 0vw; --flight-y5: -5vh;
-			--flight-x6: -1vw; --flight-y6: -1vh;
+			top: 92%; left: 59%; transform: translate(-50%, -50%) rotate(-8deg);
+			--flight-x1: -1vw; --flight-y1: -2vh;
+			--flight-x2: -3vw; --flight-y2: -3vh;
+			--flight-x3: -2vw; --flight-y3: -1vh;
+			--flight-x4: 1vw; --flight-y4: -2vh;
+			--flight-x5: 2vw; --flight-y5: -1vh;
+			--flight-x6: 0vw; --flight-y6: -3vh;
 			animation-duration: 12s; animation-delay: -7s;
 		}
-		.animal-decoration:nth-child(6) .animal-speech { bottom: 0; right: calc(100% + 0.25rem); }
+		.animal-decoration:nth-child(6) .animal-speech { bottom: 0; left: calc(100% + 0.25rem); }
 		.animal-decoration:nth-child(7) {
-			top: 65%; left: 4%; transform: rotate(-5deg);
-			--flight-x1: 4vw; --flight-y1: -7vh;
-			--flight-x2: 11vw; --flight-y2: -10vh;
-			--flight-x3: 13vw; --flight-y3: -4vh;
-			--flight-x4: 7vw; --flight-y4: 0vh;
-			--flight-x5: 1vw; --flight-y5: -3vh;
-			--flight-x6: 0vw; --flight-y6: -8vh;
+			top: 82%; left: 30%; transform: translate(-50%, -50%) rotate(-5deg);
+			--flight-x1: 2vw; --flight-y1: -1vh;
+			--flight-x2: 3vw; --flight-y2: -3vh;
+			--flight-x3: 1vw; --flight-y3: -2vh;
+			--flight-x4: -1vw; --flight-y4: -3vh;
+			--flight-x5: -2vw; --flight-y5: -1vh;
+			--flight-x6: 0vw; --flight-y6: -2vh;
 			animation-duration: 16s; animation-delay: -5s;
 		}
-		.animal-decoration:nth-child(7) .animal-speech { top: 0; left: calc(100% + 0.25rem); }
+		.animal-decoration:nth-child(7) .animal-speech { top: 0; right: calc(100% + 0.25rem); }
 		.animal-decoration:nth-child(8) {
-			top: 62%; right: 5%; transform: rotate(9deg);
-			--flight-x1: -9vw; --flight-y1: -4vh;
-			--flight-x2: -14vw; --flight-y2: -10vh;
-			--flight-x3: -12vw; --flight-y3: -14vh;
-			--flight-x4: -5vw; --flight-y4: -11vh;
-			--flight-x5: -1vw; --flight-y5: -5vh;
-			--flight-x6: -4vw; --flight-y6: -1vh;
+			top: 48%; left: 13%; transform: translate(-50%, -50%) rotate(9deg);
+			--flight-x1: -2vw; --flight-y1: -1vh;
+			--flight-x2: -3vw; --flight-y2: -3vh;
+			--flight-x3: -2vw; --flight-y3: -2vh;
+			--flight-x4: 1vw; --flight-y4: -1vh;
+			--flight-x5: 2vw; --flight-y5: -3vh;
+			--flight-x6: -1vw; --flight-y6: -2vh;
 			animation-duration: 9s; animation-delay: -9s;
 		}
 		.animal-decoration:nth-child(8) .animal-speech { top: 0; right: calc(100% + 0.25rem); }
@@ -274,7 +314,7 @@
 			line-height: 1;
 		}
 		.prize-slip:nth-child(9) {
-			top: 12%; left: 5%; transform: rotate(-8deg);
+			top: 28%; left: 9%; transform: translate(-50%, -50%) rotate(-8deg);
 			--flight-x1: 1vw; --flight-y1: 0.5vh;
 			--flight-x2: 2vw; --flight-y2: 1.5vh;
 			--flight-x3: 1vw; --flight-y3: 2vh;
@@ -285,7 +325,7 @@
 			animation-delay: -2s;
 		}
 		.prize-slip:nth-child(10) {
-			top: 12%; right: 5%; transform: rotate(7deg);
+			top: 28%; left: 91%; transform: translate(-50%, -50%) rotate(7deg);
 			--flight-x1: -1vw; --flight-y1: 0.5vh;
 			--flight-x2: -2vw; --flight-y2: 1.5vh;
 			--flight-x3: -1vw; --flight-y3: 2vh;
@@ -296,7 +336,7 @@
 			animation-delay: -7s;
 		}
 		.prize-slip:nth-child(11) {
-			bottom: 12%; left: 5%; transform: rotate(6deg);
+			top: 91%; left: 82%; transform: translate(-50%, -50%) rotate(6deg);
 			--flight-x1: 1vw; --flight-y1: -0.5vh;
 			--flight-x2: 2vw; --flight-y2: -1.5vh;
 			--flight-x3: 1vw; --flight-y3: -2vh;
@@ -307,7 +347,7 @@
 			animation-delay: -5s;
 		}
 		.prize-slip:nth-child(12) {
-			bottom: 12%; right: 5%; transform: rotate(-7deg);
+			top: 91%; left: 17%; transform: translate(-50%, -50%) rotate(-7deg);
 			--flight-x1: -0.5vw; --flight-y1: -1vh;
 			--flight-x2: -1.5vw; --flight-y2: -2vh;
 			--flight-x3: -2vw; --flight-y3: -1vh;
@@ -412,6 +452,9 @@
 			border-radius: 0.5rem;
 			background-color: var(--flyer-red);
 			color: var(--flyer-white);
+		}
+		.camera-highlight {
+			color: var(--flyer-red);
 		}
 		.alert.alert-info .loader-ring {
 			border-color: rgba(255, 255, 255, 0.25);

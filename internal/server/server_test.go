@@ -125,8 +125,14 @@ func TestServeMainTemplate_SubstitutesConfig(t *testing.T) {
     if !strings.Contains(body, "const successOverlayMs = 5555") {
         t.Fatalf("successOverlayMs not substituted: %s", body)
     }
-    if !strings.Contains(body, "Scanne QR Code mit der KAMERA 📷 und zahle anschliessend mit Twint auf der Webseite") {
+    if !strings.Contains(body, "Scanne QR Code mit der KAMERA und zahle anschliessend mit Twint auf der Webseite") {
         t.Fatalf("main.js should show the updated camera and Twint instructions, body: %s", body)
+    }
+    if strings.Contains(body, "📷") {
+        t.Fatal("main.js payment instructions should not include the camera emoji")
+    }
+    if !strings.Contains(body, "highlightedKeyword.className = 'camera-highlight'") {
+        t.Fatal("main.js should highlight only the camera keyword")
     }
     if !strings.Contains(body, "fetch('/api/device/status')") {
         t.Fatalf("main.js should poll device status endpoint, body: %s", body)
@@ -237,7 +243,8 @@ func TestHandleIndexShowsAnimalDecorations(t *testing.T) {
     if !strings.Contains(body, "animation-duration: 9s; animation-delay: -9s;") ||
         !strings.Contains(body, "animation-duration: 19s; animation-delay: -3s;") ||
         !strings.Contains(body, "42% { translate: var(--flight-x3) var(--flight-y3); }") ||
-        !strings.Contains(body, "--flight-y1: 1vh;\n\t\t\t--flight-x2: 12vw; --flight-y2: 5vh;\n\t\t\t--flight-x3: 8vw; --flight-y3: 9vh;\n\t\t\t--flight-x4: 1vw; --flight-y4: 8vh;") {
+        !strings.Contains(body, "72% { translate: var(--flight-x5) var(--flight-y5); }") ||
+        !strings.Contains(body, "--flight-y1: 1vh;\n\t\t\t--flight-x2: 4vw; --flight-y2: 3vh;\n\t\t\t--flight-x3: 3vw; --flight-y3: 1vh;") {
         t.Fatal("animals should use varied multi-direction flight paths and speeds")
     }
     if !strings.Contains(body, "nav {\n\t\t\tposition: relative;\n\t\t\tz-index: 1;") ||
@@ -248,9 +255,20 @@ func TestHandleIndexShowsAnimalDecorations(t *testing.T) {
     if !strings.Contains(body, "@keyframes prize-flight") ||
         !strings.Contains(body, "animation: prize-flight 8s") ||
         !strings.Contains(body, "animation: prize-flight 13s") ||
-        !strings.Contains(body, "top: 12%; left: 5%") ||
-        !strings.Contains(body, "bottom: 12%; right: 5%") {
-        t.Fatal("prize slips should follow varied flight paths around the screen edges")
+        !strings.Contains(body, "top: 28%; left: 9%; transform: translate(-50%, -50%)") ||
+        !strings.Contains(body, "top: 91%; left: 17%; transform: translate(-50%, -50%)") {
+        t.Fatal("prize slips should be distributed around the screen perimeter outside the central content")
+    }
+    if         !strings.Contains(body, "top: 11%; left: 12%; transform: translate(-50%, -50%)") ||
+    !strings.Contains(body, "top: 43%; left: 87%; transform: translate(-50%, -50%)") ||
+    !strings.Contains(body, "top: 92%; left: 59%; transform: translate(-50%, -50%)") ||
+    !strings.Contains(body, "top: 48%; left: 13%; transform: translate(-50%, -50%)") {
+    t.Fatal("animals should be distributed around the screen perimeter outside the central content")
+    }
+    if !strings.Contains(body, `.animal-decoration:nth-child(1) .animal-speech::before,`) ||
+        !strings.Contains(body, `.animal-decoration:nth-child(7) .animal-speech::after,`) ||
+        strings.Contains(body, `.animal-decoration:nth-child(even) .animal-speech::before`) {
+        t.Fatal("speech bubble tails should point toward each animal based on the bubble position")
     }
     if got := strings.Count(body, `class="prize-slip" aria-hidden="true"`); got != 4 {
         t.Fatalf("expected 4 flying prize slips, got %d", got)
