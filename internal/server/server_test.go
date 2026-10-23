@@ -128,6 +128,9 @@ func TestServeMainTemplate_SubstitutesConfig(t *testing.T) {
     if !strings.Contains(body, "Scanne QR Code mit der KAMERA und zahle anschliessend mit Twint auf der Webseite") {
         t.Fatalf("main.js should show the updated camera and Twint instructions, body: %s", body)
     }
+    if !strings.Contains(body, "title: 'Tombola Los ab 3.-',\n\t\tdescription: 'Scanne QR Code mit der KAMERA") {
+        t.Fatal("main.js should show the starting price as the title above the QR instructions")
+    }
     if strings.Contains(body, "📷") {
         t.Fatal("main.js payment instructions should not include the camera emoji")
     }

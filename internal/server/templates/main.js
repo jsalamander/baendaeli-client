@@ -52,7 +52,7 @@ const stateUi = {
 	ball_detected: {
 		status: 'Ball erkannt',
 		badge: 'badge-warning',
-		title: '',
+		title: 'Tombola Los ab 3.-',
 		description: 'Scanne QR Code mit der KAMERA und zahle anschliessend mit Twint auf der Webseite',
 		placeholderTitle: 'Zahlung wird vorbereitet',
 		placeholderSubtitle: 'QR-Code wird geladen...'
