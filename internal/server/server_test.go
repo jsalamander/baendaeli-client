@@ -214,6 +214,73 @@ func TestServeStaticJS(t *testing.T) {
     }
 }
 
+func TestServeBallPlaceholderImage(t *testing.T) {
+    srv := newTestServer(&config.Config{}, nil)
+    rr := httptest.NewRecorder()
+    srv.Router().ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/ball-red.png", nil))
+    if rr.Code != http.StatusOK {
+        t.Fatalf("unexpected status: %d", rr.Code)
+    }
+    if got := rr.Header().Get("Content-Type"); got != "image/png" {
+        t.Fatalf("unexpected content type: %q", got)
+    }
+    asset, err := GetStaticFile("ball-red.png")
+    if err != nil {
+        t.Fatal(err)
+    }
+    if !bytes.Equal(rr.Body.Bytes(), asset) ||
+        !bytes.HasPrefix(asset, []byte{0x89, 'P', 'N', 'G', '\r', '\n', 0x1a, '\n'}) {
+        t.Fatal("expected the embedded ball PNG")
+    }
+}
+
+func TestQrPlaceholderUsesRedBallAndKeepsStartupIcon(t *testing.T) {
+    srv := newTestServer(&config.Config{}, nil)
+    rr := httptest.NewRecorder()
+    srv.Router().ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/qr.js", nil))
+    if rr.Code != http.StatusOK {
+        t.Fatalf("unexpected status: %d", rr.Code)
+    }
+    body := rr.Body.String()
+    if !strings.Contains(body, `icon === 'power'`) ||
+        !strings.Contains(body, `startup-power-icon`) ||
+        !strings.Contains(body, `<img src="/ball-red.png"`) ||
+        !strings.Contains(body, `(animate ? ' ball-placeholder-animated' : '')`) {
+        t.Fatal("placeholders should use the local ball image except for the startup power icon")
+    }
+
+    if strings.Contains(body, `M9 3h6a2 2 0 012 2v6`) {
+        t.Fatal("the old default placeholder SVG must be removed")
+    }
+}
+
+func TestBallPlaceholderAnimation(t *testing.T) {
+        srv := newTestServer(&config.Config{}, nil)
+        rr := httptest.NewRecorder()
+        srv.Router().ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/", nil))
+        for _, fragment := range []string{
+            "animation: ball-bob 3s ease-in-out infinite;",
+            "0%, 100% { transform: translateY(0) rotate(-3deg); }",
+            "50% { transform: translateY(-6px) rotate(3deg); }",
+            "@media (prefers-reduced-motion: reduce) {\n\t\t\t.startup-power-icon,\n\t\t\t.ball-placeholder-animated { animation: none; }",
+        } {
+            if !strings.Contains(rr.Body.String(), fragment) {
+                t.Fatalf("missing ball animation CSS: %s", fragment)
+            }
+        }
+        rr = httptest.NewRecorder()
+        srv.Router().ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/main.js", nil))
+        for _, fragment := range []string{
+            "const animateBall = ['detecting_ball', 'ball_on_sensor', 'ball_detected'].includes(state);",
+            "startupPlaceholder ? 'power' : 'qr', animateBall",
+            "'Bitte schließe die Zahlung auf dem Smartphone ab.', 'qr', true",
+        } {
+            if !strings.Contains(rr.Body.String(), fragment) {
+                t.Fatalf("missing waiting-state animation wiring: %s", fragment)
+            }
+        }
+}
+
 func TestServeAnimalImage(t *testing.T) {
     srv := newTestServer(&config.Config{}, nil)
 

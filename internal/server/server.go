@@ -56,6 +56,7 @@ func (s *Server) Router() *chi.Mux {
 	r.Get("/ui.js", s.handleServeFile("ui.js"))
 	r.Get("/api.js", s.handleServeFile("api.js"))
 	r.Get("/qr.js", s.handleServeFile("qr.js"))
+	r.Get("/ball-red.png", s.handleServeFile("ball-red.png"))
 	r.Get("/main.js", s.handleServeFile("main.js"))
 	r.Get("/fonts/{filename}", s.handleServeFont)
 	r.Get("/animals/{filename}", s.handleServeAnimal)
@@ -84,6 +85,9 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleServeFile(filename string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/javascript; charset=utf-8")
+		if filepath.Ext(filename) == ".png" {
+			w.Header().Set("Content-Type", "image/png")
+		}
 
 		// Only main.js needs template variable substitution
 		if filename == "main.js" {

@@ -8,6 +8,7 @@ const MAX_QR_SIZE = 360;
 // Cache the last rendered QR source so repeated polls with identical data do
 // not clear and reinsert the DOM (which is the root cause of the size bounce).
 let lastQrKey = null;
+let lastPlaceholderKey = null;
 
 function getQrKey(data) {
 	const src =
@@ -128,12 +129,17 @@ if (window.visualViewport) {
 
 document.addEventListener('DOMContentLoaded', scheduleResponsiveQrSizeUpdate);
 
-function renderQrPlaceholder(title, subtitle, icon = 'qr') {
+function renderQrPlaceholder(title, subtitle, icon = 'qr', animate = false) {
 	// Reset the cache so the next renderQr() call always re-renders fresh.
 	lastQrKey = null;
+	const placeholderKey = JSON.stringify([title, subtitle, icon, animate]);
+	if (placeholderKey === lastPlaceholderKey) {
+		return;
+	}
+	lastPlaceholderKey = placeholderKey;
 	const iconMarkup = icon === 'power'
 		? '<svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 startup-power-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" d="M12 2v10m7.07-7.07a10 10 0 1 1-14.14 0" /></svg>'
-		: '<svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 opacity-70" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 3h6a2 2 0 012 2v6m0 2v6a2 2 0 01-2 2H9a2 2 0 01-2-2v-6m0-2V5a2 2 0 012-2zm-2 8h10m-5-5v10" /></svg>';
+		: '<img src="/ball-red.png" class="h-16 w-16 object-contain' + (animate ? ' ball-placeholder-animated' : '') + '" alt="" aria-hidden="true">';
 	qrEl.innerHTML =
 		'<div class="mx-auto flex max-w-xs flex-col items-center justify-center gap-3 text-center text-base-content/80">' +
 		iconMarkup +
@@ -143,6 +149,7 @@ function renderQrPlaceholder(title, subtitle, icon = 'qr') {
 }
 
 function renderQr(data) {
+	lastPlaceholderKey = null;
 	// Skip DOM mutation + resize recalculation when the QR content hasn't changed.
 	// Without this guard, every 1-second status poll would clear and reinsert the
 	// SVG and retrigger updateResponsiveQrSize(), creating a visible size bounce.

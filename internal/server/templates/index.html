@@ -507,8 +507,16 @@
 		@keyframes startup-pulse {
 			50% { opacity: 0.55; transform: scale(0.94); }
 		}
+		.ball-placeholder-animated {
+			animation: ball-bob 3s ease-in-out infinite;
+		}
+		@keyframes ball-bob {
+			0%, 100% { transform: translateY(0) rotate(-3deg); }
+			50% { transform: translateY(-6px) rotate(3deg); }
+		}
 		@media (prefers-reduced-motion: reduce) {
-			.startup-power-icon { animation: none; }
+			.startup-power-icon,
+			.ball-placeholder-animated { animation: none; }
 		}
 		.loader-ring-sm {
 			width: 1.5rem;

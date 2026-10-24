@@ -292,13 +292,14 @@ function renderDeviceState(data) {
 	const amountSelectionExpiryMs = getAmountSelectionExpiryMs(data.payment);
 	const paymentExpiryMs = getPaymentExpiryMs(data.payment);
 	const startupPlaceholder = state === 'starting' || state === 'startup_cycle';
+	const animateBall = ['detecting_ball', 'ball_on_sensor', 'ball_detected'].includes(state);
 
 	if (data.payment && state === 'ball_detected') {
 		renderQr(data.payment);
 	} else if (state === 'awaiting_payment') {
-		renderQrPlaceholder('Zahlung wird abgeschlossen', 'Bitte schließe die Zahlung auf dem Smartphone ab.');
+		renderQrPlaceholder('Zahlung wird abgeschlossen', 'Bitte schließe die Zahlung auf dem Smartphone ab.', 'qr', true);
 	} else {
-		renderQrPlaceholder(ui.placeholderTitle, ui.placeholderSubtitle, startupPlaceholder ? 'power' : 'qr');
+		renderQrPlaceholder(ui.placeholderTitle, ui.placeholderSubtitle, startupPlaceholder ? 'power' : 'qr', animateBall);
 	}
 
 	if (showAmountSelectionWaiting) {

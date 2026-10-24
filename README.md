@@ -8,6 +8,7 @@ The client for Baendae.li
 - **Real-time Status**: Live payment status tracking with visual feedback
 - **Internet Monitoring**: Real-time connectivity status display
 - **Ball Stock**: Server-reported remaining / total balls beside the API badge
+- **Ball Placeholder**: Non-QR screens use a locally bundled ball image with pink tones recolored to the primary red (`#f10d1b`). It gently bobs and tilts during waiting states, stays still otherwise, and respects reduced-motion preferences; startup retains its power icon.
 - **GPIO Actuator Support**: Optional linear actuator control via Raspberry Pi GPIO
 - **Free-Dispense Lever**: Optional KN3C-223 UP/DOWN switch for a free ball while awaiting payment
 - **Kiosk Mode**: Chromium fullscreen display for unattended operation

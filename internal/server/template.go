@@ -11,6 +11,7 @@ var (
 	//go:embed templates/index.html templates/main.js templates/api.js templates/ui.js templates/qr.js
 	//go:embed templates/animals/*.png
 	//go:embed templates/fonts/*
+	//go:embed templates/ball-red.png
 	templateFS embed.FS
 
 	indexTemplate = htmltemplate.Must(htmltemplate.ParseFS(templateFS, "templates/index.html"))
