@@ -179,6 +179,83 @@ func TestReportStatus(t *testing.T) {
 	}
 }
 
+func TestReportStatusUpdatesBallStockSnapshot(t *testing.T) {
+	var response string
+	var statusCode int
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost || r.URL.Path != "/api/v1/device/status" {
+			t.Errorf("unexpected request: %s %s", r.Method, r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(statusCode)
+		w.Write([]byte(response))
+	}))
+	defer server.Close()
+	client := New(&config.Config{BaendaeliURL: server.URL})
+
+	tests := []struct {
+		name          string
+		response      string
+		statusCode    int
+		wantRemaining string
+		wantTotal     string
+		wantError     bool
+	}{
+		{"older backend", `{"success":true}`, 200, "null", "null", false},
+		{"new device", `{"success":true,"ball_stock_remaining":0,"ball_stock_total":0}`, 200, "0", "0", false},
+		{"stocked", `{"success":true,"ball_stock_remaining":123,"ball_stock_total":500}`, 200, "123", "500", false},
+		{"dispensed", `{"success":true,"ball_stock_remaining":122,"ball_stock_total":500}`, 200, "122", "500", false},
+		{"rejected report", `{"success":false,"ball_stock_remaining":0,"ball_stock_total":0}`, 200, "122", "500", true},
+		{"server error", `{"success":true,"ball_stock_remaining":0,"ball_stock_total":0}`, 500, "122", "500", true},
+		{"negative remaining", `{"success":true,"ball_stock_remaining":-1,"ball_stock_total":500}`, 200, "122", "500", true},
+		{"negative total", `{"success":true,"ball_stock_remaining":1,"ball_stock_total":-1}`, 200, "122", "500", true},
+		{"fractional count", `{"success":true,"ball_stock_remaining":1.5,"ball_stock_total":500}`, 200, "122", "500", true},
+		{"string count", `{"success":true,"ball_stock_remaining":"1","ball_stock_total":500}`, 200, "122", "500", true},
+		{"sold out", `{"success":true,"ball_stock_remaining":0,"ball_stock_total":500}`, 200, "0", "500", false},
+		{"missing total", `{"success":true,"ball_stock_remaining":42}`, 200, "42", "null", false},
+		{"missing remaining", `{"success":true,"ball_stock_total":500}`, 200, "null", "500", false},
+		{"null stock", `{"success":true,"ball_stock_remaining":null,"ball_stock_total":null}`, 200, "null", "null", false},
+		{"missing stock clears cached values", `{"success":true}`, 200, "null", "null", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			response, statusCode = tt.response, tt.statusCode
+			if err := client.reportStatus(""); (err != nil) != tt.wantError {
+				t.Fatalf("reportStatus error = %v, want error = %v", err, tt.wantError)
+			}
+			client.SetPaymentID("")
+			snapshot := client.GetStateSnapshot()
+			encoded, err := json.Marshal(snapshot)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var fields map[string]json.RawMessage
+			if err := json.Unmarshal(encoded, &fields); err != nil {
+				t.Fatal(err)
+			}
+			if got := string(fields["ball_stock_remaining"]); got != tt.wantRemaining {
+				t.Errorf("ball_stock_remaining = %s, want %s", got, tt.wantRemaining)
+			}
+			if got := string(fields["ball_stock_total"]); got != tt.wantTotal {
+				t.Errorf("ball_stock_total = %s, want %s", got, tt.wantTotal)
+			}
+			if snapshot.BallStockRemaining != nil {
+				*snapshot.BallStockRemaining = 999
+			}
+			if snapshot.BallStockTotal != nil {
+				*snapshot.BallStockTotal = 999
+			}
+			again, err := json.Marshal(client.GetStateSnapshot())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if string(again) != string(encoded) {
+				t.Fatal("mutating snapshot stock must not change client state")
+			}
+		})
+	}
+}
+
 func TestReportStatusIncludesDispensedCountAndKeepsIt(t *testing.T) {
 	// After a successful ack the count must NOT be cleared — subsequent polls
 	// for the same payment_id must keep sending the same value so the server

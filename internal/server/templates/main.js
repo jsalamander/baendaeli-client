@@ -5,6 +5,7 @@ const paymentTitleEl = document.getElementById('paymentTitle');
 const paymentDescriptionEl = document.getElementById('paymentDescription');
 const deviceCommandOverlay = document.getElementById('deviceCommandOverlay');
 const deviceCommandMessage = document.getElementById('deviceCommandMessage');
+const ballStockBadge = document.getElementById('ballStockBadge');
 
 // Keep template config constants for compatibility/tests.
 const defaultAmount = {{ .DefaultAmount }};
@@ -252,7 +253,16 @@ function formatRemainingLabel(expiryMs) {
 	return String(mins).padStart(2, '0') + ':' + String(secs).padStart(2, '0');
 }
 
+function renderBallStock(data) {
+	const remaining = Number.isSafeInteger(data.ball_stock_remaining) && data.ball_stock_remaining >= 0
+		? data.ball_stock_remaining : '--';
+	const total = Number.isSafeInteger(data.ball_stock_total) && data.ball_stock_total >= 0
+		? data.ball_stock_total : '--';
+	ballStockBadge.textContent = 'Bälle: ' + remaining + ' / ' + total;
+}
+
 function renderDeviceState(data) {
+	renderBallStock(data);
 	const rawState = (data.state || '').toLowerCase();
 	const hasActivePayment = Boolean((data.payment_id || '').trim());
 	const phase = String((data.payment && (data.payment.payment_phase || data.payment.paymentPhase)) || '').toLowerCase().trim();
@@ -332,6 +342,7 @@ function checkDeviceStatus() {
 
 			if (consecutiveStatusFailures >= maxStatusFailuresBeforeOffline) {
 				updateDiagnostics({ ok: false, latencyMs: null, at: Date.now() });
+				renderBallStock({});
 				updateStatus('Gerätestatus nicht verfügbar', 'badge-error');
 				renderQrPlaceholder('Verbindung fehlt', 'Statusdaten konnten nicht geladen werden.');
 				deviceCommandOverlay.classList.add('hidden');

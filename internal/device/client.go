@@ -37,9 +37,11 @@ type StatusRequest struct {
 
 // StatusResponse is received from the server
 type StatusResponse struct {
-	Success bool   `json:"success"`
-	Error   string `json:"error,omitempty"`
-	Message string `json:"message,omitempty"`
+	Success            bool   `json:"success"`
+	Error              string `json:"error,omitempty"`
+	Message            string `json:"message,omitempty"`
+	BallStockRemaining *int   `json:"ball_stock_remaining"`
+	BallStockTotal     *int   `json:"ball_stock_total"`
 }
 
 // CommandResponse is received from the server
@@ -114,13 +116,15 @@ const (
 )
 
 type StateSnapshot struct {
-	State            string           `json:"state"`
-	Message          string           `json:"message,omitempty"`
-	PaymentID        string           `json:"payment_id,omitempty"`
-	Payment          map[string]any   `json:"payment,omitempty"`
-	Jammed           bool             `json:"jammed"`
-	ExecutingCommand *CommandResponse `json:"executing_command,omitempty"`
-	PendingCommand   *CommandResponse `json:"pending_command,omitempty"`
+	State              string           `json:"state"`
+	Message            string           `json:"message,omitempty"`
+	PaymentID          string           `json:"payment_id,omitempty"`
+	Payment            map[string]any   `json:"payment,omitempty"`
+	Jammed             bool             `json:"jammed"`
+	ExecutingCommand   *CommandResponse `json:"executing_command,omitempty"`
+	PendingCommand     *CommandResponse `json:"pending_command,omitempty"`
+	BallStockRemaining *int             `json:"ball_stock_remaining"`
+	BallStockTotal     *int             `json:"ball_stock_total"`
 }
 
 type breakBeamSensor interface {
@@ -167,19 +171,21 @@ type Client struct {
 	jammed           atomic.Bool
 
 	// Command execution status
-	statusMutex      sync.Mutex
-	executingCommand *CommandResponse
-	pendingCommand   *CommandResponse
-	pendingBallRef   *uint16
-	state            RuntimeState
-	stateGeneration  uint64
-	stateMessage     string
-	lastCommandError string // Error from last command execution
-	dispenseMutex    sync.Mutex
-	pendingDispense  *pendingDispense
-	logShipper       *logShipper
-	soldOutRetryAt   atomic.Int64 // unix nano; zero means not sold out
-	soldOutMessage   atomic.Value // string
+	statusMutex        sync.Mutex
+	executingCommand   *CommandResponse
+	pendingCommand     *CommandResponse
+	pendingBallRef     *uint16
+	state              RuntimeState
+	stateGeneration    uint64
+	stateMessage       string
+	ballStockRemaining *int
+	ballStockTotal     *int
+	lastCommandError   string // Error from last command execution
+	dispenseMutex      sync.Mutex
+	pendingDispense    *pendingDispense
+	logShipper         *logShipper
+	soldOutRetryAt     atomic.Int64 // unix nano; zero means not sold out
+	soldOutMessage     atomic.Value // string
 
 	// Actuator lock to prevent concurrent commands
 	actuatorMutex sync.Mutex
@@ -279,6 +285,15 @@ func (c *Client) GetStateSnapshot() StateSnapshot {
 	message := c.stateMessage
 	paymentID := c.currentPaymentID
 	payment := cloneMap(c.currentPayment)
+	var ballStockRemaining, ballStockTotal *int
+	if c.ballStockRemaining != nil {
+		value := *c.ballStockRemaining
+		ballStockRemaining = &value
+	}
+	if c.ballStockTotal != nil {
+		value := *c.ballStockTotal
+		ballStockTotal = &value
+	}
 
 	var cmdCopy *CommandResponse
 	var pendingCopy *CommandResponse
@@ -295,13 +310,15 @@ func (c *Client) GetStateSnapshot() StateSnapshot {
 	c.statusMutex.Unlock()
 
 	return StateSnapshot{
-		State:            string(state),
-		Message:          message,
-		PaymentID:        paymentID,
-		Payment:          payment,
-		Jammed:           c.jammed.Load(),
-		ExecutingCommand: cmdCopy,
-		PendingCommand:   pendingCopy,
+		State:              string(state),
+		Message:            message,
+		PaymentID:          paymentID,
+		Payment:            payment,
+		Jammed:             c.jammed.Load(),
+		ExecutingCommand:   cmdCopy,
+		PendingCommand:     pendingCopy,
+		BallStockRemaining: ballStockRemaining,
+		BallStockTotal:     ballStockTotal,
 	}
 }
 
@@ -770,6 +787,17 @@ func (c *Client) reportStatus(paymentID string) error {
 		}
 		return fmt.Errorf("server returned success=false")
 	}
+
+	if statusResp.BallStockRemaining != nil && *statusResp.BallStockRemaining < 0 {
+		return fmt.Errorf("invalid ball_stock_remaining: %d", *statusResp.BallStockRemaining)
+	}
+	if statusResp.BallStockTotal != nil && *statusResp.BallStockTotal < 0 {
+		return fmt.Errorf("invalid ball_stock_total: %d", *statusResp.BallStockTotal)
+	}
+	c.statusMutex.Lock()
+	c.ballStockRemaining = statusResp.BallStockRemaining
+	c.ballStockTotal = statusResp.BallStockTotal
+	c.statusMutex.Unlock()
 
 	// Do NOT clear pendingDispense after a successful ack.
 	// The count must remain at its confirmed value (e.g. 1) for all subsequent

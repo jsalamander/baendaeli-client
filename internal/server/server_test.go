@@ -140,6 +140,20 @@ func TestServeMainTemplate_SubstitutesConfig(t *testing.T) {
     if !strings.Contains(body, "fetch('/api/device/status')") {
         t.Fatalf("main.js should poll device status endpoint, body: %s", body)
     }
+    for _, fragment := range []string{
+        "renderBallStock(data);",
+        "Number.isSafeInteger(data.ball_stock_remaining)",
+        "Number.isSafeInteger(data.ball_stock_total)",
+        "ballStockBadge.textContent = 'Bälle: ' + remaining + ' / ' + total;",
+        "renderBallStock({});",
+    } {
+        if !strings.Contains(body, fragment) {
+            t.Fatalf("main.js missing stock rendering: %s", fragment)
+        }
+    }
+    if strings.Contains(body, "/api/v1/device/status") {
+        t.Fatal("the browser must not call the upstream status API")
+    }
     if strings.Contains(body, "createPayment(") {
         t.Fatalf("main.js should not orchestrate payment creation anymore, body: %s", body)
     }
@@ -312,6 +326,11 @@ func TestHandleDeviceStatusWithoutDeviceClient(t *testing.T) {
     if _, ok := body["pending_command"]; !ok {
         t.Fatal("expected pending_command field in default device status")
     }
+    for _, key := range []string{"ball_stock_remaining", "ball_stock_total"} {
+        if value, ok := body[key]; !ok || value != nil {
+            t.Fatalf("expected %s=null without a device client, got %v (present=%v)", key, value, ok)
+        }
+    }
 }
 
 func TestHandleDeviceStatusWithDeviceClientSnapshot(t *testing.T) {
@@ -345,11 +364,33 @@ func TestHandleDeviceStatusWithDeviceClientSnapshot(t *testing.T) {
     if body["state"] != string(device.StateStarting) {
         t.Fatalf("enabling the lever must not change the initial device state, got %v", body["state"])
     }
+    for _, key := range []string{"ball_stock_remaining", "ball_stock_total"} {
+        if value, ok := body[key]; !ok || value != nil {
+            t.Fatalf("expected %s=null before the first stock report, got %v (present=%v)", key, value, ok)
+        }
+    }
     for key := range body {
         switch key {
-        case "state", "message", "payment_id", "payment", "jammed", "executing_command", "pending_command":
+        case "state", "message", "payment_id", "payment", "jammed", "executing_command", "pending_command", "ball_stock_remaining", "ball_stock_total":
         default:
             t.Fatalf("lever configuration must preserve the device status response shape, unexpected key %q", key)
         }
+
+    }
+}
+
+func TestHandleIndexShowsBallStockBesideAPIBadge(t *testing.T) {
+    srv := newTestServer(&config.Config{}, nil)
+    rr := httptest.NewRecorder()
+    srv.Router().ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/", nil))
+    if rr.Code != http.StatusOK {
+        t.Fatalf("unexpected status: %d", rr.Code)
+    }
+    body := rr.Body.String()
+    diagnostics := strings.Index(body, `id="diagnosticsBadges">`)
+    stock := strings.Index(body, `id="ballStockBadge" aria-live="polite">Bälle: -- / --</div>`)
+    api := strings.Index(body, `id="gatewayStatusText"`)
+    if diagnostics < 0 || stock <= diagnostics || api <= stock {
+        t.Fatal("stock badge must be beside the API badge in the diagnostics container")
     }
 }

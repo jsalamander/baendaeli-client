@@ -7,6 +7,7 @@ The client for Baendae.li
 - **QR Code Payments**: Generate and display payment QR codes
 - **Real-time Status**: Live payment status tracking with visual feedback
 - **Internet Monitoring**: Real-time connectivity status display
+- **Ball Stock**: Server-reported remaining / total balls beside the API badge
 - **GPIO Actuator Support**: Optional linear actuator control via Raspberry Pi GPIO
 - **Free-Dispense Lever**: Optional KN3C-223 UP/DOWN switch for a free ball while awaiting payment
 - **Kiosk Mode**: Chromium fullscreen display for unattended operation

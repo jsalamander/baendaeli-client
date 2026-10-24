@@ -68,6 +68,24 @@ Authorization: Bearer <API_KEY>
 }
 ```
 
+Successful responses can include the authenticated device's stock:
+```json
+{
+  "success": true,
+  "ball_stock_remaining": 123,
+  "ball_stock_total": 500
+}
+```
+
+The client exposes these non-negative integers through the local
+`GET /api/device/status` endpoint and displays `Bälle: 123 / 500` beside the API
+badge. The values come from the latest successful status report, including the
+report immediately after a paid dispense; the browser does not fetch stock
+directly or calculate decrements. Missing or null fields are exposed as null
+and shown as `--`, so zero stock is distinct from unknown stock. Failed reports
+retain the last successful values. If the browser loses its local status
+connection, the badge returns to unknown along with the offline indicator.
+
 ### Get Command
 **GET** `/api/v1/device/commands`
 ```json

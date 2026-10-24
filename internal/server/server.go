@@ -304,12 +304,14 @@ func (s *Server) handleDeviceStatus(w http.ResponseWriter, r *http.Request) {
 	if s.deviceClient == nil {
 		w.WriteHeader(http.StatusOK)
 		json.NewEncoder(w).Encode(map[string]interface{}{
-			"state":            "idle",
-			"message":          "Device client not attached",
-			"payment_id":       "",
-			"jammed":           false,
-			"executing_command": nil,
-			"pending_command":  nil,
+			"state":                "idle",
+			"message":              "Device client not attached",
+			"payment_id":           "",
+			"jammed":               false,
+			"executing_command":    nil,
+			"pending_command":      nil,
+			"ball_stock_remaining": nil,
+			"ball_stock_total":     nil,
 		})
 		return
 	}
